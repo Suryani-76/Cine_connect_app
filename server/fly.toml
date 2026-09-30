@@ -1,0 +1,63 @@
+# Fly.io deployment config for CineConnect server
+# Deploy with: fly deploy --config server/fly.toml
+# Docs: https://fly.io/docs/reference/configuration/
+
+app = "cineconnect-server"
+primary_region = "bom"  # Mumbai — closest to target audience
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "3000"
+  NODE_ENV = "production"
+
+# Secrets (set via: fly secrets set KEY=value)
+# SUPABASE_URL
+# SUPABASE_SERVICE_ROLE_KEY
+# ALLOWED_ORIGINS
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 3000
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 200
+    soft_limit = 150
+
+  [[services.http_checks]]
+    interval = "30s"
+    timeout = "10s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+    protocol = "http"
+    tls_skip_verify = false
+
+[checks]
+  [checks.health]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/health"
+    port = 3000
+    timeout = "5s"
+    type = "http"
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
