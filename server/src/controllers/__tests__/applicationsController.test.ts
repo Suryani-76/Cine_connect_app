@@ -1,43 +1,70 @@
 import { describe, it, expect, vi } from 'vitest'
 import request from 'supertest'
-import express from 'express'
+import express, { Request, Response, NextFunction } from 'express'
 import { applicationsRouter } from '../../routes/applications'
 import { errorHandler } from '../../middleware/errorHandler'
 
+// ── Mock Supabase ─────────────────────────────────────────────
 vi.mock('../../db/supabase', () => ({
   supabase: {
-    from: vi.fn().mockReturnThis(),
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    single: vi.fn().mockResolvedValue({ data: null, error: null }),
-    insert: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
+    from:       vi.fn().mockReturnThis(),
+    select:     vi.fn().mockReturnThis(),
+    eq:         vi.fn().mockReturnThis(),
+    single:     vi.fn().mockResolvedValue({ data: null, error: null }),
+    insert:     vi.fn().mockReturnThis(),
+    update:     vi.fn().mockReturnThis(),
     maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    auth:       { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'test' } }, error: null }) },
   },
 }))
 
+// ── Mock requireAuth ──────────────────────────────────────────
 vi.mock('../../middleware/authMiddleware', () => ({
   requireAuth: vi.fn((_req: unknown, _res: unknown, next: () => void) => next()),
 }))
+
+// ── Mock callerContext with a talent caller ───────────────────
+vi.mock('../../middleware/callerContext', () => {
+  const fakeTalentCaller = {
+    userId:              'cccccccc-cccc-cccc-cccc-cccccccccccc',
+    role:                'talent' as const,
+    profileId:           'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    productionProfileId: null,
+    talentProfileId:     'dddddddd-dddd-dddd-dddd-dddddddddddd',
+  }
+
+  return {
+    loadCallerContext: vi.fn((req: Request, _res: Response, next: NextFunction) => {
+      req.caller = fakeTalentCaller
+      next()
+    }),
+    requireRole: vi.fn((_role: string) =>
+      (_req: Request, _res: Response, next: NextFunction) => next()
+    ),
+    requireJobOwner: vi.fn((_req: Request, _res: Response, next: NextFunction) => next()),
+    requireApplicationAccess: vi.fn((_mode: string) =>
+      (_req: Request, _res: Response, next: NextFunction) => next()
+    ),
+  }
+})
 
 const app = express()
 app.use(express.json())
 app.use('/applications', applicationsRouter)
 app.use(errorHandler)
 
+// ── Tests ─────────────────────────────────────────────────────
+
 describe('POST /applications', () => {
   it('returns 400 when job_id is missing', async () => {
-    const res = await request(app).post('/applications').send({
-      talent_profile_id: '123e4567-e89b-12d3-a456-426614174000',
-    })
+    const res = await request(app).post('/applications').send({})
     expect(res.status).toBe(400)
     expect(res.body).toHaveProperty('error')
   })
 
-  it('returns 400 when talent_profile_id is not a valid UUID', async () => {
+  it('returns 400 when job_id is not a valid UUID', async () => {
     const res = await request(app).post('/applications').send({
-      job_id: '123e4567-e89b-12d3-a456-426614174000',
-      talent_profile_id: 'not-a-uuid',
+      job_id: 'not-a-uuid',
     })
     expect(res.status).toBe(400)
     expect(res.body.error).toMatch(/UUID/i)
@@ -45,11 +72,20 @@ describe('POST /applications', () => {
 
   it('returns 400 when cover_note exceeds 1000 characters', async () => {
     const res = await request(app).post('/applications').send({
-      job_id: '123e4567-e89b-12d3-a456-426614174000',
-      talent_profile_id: '123e4567-e89b-12d3-a456-426614174001',
+      job_id:     '123e4567-e89b-12d3-a456-426614174000',
       cover_note: 'x'.repeat(1001),
     })
     expect(res.status).toBe(400)
+  })
+
+  it('does NOT accept talent_profile_id in body (derived from JWT)', async () => {
+    // talent_profile_id should be ignored — only job_id is accepted in body
+    const res = await request(app).post('/applications').send({
+      job_id:            '123e4567-e89b-12d3-a456-426614174000',
+      talent_profile_id: '123e4567-e89b-12d3-a456-426614174001',
+    })
+    // Not 400 — body validation passes; will fail at DB level from mock
+    expect(res.status).not.toBe(400)
   })
 })
 
@@ -69,13 +105,12 @@ describe('PUT /applications/:id/status', () => {
     expect(res.status).toBe(400)
   })
 
-  it('accepts all valid pipeline status values', async () => {
+  it('accepts all valid pipeline status values (not 400)', async () => {
     const validStatuses = ['applied', 'shortlisted', 'interview', 'hired', 'rejected']
     for (const status of validStatuses) {
       const res = await request(app)
         .put('/applications/123e4567-e89b-12d3-a456-426614174000/status')
         .send({ status })
-      // Will be 404 from mock (no real DB) but NOT 400 (validation passed)
       expect(res.status).not.toBe(400)
     }
   })
@@ -89,7 +124,8 @@ describe('GET /applications/:id/match-breakdown', () => {
   })
 
   it('returns 404 when application not found', async () => {
-    const res = await request(app).get('/applications/123e4567-e89b-12d3-a456-426614174000/match-breakdown')
+    const res = await request(app)
+      .get('/applications/123e4567-e89b-12d3-a456-426614174000/match-breakdown')
     expect(res.status).toBe(404)
   })
 })

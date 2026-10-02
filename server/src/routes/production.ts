@@ -1,11 +1,9 @@
 import { Router } from 'express'
 import { createProfile, getProfile } from '../controllers/productionController'
 import { requireAuth } from '../middleware/authMiddleware'
+import { loadCallerContext } from '../middleware/callerContext'
 
 export const productionRouter = Router()
 
-/** POST /production/profile  (authenticated) */
-productionRouter.post('/profile', requireAuth, createProfile)
-
-/** GET /production/profile/:id  (public) */
-productionRouter.get('/profile/:id', getProfile)
+productionRouter.post('/profile', requireAuth, loadCallerContext, createProfile)
+productionRouter.get('/profile/:id', getProfile)  // public

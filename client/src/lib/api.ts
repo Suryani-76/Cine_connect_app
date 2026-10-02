@@ -1,28 +1,35 @@
+import { supabase } from './supabase'
+
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
-// ── Generic fetch wrapper ─────────────────────────────────────
+// ── Generic fetch wrapper with 401-retry ──────────────────────
 
 async function request<T>(
   path: string,
   options: RequestInit = {},
   token?: string
 ): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
+  const doFetch = async (t: string | undefined) => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string>),
+    }
+    if (t) headers['Authorization'] = `Bearer ${t}`
+    return fetch(`${BASE_URL}${path}`, { ...options, headers })
   }
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
+  let res = await doFetch(token)
+
+  // On 401 try refreshing the session once, then retry
+  if (res.status === 401 && token) {
+    const { data } = await supabase.auth.refreshSession()
+    if (data.session) {
+      res = await doFetch(data.session.access_token)
+    }
   }
 
-  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers })
   const json = await res.json()
-
-  if (!res.ok) {
-    throw new Error((json as { error?: string }).error ?? 'Request failed')
-  }
-
+  if (!res.ok) throw new Error((json as { error?: string }).error ?? 'Request failed')
   return json as T
 }
 
@@ -67,8 +74,8 @@ export const authApi = {
 }
 // ── Production profile ────────────────────────────────────────
 
+/** user_id no longer sent — server derives from JWT */
 export interface CreateProfilePayload {
-  user_id: string
   company_name: string
   bio?: string
   production_details?: string
@@ -125,8 +132,8 @@ export interface JobRequirements {
   location: string | null
 }
 
+/** production_id no longer sent — server derives from JWT */
 export interface CreateJobPayload {
-  production_id: string
   title: string
   description: string
 }
@@ -198,8 +205,8 @@ export interface TalentProfile {
   created_at: string
 }
 
+/** user_id no longer sent — server derives from JWT */
 export interface CreateTalentProfilePayload {
-  user_id: string
   full_name?: string
   bio?: string
   role?: string
@@ -299,7 +306,8 @@ export interface ApplicationsResponse   { applications: ScoredApplication[] }
 export interface ApplicationResponse    { application: ScoredApplication }
 
 export const applicationsApi = {
-  apply: (payload: { job_id: string; talent_profile_id: string; cover_note?: string }, token: string) =>
+  /** talent_profile_id NOT sent — server derives from JWT */
+  apply: (payload: { job_id: string; cover_note?: string }, token: string) =>
     request<{ application: ScoredApplication }>('/applications', {
       method: 'POST',
       body:   JSON.stringify(payload),
@@ -381,33 +389,22 @@ export interface NotificationsResponse {
 export interface UnreadCountResponse { count: number }
 
 export const notificationsApi = {
-  list: (userId: string, token: string, unreadOnly = false) =>
+  list: (token: string, unreadOnly = false, limit = 50) =>
     request<NotificationsResponse>(
-      `/notifications?user_id=${userId}&unread_only=${unreadOnly}`,
-      {},
-      token
+      `/notifications?unread_only=${unreadOnly}&limit=${limit}`,
+      {}, token
     ),
 
-  unreadCount: (userId: string, token: string) =>
-    request<UnreadCountResponse>(
-      `/notifications/unread-count?user_id=${userId}`,
-      {},
-      token
-    ),
+  unreadCount: (token: string) =>
+    request<UnreadCountResponse>('/notifications/unread-count', {}, token),
 
   markRead: (notificationId: string, token: string) =>
     request<{ notification: AppNotification }>(
-      `/notifications/${notificationId}/read`,
-      { method: 'PUT' },
-      token
+      `/notifications/${notificationId}/read`, { method: 'PUT' }, token
     ),
 
-  markAllRead: (userId: string, token: string) =>
-    request<{ message: string }>(
-      `/notifications/read-all?user_id=${userId}`,
-      { method: 'PUT' },
-      token
-    ),
+  markAllRead: (token: string) =>
+    request<{ message: string }>('/notifications/read-all', { method: 'PUT' }, token),
 }
 
 // ── Dashboard ─────────────────────────────────────────────────
@@ -422,12 +419,8 @@ export interface DashboardStats {
 export interface DashboardStatsResponse { stats: DashboardStats }
 
 export const dashboardApi = {
-  stats: (productionId: string, userId: string, token: string) =>
-    request<DashboardStatsResponse>(
-      `/dashboard/stats?production_id=${productionId}&user_id=${userId}`,
-      {},
-      token
-    ),
+  stats: (token: string) =>
+    request<DashboardStatsResponse>('/dashboard/stats', {}, token),
 }
 
 // ── Saved Jobs ────────────────────────────────────────────────
@@ -435,19 +428,17 @@ export const dashboardApi = {
 export interface SavedJobsResponse { saved: { job_id: string }[] }
 
 export const savedJobsApi = {
-  list: (talentProfileId: string, token: string) =>
-    request<SavedJobsResponse>(`/saved-jobs?talent_profile_id=${talentProfileId}`, {}, token),
+  list: (token: string) =>
+    request<SavedJobsResponse>('/saved-jobs', {}, token),
 
-  save: (jobId: string, talentProfileId: string, token: string) =>
+  save: (jobId: string, token: string) =>
     request<{ ok: boolean }>('/saved-jobs', {
-      method: 'POST',
-      body: JSON.stringify({ job_id: jobId, talent_profile_id: talentProfileId }),
+      method: 'POST', body: JSON.stringify({ job_id: jobId }),
     }, token),
 
-  unsave: (jobId: string, talentProfileId: string, token: string) =>
+  unsave: (jobId: string, token: string) =>
     request<{ ok: boolean }>('/saved-jobs', {
-      method: 'DELETE',
-      body: JSON.stringify({ job_id: jobId, talent_profile_id: talentProfileId }),
+      method: 'DELETE', body: JSON.stringify({ job_id: jobId }),
     }, token),
 }
 
@@ -499,10 +490,10 @@ export interface TalentAlert {
 export interface TalentAlertsResponse { alerts: TalentAlert[] }
 
 export const talentAlertsApi = {
-  list: (userId: string, token: string) =>
-    request<TalentAlertsResponse>(`/talent-alerts?user_id=${userId}`, {}, token),
+  list: (token: string) =>
+    request<TalentAlertsResponse>('/talent-alerts', {}, token),
 
-  create: (payload: { user_id: string; label: string; skills?: string[]; role?: string; location?: string; language?: string }, token: string) =>
+  create: (payload: { label: string; skills?: string[]; role?: string; location?: string; language?: string }, token: string) =>
     request<{ alert: TalentAlert }>('/talent-alerts', { method: 'POST', body: JSON.stringify(payload) }, token),
 
   delete: (alertId: string, token: string) =>

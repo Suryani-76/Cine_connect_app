@@ -1,11 +1,10 @@
 import { Router } from 'express'
 import { createProfileHandler, searchHandler } from '../controllers/talentController'
 import { requireAuth } from '../middleware/authMiddleware'
+import { loadCallerContext } from '../middleware/callerContext'
 
 export const talentRouter = Router()
 
-/** POST /talent/profile   — authenticated talent user */
-talentRouter.post('/profile', requireAuth, createProfileHandler)
-
-/** GET  /talent/search?skills=&role=&location=&language=   — public */
-talentRouter.get('/search', searchHandler)
+talentRouter.post('/profile', requireAuth, loadCallerContext, createProfileHandler)
+// Step 0.6: search now requires auth + pagination
+talentRouter.get('/search',   requireAuth, loadCallerContext, searchHandler)

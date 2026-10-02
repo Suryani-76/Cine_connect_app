@@ -73,47 +73,35 @@ export interface SearchTalentFilter {
   role?: string
   location?: string
   language?: string
+  limit?: number
+  offset?: number
 }
 
 /**
  * Returns talent profiles matching the given filters.
- * All filters are optional and combined with AND logic.
- * Skills filter uses overlap (any skill match qualifies).
+ * Never returns email. Paginated (default 20, max 50).
  */
 export async function searchTalent(
   filter: SearchTalentFilter
 ): Promise<DbTalentProfile[]> {
+  const limit  = Math.min(filter.limit  ?? 20, 50)
+  const offset = filter.offset ?? 0
+
   let query = supabase
     .from('talent_profiles')
-    .select('id, user_id, full_name, bio, role, skills, experience_years, language, location, avatar_url, portfolio_url, last_active_at, created_at')
+    // explicitly exclude user_id to avoid leaking linkable identity
+    .select('id, full_name, bio, role, skills, experience_years, language, location, avatar_url, portfolio_url, last_active_at, created_at')
     .order('last_active_at', { ascending: false })
+    .range(offset, offset + limit - 1)
 
-  // Skill overlap: at least one required skill must be in talent's skills array
   if (filter.skills && filter.skills.length > 0) {
-    // Supabase overlaps operator: column && array
     query = query.overlaps('skills', filter.skills)
   }
-
-  // Case-insensitive role match using ilike
-  if (filter.role) {
-    query = query.ilike('role', `%${filter.role}%`)
-  }
-
-  // Case-insensitive location match
-  if (filter.location) {
-    query = query.ilike('location', `%${filter.location}%`)
-  }
-
-  // Case-insensitive language match
-  if (filter.language) {
-    query = query.ilike('language', `%${filter.language}%`)
-  }
+  if (filter.role)     query = query.ilike('role',     `%${filter.role}%`)
+  if (filter.location) query = query.ilike('location', `%${filter.location}%`)
+  if (filter.language) query = query.ilike('language', `%${filter.language}%`)
 
   const { data, error } = await query
-
-  if (error) {
-    throw Object.assign(new Error(error.message), { statusCode: 500 })
-  }
-
+  if (error) throw Object.assign(new Error(error.message), { statusCode: 500 })
   return (data ?? []) as DbTalentProfile[]
 }

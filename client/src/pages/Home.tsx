@@ -173,8 +173,8 @@ const ProductionHome = () => {
   }, [productionId, token])
 
   useEffect(() => {
-    if (!productionId || !userId || !token) { setLoadingStats(false); return }
-    dashboardApi.stats(productionId, userId, token)
+    if (!token) { setLoadingStats(false); return }
+    dashboardApi.stats(token)
       .then(r => setStats(r.stats))
       .catch(() => {})
       .finally(() => setLoadingStats(false))

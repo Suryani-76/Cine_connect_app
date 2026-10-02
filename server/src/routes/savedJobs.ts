@@ -1,35 +1,47 @@
 import { Router, Request, Response, NextFunction } from 'express'
+import { z } from 'zod'
 import { saveJob, unsaveJob, getSavedJobs } from '../services/savedJobsService'
 import { requireAuth } from '../middleware/authMiddleware'
+import { loadCallerContext, requireRole } from '../middleware/callerContext'
 
 export const savedJobsRouter = Router()
 
-/** GET  /saved-jobs?talent_profile_id= */
-savedJobsRouter.get('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const id = req.query.talent_profile_id as string
-    if (!id) { res.status(400).json({ error: 'talent_profile_id required' }); return }
-    const saved = await getSavedJobs(id)
-    res.json({ saved })
-  } catch (err) { next(err) }
-})
+const jobIdSchema = z.object({ job_id: z.string().uuid('job_id must be a valid UUID') })
 
-/** POST /saved-jobs { job_id, talent_profile_id } */
-savedJobsRouter.post('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { job_id, talent_profile_id } = req.body as { job_id: string; talent_profile_id: string }
-    if (!job_id || !talent_profile_id) { res.status(400).json({ error: 'job_id and talent_profile_id required' }); return }
-    await saveJob(job_id, talent_profile_id)
-    res.json({ ok: true })
-  } catch (err) { next(err) }
-})
+// All identity from req.caller.talentProfileId
 
-/** DELETE /saved-jobs { job_id, talent_profile_id } */
-savedJobsRouter.delete('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { job_id, talent_profile_id } = req.body as { job_id: string; talent_profile_id: string }
-    if (!job_id || !talent_profile_id) { res.status(400).json({ error: 'job_id and talent_profile_id required' }); return }
-    await unsaveJob(job_id, talent_profile_id)
-    res.json({ ok: true })
-  } catch (err) { next(err) }
-})
+savedJobsRouter.get('/',
+  requireAuth, loadCallerContext, requireRole('talent'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const profileId = req.caller!.talentProfileId!
+      const saved = await getSavedJobs(profileId)
+      res.json({ saved })
+    } catch (err) { next(err) }
+  })
+
+savedJobsRouter.post('/',
+  requireAuth, loadCallerContext, requireRole('talent'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = jobIdSchema.safeParse(req.body)
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues[0]?.message }); return
+      }
+      await saveJob(parsed.data.job_id, req.caller!.talentProfileId!)
+      res.json({ ok: true })
+    } catch (err) { next(err) }
+  })
+
+savedJobsRouter.delete('/',
+  requireAuth, loadCallerContext, requireRole('talent'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = jobIdSchema.safeParse(req.body)
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues[0]?.message }); return
+      }
+      await unsaveJob(parsed.data.job_id, req.caller!.talentProfileId!)
+      res.json({ ok: true })
+    } catch (err) { next(err) }
+  })

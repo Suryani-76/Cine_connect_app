@@ -9,15 +9,13 @@ import { usePageTitle } from '../hooks/usePageTitle'
 
 function ApplyModal({
   jobId,
-  talentProfileId,
   token,
   onClose,
   onSuccess,
 }: {
-  jobId:            string
-  talentProfileId:  string
-  token:            string
-  onClose:          () => void
+  jobId:   string
+  token:   string
+  onClose: () => void
   onSuccess:        () => void
 }) {
   const [coverNote, setCoverNote] = useState('')
@@ -30,7 +28,7 @@ function ApplyModal({
     setLoading(true)
     try {
       await applicationsApi.apply(
-        { job_id: jobId, talent_profile_id: talentProfileId, cover_note: coverNote.trim() || undefined },
+        { job_id: jobId, cover_note: coverNote.trim() || undefined },
         token
       )
       onSuccess()
@@ -271,10 +269,10 @@ const JobDetail = () => {
                   onClick={async () => {
                     if (!talentProfileId || !token) return
                     if (saved) {
-                      await savedJobsApi.unsave(job.id, talentProfileId, token).catch(() => {})
+                      await savedJobsApi.unsave(job.id, token).catch(() => {})
                       setSaved(false)
                     } else {
-                      await savedJobsApi.save(job.id, talentProfileId, token).catch(() => {})
+                      await savedJobsApi.save(job.id, token).catch(() => {})
                       setSaved(true)
                     }
                   }}
@@ -365,7 +363,6 @@ const JobDetail = () => {
       {showModal && token && (
         <ApplyModal
           jobId={job.id}
-          talentProfileId={talentProfileId}
           token={token}
           onClose={() => setModal(false)}
           onSuccess={() => { setModal(false); setApplied(true) }}

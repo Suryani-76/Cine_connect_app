@@ -16,6 +16,7 @@ const Applications  = lazy(() => import('./pages/Applications'))
 const Chat          = lazy(() => import('./pages/Chat'))
 const Profile       = lazy(() => import('./pages/Profile'))
 const JobDetail     = lazy(() => import('./pages/JobDetail'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 const NotFound      = lazy(() => import('./pages/NotFound'))
 
 function PageLoader() {
@@ -46,9 +47,10 @@ function App() {
         <Suspense fallback={<PageLoader />}>
           <Routes>
             {/* ── Public ── */}
-            <Route path="/login"    element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/verify"   element={<Verify />} />
+            <Route path="/login"          element={<Login />} />
+            <Route path="/register"       element={<Register />} />
+            <Route path="/verify"         element={<Verify />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* ── Onboarding ── */}
             <Route path="/create-profile" element={

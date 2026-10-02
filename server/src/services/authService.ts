@@ -2,56 +2,75 @@ import { supabase } from '../db/supabase'
 import { DbUser } from '../types'
 
 export interface RegisterInput {
-  email: string
+  email:    string
   password: string
   username: string
-  role: 'talent' | 'production'
+  role:     'talent' | 'production'
 }
 
 export interface VerifyOtpInput {
   email: string
-  otp: string
+  otp:   string
 }
 
 /**
- * 1. Creates the Supabase Auth user (sends OTP verification email).
- * 2. Inserts a row in public.users.
- *
- * The service-role key bypasses RLS so we can write the public.users row
- * immediately after signup without waiting for the user to verify.
+ * Registers a new user:
+ * 1. Pre-checks email + username availability (clean 409 on conflict).
+ * 2. Calls supabase.auth.admin.createUser with username+role in metadata.
+ * 3. The DB trigger handle_new_auth_user (migration 009) creates public.users automatically.
  */
 export async function registerUser(input: RegisterInput): Promise<DbUser> {
   const { email, password, username, role } = input
 
-  // Step 1 – create auth user; Supabase will send a 6-digit OTP email
+  // ── Pre-flight uniqueness checks ──────────────────────────
+  const { data: existingEmail } = await supabase
+    .from('users').select('id').eq('email', email).maybeSingle()
+  if (existingEmail) {
+    throw Object.assign(new Error('An account with this email already exists'), { statusCode: 409 })
+  }
+
+  const { data: existingUsername } = await supabase
+    .from('users').select('id').eq('username', username).maybeSingle()
+  if (existingUsername) {
+    throw Object.assign(new Error('This username is already taken'), { statusCode: 409 })
+  }
+
+  // ── Create auth.users row — trigger creates public.users ──
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email,
     password,
-    email_confirm: false, // force OTP verification flow
+    email_confirm: false,  // OTP verification flow
     user_metadata: { username, role },
   })
 
   if (authError || !authData.user) {
-    throw Object.assign(new Error(authError?.message ?? 'Registration failed'), {
-      statusCode: 400,
-    })
+    // Map Supabase duplicate errors to clean 409s
+    const msg = authError?.message ?? ''
+    if (msg.includes('already registered') || msg.includes('already been registered')) {
+      throw Object.assign(new Error('An account with this email already exists'), { statusCode: 409 })
+    }
+    throw Object.assign(new Error(msg || 'Registration failed'), { statusCode: 400 })
   }
 
+  // The trigger may take a moment; poll once with a short delay
   const userId = authData.user.id
+  await new Promise(r => setTimeout(r, 150))
 
-  // Step 2 – insert public.users profile row
-  const { data: userRow, error: dbError } = await supabase
-    .from('users')
-    .insert({ id: userId, email, username, role })
-    .select()
-    .single()
+  const { data: userRow } = await supabase
+    .from('users').select('*').eq('id', userId).single()
 
-  if (dbError) {
-    // Clean up the auth user so the email isn't locked
-    await supabase.auth.admin.deleteUser(userId)
-    throw Object.assign(new Error(dbError.message ?? 'Could not create user record'), {
-      statusCode: 500,
-    })
+  if (!userRow) {
+    // Trigger hasn't fired yet or failed — fall back to manual insert
+    const { data: fallback, error: fbErr } = await supabase
+      .from('users')
+      .insert({ id: userId, email, username, role })
+      .select().single()
+
+    if (fbErr) {
+      await supabase.auth.admin.deleteUser(userId)
+      throw Object.assign(new Error('Could not create user record'), { statusCode: 500 })
+    }
+    return fallback as DbUser
   }
 
   return userRow as DbUser
@@ -66,17 +85,12 @@ export async function verifyOtp(input: VerifyOtpInput) {
   const { data, error } = await supabase.auth.verifyOtp({
     email,
     token: otp,
-    type: 'email',
+    type:  'email',
   })
 
   if (error || !data.session) {
-    throw Object.assign(new Error(error?.message ?? 'Invalid or expired OTP'), {
-      statusCode: 400,
-    })
+    throw Object.assign(new Error(error?.message ?? 'Invalid or expired OTP'), { statusCode: 400 })
   }
 
-  return {
-    session: data.session,
-    user: data.user,
-  }
+  return { session: data.session, user: data.user }
 }

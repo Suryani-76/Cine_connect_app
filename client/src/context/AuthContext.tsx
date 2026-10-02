@@ -1,14 +1,8 @@
 import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  ReactNode,
+  createContext, useContext, useState,
+  useEffect, useCallback, ReactNode,
 } from 'react'
 import { supabase } from '../lib/supabase'
-
-// ── Types ─────────────────────────────────────────────────────
 
 export type UserRole = 'production' | 'talent'
 
@@ -26,13 +20,13 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  setSession:  (token: string, refreshToken: string, user: AuthUser) => void
-  setProfileId:(id: string) => void
-  logout:      () => Promise<void>
+  setSession:   (token: string, refreshToken: string, user: AuthUser) => void
+  setProfileId: (id: string) => void
+  logout:       () => Promise<void>
   isAuthenticated: boolean
 }
 
-// ── Storage helpers (localStorage so sessions survive tab close) ──
+// ── localStorage helpers ──────────────────────────────────────
 
 const KEYS = {
   token:     'cc_access_token',
@@ -43,7 +37,7 @@ const KEYS = {
   profileId: 'cc_profile_id',
 } as const
 
-const store = localStorage   // single swap point — change to sessionStorage here if needed
+const store = localStorage
 
 function persist(user: AuthUser, token: string, refreshToken: string) {
   store.setItem(KEYS.token,     token)
@@ -56,7 +50,6 @@ function persist(user: AuthUser, token: string, refreshToken: string) {
 
 function clearStorage() {
   Object.values(KEYS).forEach(k => store.removeItem(k))
-  // Clear legacy sessionStorage keys too (one-time migration)
   ;['access_token','refresh_token','user_id','production_id',
     'cc_access_token','cc_refresh_token','cc_user_id',
     'cc_user_email','cc_user_role','cc_profile_id',
@@ -64,41 +57,26 @@ function clearStorage() {
 }
 
 function loadFromStorage(): { user: AuthUser | null; token: string | null } {
-  // Try localStorage first, then fall back to sessionStorage (migration path)
-  const get = (key: string) =>
-    store.getItem(key) ?? sessionStorage.getItem(key) ?? null
+  const get = (key: string) => store.getItem(key) ?? sessionStorage.getItem(key) ?? null
 
-  const token     = get(KEYS.token)
-  const id        = get(KEYS.userId)
+  const token     = get(KEYS.token)     ?? get('access_token')
+  const id        = get(KEYS.userId)    ?? get('user_id')
   const email     = get(KEYS.userEmail)
-  const role      = get(KEYS.userRole) as UserRole | null
-  const profileId = get(KEYS.profileId)
+  const role      = get(KEYS.userRole)  as UserRole | null
+  const profileId = get(KEYS.profileId) ?? get('production_id')
 
-  // Also check old key names for one-time migration
-  const resolvedToken     = token ?? get('access_token')
-  const resolvedId        = id    ?? get('user_id')
-  const resolvedProfileId = profileId ?? get('production_id')
+  if (!token || !id || !email || !role) return { user: null, token: null }
 
-  if (!resolvedToken || !resolvedId || !email || !role) return { user: null, token: null }
-
-  // If we migrated from sessionStorage, re-persist to localStorage
-  if (!token && resolvedToken) {
-    store.setItem(KEYS.token, resolvedToken)
-    if (resolvedId)        store.setItem(KEYS.userId,    resolvedId)
-    if (email)             store.setItem(KEYS.userEmail, email)
-    if (role)              store.setItem(KEYS.userRole,  role)
-    if (resolvedProfileId) store.setItem(KEYS.profileId, resolvedProfileId)
+  // Migrate legacy sessionStorage keys to localStorage
+  if (!store.getItem(KEYS.token) && token) {
+    store.setItem(KEYS.token,     token)
+    if (id)        store.setItem(KEYS.userId,    id)
+    if (email)     store.setItem(KEYS.userEmail, email)
+    if (role)      store.setItem(KEYS.userRole,  role)
+    if (profileId) store.setItem(KEYS.profileId, profileId)
   }
 
-  return {
-    token: resolvedToken,
-    user: {
-      id:        resolvedId,
-      email,
-      role,
-      profileId: resolvedProfileId ?? null,
-    },
-  }
+  return { token, user: { id, email, role, profileId: profileId ?? null } }
 }
 
 // ── Context ───────────────────────────────────────────────────
@@ -108,27 +86,65 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(() => {
     const { user, token } = loadFromStorage()
-    return { user, token, loading: false }
+    return { user, token, loading: true }
   })
 
-  // Refresh Supabase JWT before it expires (runs every 50 min)
+  // ── Subscribe to Supabase auth events (replaces 50-min interval) ──
   useEffect(() => {
-    if (!state.token) return
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_OUT') {
+          clearStorage()
+          setState({ user: null, token: null, loading: false })
+          return
+        }
 
-    const refresh = async () => {
-      const { data, error } = await supabase.auth.refreshSession()
-      if (error || !data.session) return
-      const newToken   = data.session.access_token
-      const newRefresh = data.session.refresh_token
-      store.setItem(KEYS.token,   newToken)
-      store.setItem(KEYS.refresh, newRefresh)
-      setState(prev => ({ ...prev, token: newToken }))
-    }
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          if (!session) return
+          const newToken   = session.access_token
+          const newRefresh = session.refresh_token
 
-    refresh()
-    const id = setInterval(refresh, 50 * 60 * 1000)
-    return () => clearInterval(id)
-  }, [state.token])
+          store.setItem(KEYS.token,   newToken)
+          store.setItem(KEYS.refresh, newRefresh)
+
+          setState(prev => ({
+            ...prev,
+            token:   newToken,
+            loading: false,
+            user: prev.user
+              ? { ...prev.user }
+              : null,
+          }))
+          return
+        }
+
+        if (event === 'PASSWORD_RECOVERY') {
+          // Let the ResetPassword page handle this
+          setState(prev => ({ ...prev, loading: false }))
+          return
+        }
+
+        setState(prev => ({ ...prev, loading: false }))
+      }
+    )
+
+    // Initial session check
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        store.setItem(KEYS.token,   data.session.access_token)
+        store.setItem(KEYS.refresh, data.session.refresh_token)
+        setState(prev => ({
+          ...prev,
+          token:   data.session!.access_token,
+          loading: false,
+        }))
+      } else {
+        setState(prev => ({ ...prev, loading: false }))
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
 
   const setSession = useCallback(
     (token: string, refreshToken: string, user: AuthUser) => {
@@ -153,9 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       ...state,
-      setSession,
-      setProfileId,
-      logout,
+      setSession, setProfileId, logout,
       isAuthenticated: !!state.token && !!state.user,
     }}>
       {children}

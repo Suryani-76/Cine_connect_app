@@ -78,8 +78,8 @@ export function NotificationBell({ userId, token }: { userId: string; token: str
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const fetchCount = useCallback(() => {
-    if (!userId || !token) return
-    notificationsApi.unreadCount(userId, token).then(r => setUnread(r.count)).catch(() => {})
+    if (!token) return
+    notificationsApi.unreadCount(token).then(r => setUnread(r.count)).catch(() => {})
   }, [userId, token])
 
   useEffect(() => { fetchCount() }, [fetchCount])
@@ -101,7 +101,7 @@ export function NotificationBell({ userId, token }: { userId: string; token: str
   useEffect(() => {
     if (!open) return
     setLoading(true)
-    notificationsApi.list(userId, token)
+    notificationsApi.list(token)
       .then(r => { setNotifs(r.notifications); setUnread(r.unread_count) })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -125,7 +125,7 @@ export function NotificationBell({ userId, token }: { userId: string; token: str
 
   const handleMarkAllRead = async () => {
     try {
-      await notificationsApi.markAllRead(userId, token)
+      await notificationsApi.markAllRead(token)
       setNotifs(prev => prev.map(n => ({ ...n, read: true })))
       setUnread(0)
     } catch {}

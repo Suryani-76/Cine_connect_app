@@ -43,20 +43,24 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }))
 
 /** Strict limiter for auth endpoints: 10 attempts per 15 min per IP */
 const authLimiter = rateLimit({
-  windowMs:         15 * 60 * 1000,
-  max:              10,
-  standardHeaders:  true,
-  legacyHeaders:    false,
-  message:          { error: 'Too many attempts. Please try again in 15 minutes.' },
+  windowMs: 15 * 60 * 1000, max: 10,
+  standardHeaders: true, legacyHeaders: false,
+  message: { error: 'Too many attempts. Please try again in 15 minutes.' },
 })
 
 /** General API limiter: 300 req per min per IP */
 const generalLimiter = rateLimit({
-  windowMs:         60 * 1000,
-  max:              300,
-  standardHeaders:  true,
-  legacyHeaders:    false,
-  message:          { error: 'Too many requests. Please slow down.' },
+  windowMs: 60 * 1000, max: 300,
+  standardHeaders: true, legacyHeaders: false,
+  message: { error: 'Too many requests. Please slow down.' },
+})
+
+/** Step 0.3 — Dedicated rate limiter for job view recording: 30/min/IP */
+const viewLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 30,
+  standardHeaders: true, legacyHeaders: false,
+  message: { error: 'Too many view requests.' },
+  keyGenerator: (req) => req.ip ?? 'unknown',
 })
 
 app.use(generalLimiter)
@@ -65,7 +69,7 @@ app.use(generalLimiter)
 app.use('/health', healthRouter)
 app.use('/auth', authLimiter, authRouter)       // strict limit on auth
 app.use('/production', productionRouter)
-app.use('/jobs', jobsRouter)
+app.use('/jobs', viewLimiter, jobsRouter)
 app.use('/talent', talentRouter)
 app.use('/applications', applicationsRouter)
 app.use('/notifications', notificationsRouter)

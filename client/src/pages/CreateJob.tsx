@@ -118,9 +118,8 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
 const CreateJob = () => {
   usePageTitle('Create Job')
   const navigate = useNavigate()
-  const { user, token: authToken } = useAuth()
-  const accessToken  = authToken ?? ''
-  const productionId = user?.profileId ?? ''
+  const { token: authToken } = useAuth()
+  const accessToken = authToken ?? ''
 
   const [step, setStep]             = useState(1)
   const [createdJobId, setJobId]    = useState<string | null>(null)
@@ -143,7 +142,10 @@ const CreateJob = () => {
     if (Object.keys(err).length) { setS1Errors(err); return }
     setLoading(true)
     try {
-      const res = await jobsApi.create({ production_id: productionId, title: step1.title.trim(), description: step1.description.trim() }, accessToken)
+      const res = await jobsApi.create(
+        { title: step1.title.trim(), description: step1.description.trim() },
+        accessToken
+      )
       setJobId(res.job.id); setStep(2)
     } catch (e: unknown) { setServerError(e instanceof Error ? e.message : 'Failed') }
     finally { setLoading(false) }

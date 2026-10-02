@@ -19,8 +19,8 @@ function StepDot({ label, done, active }: { label: string; done?: boolean; activ
 interface ProdForm   { company_name: string; bio: string; production_details: string }
 interface ProdErrors { company_name?: string; bio?: string; production_details?: string }
 
-function ProductionForm({ userId, token, onDone }: {
-  userId: string; token: string; onDone: (id: string) => void
+function ProductionForm({ token, onDone }: {
+  token: string; onDone: (id: string) => void
 }) {
   const [form, setForm]     = useState<ProdForm>({ company_name: '', bio: '', production_details: '' })
   const [errors, setErrors] = useState<ProdErrors>({})
@@ -46,7 +46,7 @@ function ProductionForm({ userId, token, onDone }: {
     setLoading(true)
     try {
       const res = await productionApi.createProfile({
-        user_id: userId, company_name: form.company_name.trim(),
+        company_name: form.company_name.trim(),
         bio: form.bio.trim() || undefined,
         production_details: form.production_details.trim() || undefined,
       }, token)
@@ -101,8 +101,8 @@ function ProductionForm({ userId, token, onDone }: {
 interface TalentForm   { full_name: string; role: string; bio: string; skills: string; location: string; language: string }
 interface TalentErrors { full_name?: string; role?: string }
 
-function TalentForm({ userId, token, onDone }: {
-  userId: string; token: string; onDone: (id: string) => void
+function TalentForm({ token, onDone }: {
+  token: string; onDone: (id: string) => void
 }) {
   const [form, setForm]     = useState<TalentForm>({ full_name: '', role: '', bio: '', skills: '', location: '', language: '' })
   const [errors, setErrors] = useState<TalentErrors>({})
@@ -125,7 +125,7 @@ function TalentForm({ userId, token, onDone }: {
     try {
       const skills = form.skills ? form.skills.split(',').map(s => s.trim()).filter(Boolean) : []
       const res = await talentApi.createProfile({
-        user_id: userId, full_name: form.full_name.trim(), role: form.role.trim(),
+        full_name: form.full_name.trim(), role: form.role.trim(),
         bio: form.bio.trim() || undefined, skills,
         location: form.location.trim() || undefined, language: form.language.trim() || undefined,
       }, token)
@@ -201,7 +201,7 @@ const CreateProfile = () => {
   const { user, token, setProfileId } = useAuth()
 
   const state       = location.state as { user_id?: string; role?: string } | null
-  const userId      = state?.user_id ?? user?.id ?? ''
+  // userId removed from sub-forms — server derives identity from JWT
   const role        = (state?.role ?? user?.role ?? 'production') as 'production' | 'talent'
   const accessToken = token ?? ''
   const isProduction = role === 'production'
@@ -247,8 +247,8 @@ const CreateProfile = () => {
           </p>
 
           {isProduction
-            ? <ProductionForm userId={userId} token={accessToken} onDone={handleDone} />
-            : <TalentForm     userId={userId} token={accessToken} onDone={handleDone} />
+            ? <ProductionForm token={accessToken} onDone={handleDone} />
+            : <TalentForm     token={accessToken} onDone={handleDone} />
           }
         </div>
       </div>
