@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
-import { createJob, setRequirements, publishJob, listJobs, getApplicationsForJob, closeJob } from '../services/jobService'
+import { createJob, setRequirements, publishJob, listJobs, getApplicationsForJob, closeJob, getJobById } from '../services/jobService'
 import { JobStatus } from '../types'
 import { sanitizeObject } from '../utils/sanitize'
 
@@ -177,6 +177,28 @@ export const closeJobHandler = async (
       return
     }
     const job = await closeJob(id)
+    res.status(200).json({ job })
+  } catch (err) {
+    next(err)
+  }
+}
+
+/**
+ * GET /jobs/:id
+ * Returns a single published job with requirements + production house info.
+ */
+export const getJobByIdHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const id = jobId(req)
+    if (!isUuid(id)) {
+      res.status(400).json({ error: 'Invalid job id' })
+      return
+    }
+    const job = await getJobById(id)
     res.status(200).json({ job })
   } catch (err) {
     next(err)

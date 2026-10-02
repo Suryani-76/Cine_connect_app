@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Plus, Film, Users, Star, Bell } from 'lucide-react'
-import { jobsApi, dashboardApi, Job, DashboardStats } from '../lib/api'
+import { Plus, Film, Users, Star, Bell, ChevronRight } from 'lucide-react'
+import { jobsApi, applicationsApi, dashboardApi, Job, DashboardStats, MyApplication } from '../lib/api'
 import { NotificationBell } from '../components/NotificationBell'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -270,21 +270,46 @@ const ProductionHome = () => {
   )
 }
 
+// ── Application status badge ──────────────────────────────────
+
+const APP_STATUS: Record<string, string> = {
+  applied:     'bg-slate-100  text-slate-600   border-slate-200',
+  shortlisted: 'bg-blue-50    text-blue-700    border-blue-200',
+  interview:   'bg-amber-50   text-amber-700   border-amber-200',
+  hired:       'bg-emerald-50 text-emerald-700 border-emerald-200',
+  rejected:    'bg-red-50     text-red-600     border-red-200',
+}
+
 // ── Talent home ───────────────────────────────────────────────
 
 function TalentHome() {
   const { user, token } = useAuth()
-  const userId = user?.id ?? ''
-  const [browseJobs, setBrowseJobs] = useState<Job[]>([])
-  const [loadingBrowse, setLBrowse] = useState(true)
+  const userId          = user?.id        ?? ''
+  const profileId       = user?.profileId ?? ''
+  const accessToken     = token           ?? ''
+
+  const [browseJobs, setBrowseJobs]   = useState<Job[]>([])
+  const [myApps, setMyApps]           = useState<MyApplication[]>([])
+  const [loadingBrowse, setLBrowse]   = useState(true)
+  const [loadingApps, setLApps]       = useState(true)
   usePageTitle('Home')
 
+  // Load published jobs
   useEffect(() => {
     jobsApi.listPublished()
       .then(r => setBrowseJobs(r.jobs))
       .catch(() => {})
       .finally(() => setLBrowse(false))
   }, [])
+
+  // Load my applications
+  useEffect(() => {
+    if (!profileId || !accessToken) { setLApps(false); return }
+    applicationsApi.myApplications(profileId, accessToken)
+      .then(r => setMyApps(r.applications))
+      .catch(() => {})
+      .finally(() => setLApps(false))
+  }, [profileId, accessToken])
 
   return (
     <div className="page">
@@ -301,9 +326,75 @@ function TalentHome() {
         </div>
       </header>
 
-      <main className="page-content space-y-8">
+      <main className="page-content space-y-10">
+
+        {/* ── My Applications ─────────────────────────────────── */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="section-title">My Applications</h2>
+              <p className="text-sm text-content-tertiary mt-0.5">
+                {myApps.length === 0 ? 'Apply to jobs to track your progress' : `${myApps.length} application${myApps.length !== 1 ? 's' : ''}`}
+              </p>
+            </div>
+          </div>
+
+          {loadingApps && (
+            <div className="space-y-3">
+              {[1,2].map(i => <div key={i} className="card p-4 space-y-2"><div className="skeleton h-4 w-1/2" /><div className="skeleton h-3 w-1/3" /></div>)}
+            </div>
+          )}
+
+          {!loadingApps && myApps.length === 0 && (
+            <div className="card p-8 text-center border-dashed">
+              <p className="text-2xl mb-2">📋</p>
+              <p className="font-semibold text-content-heading mb-1">No applications yet</p>
+              <p className="text-sm text-content-tertiary">Browse open jobs below and apply to get started.</p>
+            </div>
+          )}
+
+          {!loadingApps && myApps.length > 0 && (
+            <div className="space-y-3">
+              {myApps.map(app => {
+                const job  = app.jobs
+                const prod = job.production_profiles
+                return (
+                  <Link key={app.id} to={`/jobs/${job.id}`}
+                    className="card-hover p-4 flex items-center gap-4 group">
+                    {/* Company initial */}
+                    <div className="w-10 h-10 rounded-xl bg-brand-navy flex items-center justify-center text-white font-bold text-sm shrink-0">
+                      {prod.company_name[0]?.toUpperCase()}
+                    </div>
+
+                    {/* Job info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-content-heading truncate">{job.title}</p>
+                      <p className="text-sm text-content-tertiary">{prod.company_name}</p>
+                    </div>
+
+                    {/* Status + score */}
+                    <div className="flex items-center gap-3 shrink-0">
+                      {app.match_score != null && (
+                        <span className="mono-text text-xs font-bold text-brand bg-blue-50 border border-brand/20 px-2 py-0.5 rounded-full">
+                          {Math.round(app.match_score)}%
+                        </span>
+                      )}
+                      <span className={`badge text-xs ${APP_STATUS[app.status] ?? APP_STATUS.applied}`}>
+                        {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                      </span>
+                      <ChevronRight size={14} className="text-content-muted group-hover:text-brand transition-colors" />
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* ── Open Jobs ───────────────────────────────────────── */}
         <section>
           <h2 className="section-title mb-4">Open Jobs</h2>
+
           {loadingBrowse && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {[1,2,3,4].map(i => (
@@ -313,18 +404,26 @@ function TalentHome() {
               ))}
             </div>
           )}
+
           {!loadingBrowse && browseJobs.length === 0 && (
-            <p className="text-content-tertiary text-sm">No open jobs right now.</p>
+            <p className="text-content-tertiary text-sm">No open jobs right now. Check back soon.</p>
           )}
+
           {!loadingBrowse && browseJobs.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {browseJobs.map(job => {
-                const req = job.job_requirements
+                const req   = job.job_requirements
                 const pills = [...(req?.roles?.slice(0,2) ?? []), ...(req?.skills?.slice(0,2) ?? [])]
+                const meta  = [req?.location, req?.language].filter(Boolean) as string[]
                 return (
-                  <div key={job.id} className="card-hover p-5">
-                    <h3 className="text-base font-semibold text-content-heading mb-2">{job.title}</h3>
-                    <p className="text-sm text-content-secondary line-clamp-2 mb-3">{job.description}</p>
+                  <Link key={job.id} to={`/jobs/${job.id}`} className="card-hover p-5 flex flex-col gap-3 group">
+                    <div>
+                      <h3 className="font-semibold text-content-heading leading-snug group-hover:text-brand transition-colors">
+                        {job.title}
+                      </h3>
+                      <p className="text-sm text-content-secondary line-clamp-2 mt-1">{job.description}</p>
+                    </div>
+
                     {pills.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
                         {pills.map(p => (
@@ -332,7 +431,16 @@ function TalentHome() {
                         ))}
                       </div>
                     )}
-                  </div>
+
+                    <div className="flex items-center justify-between mt-auto">
+                      <div className="flex gap-3 text-xs text-content-tertiary">
+                        {meta.map(m => <span key={m}>· {m}</span>)}
+                      </div>
+                      <span className="text-xs text-brand font-semibold group-hover:text-brand-dark transition-colors flex items-center gap-0.5">
+                        View & Apply <ChevronRight size={12} />
+                      </span>
+                    </div>
+                  </Link>
                 )
               })}
             </div>

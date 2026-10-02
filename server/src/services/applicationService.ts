@@ -222,3 +222,63 @@ export async function getMatchBreakdown(
     matching_skills: ms,
   }
 }
+
+// ── My applications (talent view) ────────────────────────────
+
+export interface MyApplication {
+  id: string
+  job_id: string
+  talent_profile_id: string
+  cover_note: string | null
+  status: ApplicationStatus
+  match_score: number | null
+  applied_at: string
+  created_at: string
+  jobs: {
+    id: string
+    title: string
+    description: string
+    status: string
+    created_at: string
+    production_profiles: {
+      id: string
+      company_name: string
+      logo_url: string | null
+    }
+    job_requirements: {
+      skills: string[]
+      roles: string[]
+      experience_level: string | null
+      language: string | null
+      location: string | null
+    } | null
+  }
+}
+
+/**
+ * Returns all applications submitted by a talent profile,
+ * with the job + production house info joined in.
+ * Sorted by applied_at descending (most recent first).
+ */
+export async function getMyApplications(
+  talentProfileId: string
+): Promise<MyApplication[]> {
+  const { data, error } = await supabase
+    .from('applications')
+    .select(`
+      id, job_id, talent_profile_id, cover_note, status, match_score, applied_at, created_at,
+      jobs (
+        id, title, description, status, created_at,
+        production_profiles ( id, company_name, logo_url ),
+        job_requirements ( skills, roles, experience_level, language, location )
+      )
+    `)
+    .eq('talent_profile_id', talentProfileId)
+    .order('applied_at', { ascending: false })
+
+  if (error) {
+    throw Object.assign(new Error(error.message), { statusCode: 500 })
+  }
+
+  return (data ?? []) as unknown as MyApplication[]
+}

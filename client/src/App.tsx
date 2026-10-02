@@ -15,6 +15,7 @@ const CreateJob     = lazy(() => import('./pages/CreateJob'))
 const Applications  = lazy(() => import('./pages/Applications'))
 const Chat          = lazy(() => import('./pages/Chat'))
 const Profile       = lazy(() => import('./pages/Profile'))
+const JobDetail     = lazy(() => import('./pages/JobDetail'))
 const NotFound      = lazy(() => import('./pages/NotFound'))
 
 function PageLoader() {
@@ -63,6 +64,9 @@ function App() {
             } />
             <Route path="/jobs/create" element={
               <ProtectedRoute><CreateJob /></ProtectedRoute>
+            } />
+            <Route path="/jobs/:id" element={
+              <ProtectedRoute><JobDetail /></ProtectedRoute>
             } />
             <Route path="/applications" element={
               <ProtectedRoute><Applications /></ProtectedRoute>

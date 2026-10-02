@@ -139,6 +139,16 @@ export interface SetRequirementsPayload {
   location?: string
 }
 
+export interface JobWithProduction extends Job {
+  production_profiles: {
+    id: string
+    company_name: string
+    bio: string | null
+    logo_url: string | null
+  }
+}
+
+export interface JobDetailResponse { job: JobWithProduction }
 export interface JobResponse { job: Job }
 export interface JobsResponse { jobs: Job[] }
 export interface RequirementsResponse { requirements: JobRequirements }
@@ -155,6 +165,9 @@ export const jobsApi = {
 
   close: (jobId: string, token: string) =>
     request<JobResponse>(`/jobs/${jobId}/close`, { method: 'POST' }, token),
+
+  getById: (jobId: string) =>
+    request<JobDetailResponse>(`/jobs/${jobId}`),
 
   list: (params: { production_id?: string; status?: JobStatus }, token?: string) => {
     const qs = new URLSearchParams()
@@ -303,7 +316,46 @@ export const applicationsApi = {
 
   matchBreakdown: (appId: string, token: string) =>
     request<MatchBreakdown>(`/applications/${appId}/match-breakdown`, {}, token),
+
+  myApplications: (talentProfileId: string, token: string) =>
+    request<MyApplicationsResponse>(
+      `/applications/my?talent_profile_id=${talentProfileId}`, {}, token
+    ),
 }
+
+// ── My applications (talent view) types ──────────────────────
+
+export interface MyApplication {
+  id:                string
+  job_id:            string
+  talent_profile_id: string
+  cover_note:        string | null
+  status:            ApplicationStatus
+  match_score:       number | null
+  applied_at:        string
+  created_at:        string
+  jobs: {
+    id:          string
+    title:       string
+    description: string
+    status:      string
+    created_at:  string
+    production_profiles: {
+      id:           string
+      company_name: string
+      logo_url:     string | null
+    }
+    job_requirements: {
+      skills:           string[]
+      roles:            string[]
+      experience_level: string | null
+      language:         string | null
+      location:         string | null
+    } | null
+  }
+}
+
+export interface MyApplicationsResponse { applications: MyApplication[] }
 
 // ── Notifications ─────────────────────────────────────────────
 

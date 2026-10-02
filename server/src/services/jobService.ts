@@ -274,3 +274,34 @@ export async function closeJob(jobId: string): Promise<DbJob> {
 
   return data as DbJob
 }
+
+// ── Get single job ────────────────────────────────────────────
+
+export interface DbJobWithProductionProfile extends DbJobWithRequirements {
+  production_profiles: {
+    id: string
+    company_name: string
+    bio: string | null
+    logo_url: string | null
+  }
+}
+
+export async function getJobById(jobId: string): Promise<DbJobWithProductionProfile> {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select(`
+      id, production_id, title, description, status, created_at,
+      job_requirements(id, job_id, skills, roles, experience_level, language, location),
+      production_profiles(id, company_name, bio, logo_url)
+    `)
+    .eq('id', jobId)
+    .single()
+
+  if (error || !data) {
+    throw Object.assign(new Error('Job not found'), { statusCode: 404 })
+  }
+
+  // Only return non-draft jobs to unauthenticated callers — service layer
+  // leaves the auth check to the controller so owners can preview drafts.
+  return data as unknown as DbJobWithProductionProfile
+}

@@ -4,6 +4,7 @@ import {
   createApplication,
   updateApplicationStatus,
   getMatchBreakdown,
+  getMyApplications,
 } from '../services/applicationService'
 import { APPLICATION_STATUSES } from '../types'
 import { sanitizeObject } from '../utils/sanitize'
@@ -108,6 +109,30 @@ export const matchBreakdownHandler = async (
 
     const breakdown = await getMatchBreakdown(id)
     res.status(200).json(breakdown)
+  } catch (err) {
+    next(err)
+  }
+}
+
+/**
+ * GET /applications/my?talent_profile_id=
+ * Returns all applications for a talent, with job + production info.
+ */
+export const myApplicationsHandler = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const talent_profile_id = req.query.talent_profile_id as string | undefined
+
+    if (!talent_profile_id || !isUuid(talent_profile_id)) {
+      res.status(400).json({ error: 'talent_profile_id (UUID) is required' })
+      return
+    }
+
+    const applications = await getMyApplications(talent_profile_id)
+    res.status(200).json({ applications })
   } catch (err) {
     next(err)
   }
