@@ -1,17 +1,38 @@
 import { useState, FormEvent, KeyboardEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Check } from 'lucide-react'
-import { jobsApi, SetRequirementsPayload } from '../lib/api'
+import { jobsApi, SetRequirementsPayload, JobType, PayPeriod } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 
-interface Step1Form { title: string; description: string }
+interface Step1Form {
+  title: string
+  description: string
+  job_type: JobType
+  pay_min: string
+  pay_max: string
+  pay_currency: string
+  pay_period: PayPeriod
+  start_date: string
+  end_date: string
+  openings: number
+  deadline: string
+}
+
 interface Step2Form {
   skills: string[]; roles: string[]
   experience_level: 'entry' | 'mid' | 'senior' | 'any' | ''
   language: string; location: string
 }
-interface Step1Errors { title?: string; description?: string }
+
+interface Step1Errors {
+  title?: string
+  description?: string
+  pay?: string
+  dates?: string
+  openings?: string
+  deadline?: string
+}
 interface Step2Errors { skills?: string; roles?: string }
 
 const EXP_OPTIONS: { value: Step2Form['experience_level']; label: string }[] = [
@@ -20,6 +41,21 @@ const EXP_OPTIONS: { value: Step2Form['experience_level']; label: string }[] = [
   { value: 'mid',    label: 'Mid'    },
   { value: 'senior', label: 'Senior' },
   { value: 'any',    label: 'Any'    },
+]
+
+const JOB_TYPE_OPTIONS: { value: JobType; label: string }[] = [
+  { value: 'freelance', label: 'Freelance' },
+  { value: 'contract',  label: 'Contract' },
+  { value: 'full_time', label: 'Full Time' },
+  { value: 'part_time', label: 'Part Time' },
+]
+
+const PAY_PERIOD_OPTIONS: { value: PayPeriod; label: string }[] = [
+  { value: 'project', label: 'Per Project' },
+  { value: 'hour',    label: 'Per Hour' },
+  { value: 'day',     label: 'Per Day' },
+  { value: 'week',    label: 'Per Week' },
+  { value: 'month',   label: 'Per Month' },
 ]
 
 // ── Step indicator ────────────────────────────────────────────
@@ -123,7 +159,19 @@ const CreateJob = () => {
 
   const [step, setStep]             = useState(1)
   const [createdJobId, setJobId]    = useState<string | null>(null)
-  const [step1, setStep1]           = useState<Step1Form>({ title: '', description: '' })
+  const [step1, setStep1]           = useState<Step1Form>({
+    title: '',
+    description: '',
+    job_type: 'freelance',
+    pay_min: '',
+    pay_max: '',
+    pay_currency: 'INR',
+    pay_period: 'project',
+    start_date: '',
+    end_date: '',
+    openings: 1,
+    deadline: '',
+  })
   const [step1Errors, setS1Errors]  = useState<Step1Errors>({})
   const [step2, setStep2]           = useState<Step2Form>({ skills: [], roles: [], experience_level: '', language: '', location: '' })
   const [step2Errors, setS2Errors]  = useState<Step2Errors>({})
@@ -137,16 +185,55 @@ const CreateJob = () => {
     const err: Step1Errors = {}
     if (!step1.title.trim()) err.title = 'Title is required'
     else if (step1.title.length < 3) err.title = 'Must be at least 3 characters'
+
     if (!step1.description.trim()) err.description = 'Description is required'
     else if (step1.description.length < 10) err.description = 'Must be at least 10 characters'
+
+    const pMin = step1.pay_min ? parseFloat(step1.pay_min) : undefined
+    const pMax = step1.pay_max ? parseFloat(step1.pay_max) : undefined
+    if (pMin !== undefined && pMin < 0) err.pay = 'Minimum pay cannot be negative'
+    if (pMax !== undefined && pMax < 0) err.pay = 'Maximum pay cannot be negative'
+    if (pMin !== undefined && pMax !== undefined && pMin > pMax) {
+      err.pay = 'Minimum pay cannot exceed maximum pay'
+    }
+
+    if (step1.start_date && step1.end_date && new Date(step1.start_date) > new Date(step1.end_date)) {
+      err.dates = 'Start date cannot be after end date'
+    }
+
+    if (step1.openings < 1) {
+      err.openings = 'At least 1 opening is required'
+    }
+
+    if (step1.deadline && isNaN(new Date(step1.deadline).getTime())) {
+      err.deadline = 'Invalid deadline date'
+    }
+
     if (Object.keys(err).length) { setS1Errors(err); return }
     setLoading(true)
+
+    const payload = {
+      title:        step1.title.trim(),
+      description:  step1.description.trim(),
+      job_type:     step1.job_type,
+      pay_min:      pMin ?? null,
+      pay_max:      pMax ?? null,
+      pay_currency: step1.pay_currency || 'INR',
+      pay_period:   step1.pay_period || 'project',
+      start_date:   step1.start_date || null,
+      end_date:     step1.end_date || null,
+      openings:     Number(step1.openings) || 1,
+      deadline:     step1.deadline ? new Date(step1.deadline).toISOString() : null,
+    }
+
     try {
-      const res = await jobsApi.create(
-        { title: step1.title.trim(), description: step1.description.trim() },
-        accessToken
-      )
-      setJobId(res.job.id); setStep(2)
+      if (createdJobId) {
+        await jobsApi.update(createdJobId, payload, accessToken)
+      } else {
+        const res = await jobsApi.create(payload, accessToken)
+        setJobId(res.job.id)
+      }
+      setStep(2)
     } catch (e: unknown) { setServerError(e instanceof Error ? e.message : 'Failed') }
     finally { setLoading(false) }
   }
@@ -210,6 +297,81 @@ const CreateJob = () => {
                 {step1Errors.title && <p className="mt-1.5 text-xs text-red-500">{step1Errors.title}</p>}
               </div>
 
+              {/* Job type & Openings */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="job-type" className="label">Job type</label>
+                  <select id="job-type" value={step1.job_type}
+                    onChange={e => setStep1(p => ({ ...p, job_type: e.target.value as JobType }))}
+                    className="input">
+                    {JOB_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="openings" className="label">Openings</label>
+                  <input id="openings" type="number" min={1} value={step1.openings}
+                    onChange={e => {
+                      const val = parseInt(e.target.value, 10)
+                      setStep1(p => ({ ...p, openings: isNaN(val) ? 1 : Math.max(1, val) }))
+                      setS1Errors(p => ({ ...p, openings: undefined }))
+                    }}
+                    className={step1Errors.openings ? 'input-error' : 'input'} />
+                  {step1Errors.openings && <p className="mt-1.5 text-xs text-red-500">{step1Errors.openings}</p>}
+                </div>
+              </div>
+
+              {/* Pay fields */}
+              <div>
+                <label className="label">Compensation (optional)</label>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                  <input id="pay-min" type="number" placeholder="Min (₹)" value={step1.pay_min}
+                    onChange={e => { setStep1(p => ({ ...p, pay_min: e.target.value })); setS1Errors(p => ({ ...p, pay: undefined })) }}
+                    className="input text-sm" />
+                  <input id="pay-max" type="number" placeholder="Max (₹)" value={step1.pay_max}
+                    onChange={e => { setStep1(p => ({ ...p, pay_max: e.target.value })); setS1Errors(p => ({ ...p, pay: undefined })) }}
+                    className="input text-sm" />
+                  <select id="pay-currency" value={step1.pay_currency}
+                    onChange={e => setStep1(p => ({ ...p, pay_currency: e.target.value }))}
+                    className="input text-sm">
+                    <option value="INR">INR (₹)</option>
+                    <option value="USD">USD ($)</option>
+                    <option value="EUR">EUR (€)</option>
+                    <option value="GBP">GBP (£)</option>
+                  </select>
+                  <select id="pay-period" value={step1.pay_period}
+                    onChange={e => setStep1(p => ({ ...p, pay_period: e.target.value as PayPeriod }))}
+                    className="input text-sm">
+                    {PAY_PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                {step1Errors.pay && <p className="mt-1.5 text-xs text-red-500">{step1Errors.pay}</p>}
+              </div>
+
+              {/* Dates & Deadline */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label htmlFor="start-date" className="label">Start date</label>
+                  <input id="start-date" type="date" value={step1.start_date}
+                    onChange={e => { setStep1(p => ({ ...p, start_date: e.target.value })); setS1Errors(p => ({ ...p, dates: undefined })) }}
+                    className="input text-sm" />
+                </div>
+                <div>
+                  <label htmlFor="end-date" className="label">End date</label>
+                  <input id="end-date" type="date" value={step1.end_date}
+                    onChange={e => { setStep1(p => ({ ...p, end_date: e.target.value })); setS1Errors(p => ({ ...p, dates: undefined })) }}
+                    className="input text-sm" />
+                </div>
+                <div>
+                  <label htmlFor="deadline" className="label">Apply deadline</label>
+                  <input id="deadline" type="datetime-local" value={step1.deadline}
+                    onChange={e => { setStep1(p => ({ ...p, deadline: e.target.value })); setS1Errors(p => ({ ...p, deadline: undefined })) }}
+                    className="input text-sm" />
+                </div>
+              </div>
+              {step1Errors.dates && <p className="mt-1 text-xs text-red-500">{step1Errors.dates}</p>}
+              {step1Errors.deadline && <p className="mt-1 text-xs text-red-500">{step1Errors.deadline}</p>}
+
+              {/* Description */}
               <div>
                 <div className="flex justify-between mb-1.5">
                   <label htmlFor="description" className="label mb-0">
@@ -219,9 +381,9 @@ const CreateJob = () => {
                     {descRemaining} left
                   </span>
                 </div>
-                <textarea id="description" rows={7} value={step1.description}
+                <textarea id="description" rows={6} value={step1.description}
                   onChange={e => { setStep1(p => ({ ...p, description: e.target.value })); setS1Errors(p => ({ ...p, description: undefined })) }}
-                  placeholder="Describe the role, responsibilities, shoot schedule, compensation…"
+                  placeholder="Describe the role, responsibilities, shoot schedule, requirements…"
                   className={`${step1Errors.description ? 'input-error' : 'input'} resize-none`} />
                 {step1Errors.description && <p className="mt-1.5 text-xs text-red-500">{step1Errors.description}</p>}
               </div>
@@ -298,6 +460,40 @@ const CreateJob = () => {
                     <p className="text-xs text-content-tertiary mb-0.5">Title</p>
                     <p className="font-semibold text-content-heading">{step1.title}</p>
                   </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-xs text-content-tertiary">Type: </span>
+                      <span className="font-medium capitalize">{step1.job_type.replace('_', ' ')}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-content-tertiary">Openings: </span>
+                      <span className="font-medium">{step1.openings}</span>
+                    </div>
+                  </div>
+                  {(step1.pay_min || step1.pay_max) && (
+                    <div>
+                      <p className="text-xs text-content-tertiary mb-0.5">Pay</p>
+                      <p className="text-sm font-medium text-content-primary">
+                        {step1.pay_currency} {step1.pay_min || '0'} {step1.pay_max ? `– ${step1.pay_max}` : ''} / {step1.pay_period}
+                      </p>
+                    </div>
+                  )}
+                  {(step1.start_date || step1.end_date) && (
+                    <div>
+                      <p className="text-xs text-content-tertiary mb-0.5">Dates</p>
+                      <p className="text-sm font-medium text-content-primary">
+                        {step1.start_date || 'TBD'} to {step1.end_date || 'TBD'}
+                      </p>
+                    </div>
+                  )}
+                  {step1.deadline && (
+                    <div>
+                      <p className="text-xs text-content-tertiary mb-0.5">Application Deadline</p>
+                      <p className="text-sm font-medium text-amber-700">
+                        {new Date(step1.deadline).toLocaleString()}
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs text-content-tertiary mb-0.5">Description</p>
                     <p className="text-sm text-content-secondary whitespace-pre-wrap line-clamp-4">{step1.description}</p>
@@ -337,3 +533,4 @@ const CreateJob = () => {
 }
 
 export default CreateJob
+

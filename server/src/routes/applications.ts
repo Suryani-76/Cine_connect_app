@@ -2,6 +2,7 @@ import { Router } from 'express'
 import {
   createApplicationHandler, updateStatusHandler,
   matchBreakdownHandler, myApplicationsHandler,
+  withdrawApplicationHandler,
 } from '../controllers/applicationsController'
 import { requireAuth } from '../middleware/authMiddleware'
 import { loadCallerContext, requireApplicationAccess } from '../middleware/callerContext'
@@ -16,6 +17,10 @@ applicationsRouter.get('/my',
 applicationsRouter.post('/',
   requireAuth, loadCallerContext, createApplicationHandler)
 
+// POST /applications/:id/withdraw — applicant only
+applicationsRouter.post('/:id/withdraw',
+  requireAuth, loadCallerContext, requireApplicationAccess('talent-owner'), withdrawApplicationHandler)
+
 // PUT /applications/:id/status — production owner only
 applicationsRouter.put('/:id/status',
   requireAuth, loadCallerContext, requireApplicationAccess('production-owner'), updateStatusHandler)
@@ -23,3 +28,4 @@ applicationsRouter.put('/:id/status',
 // GET /applications/:id/match-breakdown — production owner OR the applicant
 applicationsRouter.get('/:id/match-breakdown',
   requireAuth, loadCallerContext, requireApplicationAccess('any-party'), matchBreakdownHandler)
+

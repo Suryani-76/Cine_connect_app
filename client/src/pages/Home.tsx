@@ -279,6 +279,7 @@ const APP_STATUS: Record<string, string> = {
   interview:   'bg-amber-50   text-amber-700   border-amber-200',
   hired:       'bg-emerald-50 text-emerald-700 border-emerald-200',
   rejected:    'bg-red-50     text-red-600     border-red-200',
+  withdrawn:   'bg-zinc-100   text-zinc-500    border-zinc-200',
 }
 
 // ── Talent home ───────────────────────────────────────────────
@@ -293,7 +294,23 @@ function TalentHome() {
   const [myApps, setMyApps]           = useState<MyApplication[]>([])
   const [loadingBrowse, setLBrowse]   = useState(true)
   const [loadingApps, setLApps]       = useState(true)
+  const [withdrawingId, setWithdrawingId] = useState<string | null>(null)
   usePageTitle('Home')
+
+  const handleWithdraw = async (e: React.MouseEvent, appId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!confirm('Are you sure you want to withdraw your application?')) return
+    setWithdrawingId(appId)
+    try {
+      await applicationsApi.withdraw(appId, accessToken)
+      setMyApps(prev => prev.map(a => a.id === appId ? { ...a, status: 'withdrawn' } : a))
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to withdraw application')
+    } finally {
+      setWithdrawingId(null)
+    }
+  }
 
   // Load published jobs
   useEffect(() => {
@@ -375,6 +392,7 @@ function TalentHome() {
               {myApps.map(app => {
                 const job  = app.jobs
                 const prod = job.production_profiles
+                const canWithdraw = ['applied', 'shortlisted', 'interview'].includes(app.status)
                 return (
                   <Link key={app.id} to={`/jobs/${job.id}`}
                     className="card-hover p-4 flex items-center gap-4 group">
@@ -389,7 +407,7 @@ function TalentHome() {
                       <p className="text-sm text-content-tertiary">{prod.company_name}</p>
                     </div>
 
-                    {/* Status + score */}
+                    {/* Status + score + withdraw */}
                     <div className="flex items-center gap-3 shrink-0">
                       {app.match_score != null && (
                         <span className="mono-text text-xs font-bold text-brand bg-blue-50 border border-brand/20 px-2 py-0.5 rounded-full">
@@ -399,6 +417,15 @@ function TalentHome() {
                       <span className={`badge text-xs ${APP_STATUS[app.status] ?? APP_STATUS.applied}`}>
                         {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
                       </span>
+                      {canWithdraw && (
+                        <button
+                          type="button"
+                          onClick={e => handleWithdraw(e, app.id)}
+                          disabled={withdrawingId === app.id}
+                          className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded border border-red-200 hover:bg-red-50 transition-colors">
+                          {withdrawingId === app.id ? '…' : 'Withdraw'}
+                        </button>
+                      )}
                       <ChevronRight size={14} className="text-content-muted group-hover:text-brand transition-colors" />
                     </div>
                   </Link>

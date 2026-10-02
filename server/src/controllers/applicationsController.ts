@@ -5,6 +5,7 @@ import {
   updateApplicationStatus,
   getMatchBreakdown,
   getMyApplications,
+  withdrawApplication,
 } from '../services/applicationService'
 import { APPLICATION_STATUSES, ApplicationStatus } from '../types'
 import { sanitizeObject } from '../utils/sanitize'
@@ -27,6 +28,7 @@ const TRANSITIONS: Record<ApplicationStatus, ApplicationStatus[]> = {
   interview:   ['hired',       'rejected'],
   hired:       [],
   rejected:    [],
+  withdrawn:   [],
 }
 
 // ── Schemas ───────────────────────────────────────────────────
@@ -41,6 +43,7 @@ const updateStatusSchema = z.object({
   status: z.enum(APPLICATION_STATUSES as [string, ...string[]], {
     error: `status must be one of: ${APPLICATION_STATUSES.join(', ')}`,
   }),
+  interview_at: z.string().nullable().optional(),
 })
 
 // ── POST /applications — talent only; identity from caller ────
@@ -103,7 +106,26 @@ export const updateStatusHandler = async (
       return
     }
 
-    const application = await updateApplicationStatus(id, newStatus)
+    const application = await updateApplicationStatus(id, newStatus, parsed.data.interview_at)
+    res.status(200).json({ application })
+  } catch (err) { next(err) }
+}
+
+// ── POST /applications/:id/withdraw — applicant only ──────────
+
+export const withdrawApplicationHandler = async (
+  req: Request, res: Response, next: NextFunction
+): Promise<void> => {
+  try {
+    const caller = req.caller!
+    if (caller.role !== 'talent' || !caller.talentProfileId) {
+      res.status(403).json({ error: 'Talent account required' }); return
+    }
+
+    const id = appId(req)
+    if (!isUuid(id)) { res.status(400).json({ error: 'Invalid application id' }); return }
+
+    const application = await withdrawApplication(id, caller.talentProfileId)
     res.status(200).json({ application })
   } catch (err) { next(err) }
 }

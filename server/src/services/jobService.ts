@@ -1,5 +1,5 @@
 import { supabase } from '../db/supabase'
-import { DbJob, DbJobRequirements, DbJobWithRequirements, JobStatus, ScoredApplication, JobForScoring, TalentForScoring } from '../types'
+import { DbJob, DbJobRequirements, DbJobWithRequirements, JobStatus, JobType, PayPeriod, ScoredApplication, JobForScoring, TalentForScoring, NotificationType } from '../types'
 import { calculateMatchScore, matchingSkills } from './matchScore'
 
 // ── Create ────────────────────────────────────────────────────
@@ -8,6 +8,15 @@ export interface CreateJobInput {
   production_id: string
   title: string
   description: string
+  job_type?: JobType
+  pay_min?: number | null
+  pay_max?: number | null
+  pay_currency?: string
+  pay_period?: PayPeriod
+  start_date?: string | null
+  end_date?: string | null
+  openings?: number
+  deadline?: string | null
 }
 
 export async function createJob(input: CreateJobInput): Promise<DbJob> {
@@ -28,6 +37,15 @@ export async function createJob(input: CreateJobInput): Promise<DbJob> {
       production_id: input.production_id,
       title: input.title,
       description: input.description,
+      job_type: input.job_type ?? 'freelance',
+      pay_min: input.pay_min ?? null,
+      pay_max: input.pay_max ?? null,
+      pay_currency: input.pay_currency ?? 'INR',
+      pay_period: input.pay_period ?? 'project',
+      start_date: input.start_date ?? null,
+      end_date: input.end_date ?? null,
+      openings: input.openings ?? 1,
+      deadline: input.deadline ?? null,
     })
     .select()
     .single()
@@ -37,6 +55,114 @@ export async function createJob(input: CreateJobInput): Promise<DbJob> {
   }
 
   return data as DbJob
+}
+
+// ── Update ────────────────────────────────────────────────────
+
+export interface UpdateJobInput {
+  title?: string
+  description?: string
+  job_type?: JobType
+  pay_min?: number | null
+  pay_max?: number | null
+  pay_currency?: string
+  pay_period?: PayPeriod
+  start_date?: string | null
+  end_date?: string | null
+  openings?: number
+  deadline?: string | null
+}
+
+export async function updateJob(jobId: string, input: UpdateJobInput): Promise<DbJob> {
+  const { data: job, error: fetchError } = await supabase
+    .from('jobs')
+    .select('*')
+    .eq('id', jobId)
+    .single()
+
+  if (fetchError || !job) {
+    throw Object.assign(new Error('Job not found'), { statusCode: 404 })
+  }
+
+  if (job.status === 'closed') {
+    throw Object.assign(new Error('Cannot edit a closed job'), { statusCode: 409 })
+  }
+
+  if (job.status === 'published') {
+    if (input.title !== undefined && input.title !== job.title) {
+      throw Object.assign(new Error('Cannot edit title of a published job'), { statusCode: 400 })
+    }
+    if (input.job_type !== undefined && input.job_type !== job.job_type) {
+      throw Object.assign(new Error('Cannot edit job_type of a published job'), { statusCode: 400 })
+    }
+  }
+
+  const updatePayload: Record<string, unknown> = {}
+  if (input.title !== undefined) updatePayload.title = input.title
+  if (input.description !== undefined) updatePayload.description = input.description
+  if (input.job_type !== undefined) updatePayload.job_type = input.job_type
+  if (input.pay_min !== undefined) updatePayload.pay_min = input.pay_min
+  if (input.pay_max !== undefined) updatePayload.pay_max = input.pay_max
+  if (input.pay_currency !== undefined) updatePayload.pay_currency = input.pay_currency
+  if (input.pay_period !== undefined) updatePayload.pay_period = input.pay_period
+  if (input.start_date !== undefined) updatePayload.start_date = input.start_date
+  if (input.end_date !== undefined) updatePayload.end_date = input.end_date
+  if (input.openings !== undefined) updatePayload.openings = input.openings
+  if (input.deadline !== undefined) updatePayload.deadline = input.deadline
+
+  const { data, error } = await supabase
+    .from('jobs')
+    .update(updatePayload)
+    .eq('id', jobId)
+    .select()
+    .single()
+
+  if (error) {
+    throw Object.assign(new Error(error.message), { statusCode: 500 })
+  }
+
+  return data as DbJob
+}
+
+// ── Delete ────────────────────────────────────────────────────
+
+export async function deleteJob(jobId: string): Promise<void> {
+  const { data: job, error: jobErr } = await supabase
+    .from('jobs')
+    .select('id, status')
+    .eq('id', jobId)
+    .single()
+
+  if (jobErr || !job) {
+    throw Object.assign(new Error('Job not found'), { statusCode: 404 })
+  }
+
+  if (job.status !== 'draft') {
+    const { count, error: countErr } = await supabase
+      .from('applications')
+      .select('id', { count: 'exact', head: true })
+      .eq('job_id', jobId)
+
+    if (countErr) {
+      throw Object.assign(new Error(countErr.message), { statusCode: 500 })
+    }
+
+    if (count && count > 0) {
+      throw Object.assign(
+        new Error('Cannot delete a job with applications. Please close the job instead.'),
+        { statusCode: 409 }
+      )
+    }
+  }
+
+  const { error: delErr } = await supabase
+    .from('jobs')
+    .delete()
+    .eq('id', jobId)
+
+  if (delErr) {
+    throw Object.assign(new Error(delErr.message), { statusCode: 500 })
+  }
 }
 
 // ── Requirements ──────────────────────────────────────────────
@@ -144,7 +270,7 @@ export async function listJobs(
 ): Promise<DbJobWithRequirements[]> {
   let query = supabase
     .from('jobs')
-    .select('id, production_id, title, description, status, created_at, job_requirements(id, job_id, skills, roles, experience_level, language, location)')
+    .select('id, production_id, title, description, status, job_type, pay_min, pay_max, pay_currency, pay_period, start_date, end_date, openings, deadline, created_at, updated_at, job_requirements(id, job_id, skills, roles, experience_level, language, location)')
     .order('created_at', { ascending: false })
 
   if (filter.production_id) {
@@ -249,7 +375,7 @@ export async function getApplicationsForJob(
 export async function closeJob(jobId: string): Promise<DbJob> {
   const { data: job, error: fetchError } = await supabase
     .from('jobs')
-    .select('id, status')
+    .select('id, title, status')
     .eq('id', jobId)
     .single()
 
@@ -272,6 +398,39 @@ export async function closeJob(jobId: string): Promise<DbJob> {
     throw Object.assign(new Error(error.message), { statusCode: 500 })
   }
 
+  // Notify all non-final applicants (applied, shortlisted, interview)
+  try {
+    const { data: nonFinalApps } = await supabase
+      .from('applications')
+      .select('id, status, talent_profiles(user_id)')
+      .eq('job_id', jobId)
+      .in('status', ['applied', 'shortlisted', 'interview'])
+
+    if (nonFinalApps && nonFinalApps.length > 0) {
+      const notifs: { user_id: string; type: NotificationType; payload: Record<string, unknown> }[] = []
+      for (const app of nonFinalApps) {
+        const tp = (app as Record<string, unknown>).talent_profiles as { user_id?: string } | null
+        if (tp?.user_id) {
+          notifs.push({
+            user_id: tp.user_id,
+            type: 'job_closed',
+            payload: {
+              job_id: jobId,
+              job_title: job.title,
+              message: `The job "${job.title}" has been closed.`,
+            },
+          })
+        }
+      }
+
+      if (notifs.length > 0) {
+        await supabase.from('notifications').insert(notifs)
+      }
+    }
+  } catch (notifyErr) {
+    console.error('Failed to notify applicants of job closure:', notifyErr)
+  }
+
   return data as DbJob
 }
 
@@ -290,7 +449,7 @@ export async function getJobById(jobId: string): Promise<DbJobWithProductionProf
   const { data, error } = await supabase
     .from('jobs')
     .select(`
-      id, production_id, title, description, status, created_at,
+      id, production_id, title, description, status, job_type, pay_min, pay_max, pay_currency, pay_period, start_date, end_date, openings, deadline, created_at, updated_at,
       job_requirements(id, job_id, skills, roles, experience_level, language, location),
       production_profiles(id, company_name, bio, logo_url)
     `)
@@ -318,11 +477,12 @@ export interface JobAnalytics {
 export async function getJobAnalytics(jobId: string): Promise<JobAnalytics> {
   const [viewRes, appRes] = await Promise.all([
     supabase.from('job_views').select('id', { count: 'exact', head: true }).eq('job_id', jobId),
-    supabase.from('applications').select('match_score').eq('job_id', jobId),
+    supabase.from('applications').select('match_score, status').eq('job_id', jobId),
   ])
 
   const view_count = viewRes.count ?? 0
-  const apps = appRes.data ?? []
+  const allApps = (appRes.data ?? []) as { match_score: number | null; status?: string }[]
+  const apps = allApps.filter(a => a.status !== 'withdrawn')
   const applicant_count = apps.length
   const scores = apps.map((a: { match_score: number | null }) => a.match_score).filter((s): s is number => s !== null)
   const avg_match_score = scores.length > 0

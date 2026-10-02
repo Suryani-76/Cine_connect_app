@@ -114,6 +114,21 @@ describe('PUT /applications/:id/status', () => {
       expect(res.status).not.toBe(400)
     }
   })
+
+  it('accepts interview status with interview_at timestamp', async () => {
+    const res = await request(app)
+      .put('/applications/123e4567-e89b-12d3-a456-426614174000/status')
+      .send({ status: 'interview', interview_at: '2026-10-15T14:00:00Z' })
+    expect(res.status).not.toBe(400)
+  })
+})
+
+describe('POST /applications/:id/withdraw', () => {
+  it('returns 400 for invalid application id', async () => {
+    const res = await request(app).post('/applications/bad-id/withdraw')
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/Invalid application id/i)
+  })
 })
 
 describe('GET /applications/:id/match-breakdown', () => {
@@ -129,3 +144,4 @@ describe('GET /applications/:id/match-breakdown', () => {
     expect(res.status).toBe(404)
   })
 })
+

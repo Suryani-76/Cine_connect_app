@@ -180,15 +180,51 @@ const JobDetail = () => {
     )
   }
 
+function getDeadlineStatus(deadline: string | null | undefined): { text: string; isPassed: boolean; isUrgent: boolean } | null {
+  if (!deadline) return null
+  const d = new Date(deadline)
+  if (isNaN(d.getTime())) return null
+  const now = new Date()
+  const diffMs = d.getTime() - now.getTime()
+  if (diffMs <= 0) {
+    return { text: 'Deadline passed', isPassed: true, isUrgent: false }
+  }
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+  const diffDays = Math.floor(diffHours / 24)
+  if (diffDays > 0) {
+    const text = `${diffDays} day${diffDays > 1 ? 's' : ''} left (${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`
+    return { text, isPassed: false, isUrgent: diffDays <= 3 }
+  }
+  return {
+    text: `${diffHours} hour${diffHours !== 1 ? 's' : ''} left`,
+    isPassed: false,
+    isUrgent: true,
+  }
+}
+
   const req  = job.job_requirements
   const prod = job.production_profiles
   const isClosed    = job.status === 'closed'
   const isPublished = job.status === 'published'
+  const deadlineInfo = getDeadlineStatus(job.deadline)
+  const isDeadlinePassed = deadlineInfo?.isPassed ?? false
+  const canApply = isTalent && isPublished && !isClosed && !isDeadlinePassed && !applied
 
   const STATUS_STYLES: Record<string, string> = {
     draft:     'bg-amber-50  text-amber-700  border-amber-200',
     published: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     closed:    'bg-slate-100  text-slate-500  border-slate-200',
+  }
+
+  const formatPay = () => {
+    if (!job.pay_min && !job.pay_max) return null
+    const curr = job.pay_currency === 'INR' ? '₹' : (job.pay_currency ?? '₹')
+    const period = job.pay_period ? ` / ${job.pay_period}` : ''
+    if (job.pay_min && job.pay_max) {
+      return `${curr}${Number(job.pay_min).toLocaleString()} – ${curr}${Number(job.pay_max).toLocaleString()}${period}`
+    }
+    if (job.pay_min) return `From ${curr}${Number(job.pay_min).toLocaleString()}${period}`
+    return `Up to ${curr}${Number(job.pay_max).toLocaleString()}${period}`
   }
 
   return (
@@ -223,12 +259,22 @@ const JobDetail = () => {
         {/* Job header card */}
         <div className="card p-7 mb-5">
           <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex-1">
+            <div className="flex-1 min-w-[260px]">
               <div className="flex items-center gap-3 mb-2 flex-wrap">
                 <h1 className="text-2xl font-bold text-content-heading">{job.title}</h1>
                 <span className={`badge ${STATUS_STYLES[job.status]}`}>
                   {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
                 </span>
+                {job.job_type && (
+                  <span className="badge bg-purple-50 text-purple-700 border-purple-200 capitalize">
+                    {job.job_type.replace('_', ' ')}
+                  </span>
+                )}
+                {job.openings && job.openings > 1 && (
+                  <span className="badge bg-slate-50 text-slate-700 border-slate-200">
+                    {job.openings} openings
+                  </span>
+                )}
               </div>
 
               {/* Production house */}
@@ -238,7 +284,12 @@ const JobDetail = () => {
               </div>
 
               {/* Meta pills */}
-              <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-content-secondary">
+              <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-content-secondary">
+                {formatPay() && (
+                  <span className="flex items-center gap-1.5 font-medium text-content-primary">
+                    💰 {formatPay()}
+                  </span>
+                )}
                 {req?.location && (
                   <span className="flex items-center gap-1.5">
                     <MapPin size={14} className="text-content-tertiary" /> {req.location}
@@ -255,6 +306,20 @@ const JobDetail = () => {
                     {req.experience_level.charAt(0).toUpperCase() + req.experience_level.slice(1)} level
                   </span>
                 )}
+                {(job.start_date || job.end_date) && (
+                  <span className="flex items-center gap-1.5">
+                    🗓️ {job.start_date ? new Date(job.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD'}
+                    {' – '}
+                    {job.end_date ? new Date(job.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD'}
+                  </span>
+                )}
+                {deadlineInfo && (
+                  <span className={`flex items-center gap-1.5 font-medium ${
+                    deadlineInfo.isPassed ? 'text-red-600' : deadlineInfo.isUrgent ? 'text-amber-600' : 'text-content-secondary'
+                  }`}>
+                    ⏳ {deadlineInfo.text}
+                  </span>
+                )}
                 <span className="flex items-center gap-1.5">
                   <Clock size={14} className="text-content-tertiary" />
                   Posted {new Date(job.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
@@ -263,8 +328,8 @@ const JobDetail = () => {
             </div>
 
             {/* Apply + bookmark buttons */}
-            {isTalent && isPublished && !applied && (
-              <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
+              {isTalent && (
                 <button
                   onClick={async () => {
                     if (!talentProfileId || !token) return
@@ -281,21 +346,31 @@ const JobDetail = () => {
                     ${saved ? 'border-brand bg-brand/5 text-brand' : 'border-surface-border text-content-tertiary hover:border-brand hover:text-brand'}`}>
                   {saved ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
                 </button>
+              )}
+
+              {canApply && (
                 <button
                   onClick={() => { if (!talentProfileId) { navigate('/create-profile'); return } setModal(true) }}
                   className="btn-primary text-base px-6 py-3">
                   Apply now
                 </button>
-              </div>
-            )}
-            {isTalent && isClosed && (
-              <span className="text-sm text-content-tertiary italic">Applications closed</span>
-            )}
-            {applied && (
-              <span className="badge bg-emerald-50 border-emerald-200 text-emerald-700 text-sm px-3 py-1.5">
-                ✓ Applied
-              </span>
-            )}
+              )}
+              {isTalent && isClosed && (
+                <span className="badge bg-slate-100 text-slate-600 border-slate-200 text-sm px-3 py-1.5">
+                  Applications closed
+                </span>
+              )}
+              {isTalent && isPublished && !isClosed && isDeadlinePassed && (
+                <span className="badge bg-red-50 text-red-600 border-red-200 text-sm px-3 py-1.5">
+                  Deadline passed
+                </span>
+              )}
+              {applied && (
+                <span className="badge bg-emerald-50 border-emerald-200 text-emerald-700 text-sm px-3 py-1.5">
+                  ✓ Applied
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

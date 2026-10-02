@@ -4,6 +4,7 @@ import {
   createJob, setRequirements, publishJob, listJobs,
   getApplicationsForJob, closeJob, getJobById,
   getJobAnalytics, recordJobView, rankTalentForJob,
+  updateJob, deleteJob,
 } from '../services/jobService'
 import { JobStatus } from '../types'
 import { sanitizeObject } from '../utils/sanitize'
@@ -22,8 +23,63 @@ function jid(req: Request): string {
 
 // production_id removed — derived from caller
 const createJobSchema = z.object({
-  title:       z.string().min(3, 'Title must be at least 3 characters').max(160),
-  description: z.string().min(10, 'Description must be at least 10 characters').max(5000),
+  title:        z.string().min(3, 'Title must be at least 3 characters').max(160),
+  description:  z.string().min(10, 'Description must be at least 10 characters').max(5000),
+  job_type:     z.enum(['freelance', 'contract', 'full_time', 'part_time']).optional(),
+  pay_min:      z.number().nonnegative('pay_min must be >= 0').nullable().optional(),
+  pay_max:      z.number().nonnegative('pay_max must be >= 0').nullable().optional(),
+  pay_currency: z.string().max(10).optional(),
+  pay_period:   z.enum(['hour', 'day', 'week', 'month', 'project']).optional(),
+  start_date:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid start_date format (YYYY-MM-DD)').nullable().optional(),
+  end_date:     z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid end_date format (YYYY-MM-DD)').nullable().optional(),
+  openings:     z.number().int().min(1, 'Openings must be at least 1').optional(),
+  deadline:     z.string().nullable().optional(),
+}).refine(data => {
+  if (data.pay_min != null && data.pay_max != null) {
+    return data.pay_min <= data.pay_max
+  }
+  return true
+}, {
+  message: 'pay_min cannot exceed pay_max',
+  path: ['pay_min'],
+}).refine(data => {
+  if (data.start_date && data.end_date) {
+    return new Date(data.start_date) <= new Date(data.end_date)
+  }
+  return true
+}, {
+  message: 'start_date cannot be after end_date',
+  path: ['start_date'],
+})
+
+const updateJobSchema = z.object({
+  title:        z.string().min(3, 'Title must be at least 3 characters').max(160).optional(),
+  description:  z.string().min(10, 'Description must be at least 10 characters').max(5000).optional(),
+  job_type:     z.enum(['freelance', 'contract', 'full_time', 'part_time']).optional(),
+  pay_min:      z.number().nonnegative('pay_min must be >= 0').nullable().optional(),
+  pay_max:      z.number().nonnegative('pay_max must be >= 0').nullable().optional(),
+  pay_currency: z.string().max(10).optional(),
+  pay_period:   z.enum(['hour', 'day', 'week', 'month', 'project']).optional(),
+  start_date:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid start_date format (YYYY-MM-DD)').nullable().optional(),
+  end_date:     z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid end_date format (YYYY-MM-DD)').nullable().optional(),
+  openings:     z.number().int().min(1, 'Openings must be at least 1').optional(),
+  deadline:     z.string().nullable().optional(),
+}).refine(data => {
+  if (data.pay_min != null && data.pay_max != null) {
+    return data.pay_min <= data.pay_max
+  }
+  return true
+}, {
+  message: 'pay_min cannot exceed pay_max',
+  path: ['pay_min'],
+}).refine(data => {
+  if (data.start_date && data.end_date) {
+    return new Date(data.start_date) <= new Date(data.end_date)
+  }
+  return true
+}, {
+  message: 'start_date cannot be after end_date',
+  path: ['start_date'],
 })
 
 const requirementsSchema = z.object({
@@ -128,6 +184,37 @@ export const setRequirementsHandler = async (
 
     const requirements = await setRequirements({ job_id: id, ...parsed.data })
     res.status(200).json({ requirements })
+  } catch (err) { next(err) }
+}
+
+// ── PUT /jobs/:id — ownership via requireJobOwner ─────────────
+
+export const updateJobHandler = async (
+  req: Request, res: Response, next: NextFunction
+): Promise<void> => {
+  try {
+    const id = jid(req)
+    if (!isUuid(id)) { res.status(400).json({ error: 'Invalid job id' }); return }
+
+    const parsed = updateJobSchema.safeParse(req.body)
+    if (!parsed.success) { res.status(400).json({ error: firstZodError(parsed.error) }); return }
+
+    const job = await updateJob(id, sanitizeObject(parsed.data))
+    res.status(200).json({ job })
+  } catch (err) { next(err) }
+}
+
+// ── DELETE /jobs/:id — ownership via requireJobOwner ──────────
+
+export const deleteJobHandler = async (
+  req: Request, res: Response, next: NextFunction
+): Promise<void> => {
+  try {
+    const id = jid(req)
+    if (!isUuid(id)) { res.status(400).json({ error: 'Invalid job id' }); return }
+
+    await deleteJob(id)
+    res.status(200).json({ message: 'Job deleted successfully' })
   } catch (err) { next(err) }
 }
 

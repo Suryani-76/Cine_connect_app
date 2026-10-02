@@ -111,6 +111,8 @@ export const productionApi = {
 // ── Jobs ──────────────────────────────────────────────────────
 
 export type JobStatus = 'draft' | 'published' | 'closed'
+export type JobType = 'freelance' | 'contract' | 'full_time' | 'part_time'
+export type PayPeriod = 'hour' | 'day' | 'week' | 'month' | 'project'
 
 export interface Job {
   id: string
@@ -118,7 +120,17 @@ export interface Job {
   title: string
   description: string
   status: JobStatus
+  job_type?: JobType
+  pay_min?: number | null
+  pay_max?: number | null
+  pay_currency?: string
+  pay_period?: PayPeriod
+  start_date?: string | null
+  end_date?: string | null
+  openings?: number
+  deadline?: string | null
   created_at: string
+  updated_at?: string
   job_requirements?: JobRequirements | null
 }
 
@@ -136,6 +148,29 @@ export interface JobRequirements {
 export interface CreateJobPayload {
   title: string
   description: string
+  job_type?: JobType
+  pay_min?: number | null
+  pay_max?: number | null
+  pay_currency?: string
+  pay_period?: PayPeriod
+  start_date?: string | null
+  end_date?: string | null
+  openings?: number
+  deadline?: string | null
+}
+
+export interface UpdateJobPayload {
+  title?: string
+  description?: string
+  job_type?: JobType
+  pay_min?: number | null
+  pay_max?: number | null
+  pay_currency?: string
+  pay_period?: PayPeriod
+  start_date?: string | null
+  end_date?: string | null
+  openings?: number
+  deadline?: string | null
 }
 
 export interface SetRequirementsPayload {
@@ -163,6 +198,12 @@ export interface RequirementsResponse { requirements: JobRequirements }
 export const jobsApi = {
   create: (payload: CreateJobPayload, token: string) =>
     request<JobResponse>('/jobs', { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  update: (jobId: string, payload: UpdateJobPayload, token: string) =>
+    request<JobResponse>(`/jobs/${jobId}`, { method: 'PUT', body: JSON.stringify(payload) }, token),
+
+  delete: (jobId: string, token: string) =>
+    request<{ message: string }>(`/jobs/${jobId}`, { method: 'DELETE' }, token),
 
   setRequirements: (jobId: string, payload: SetRequirementsPayload, token: string) =>
     request<RequirementsResponse>(`/jobs/${jobId}/requirements`, { method: 'PUT', body: JSON.stringify(payload) }, token),
@@ -251,9 +292,10 @@ export type ApplicationStatus =
   | 'interview'
   | 'hired'
   | 'rejected'
+  | 'withdrawn'
 
 export const APPLICATION_STATUSES: ApplicationStatus[] = [
-  'applied', 'shortlisted', 'interview', 'hired', 'rejected',
+  'applied', 'shortlisted', 'interview', 'hired', 'rejected', 'withdrawn',
 ]
 
 export interface ScoreBreakdown {
@@ -298,6 +340,7 @@ export interface ScoredApplication {
   matching_skills:   string[]
   score_breakdown:   ScoreBreakdown
   applied_at:        string
+  interview_at?:     string | null
   created_at:        string
   talent_profiles:   TalentProfile
 }
@@ -316,10 +359,15 @@ export const applicationsApi = {
   forJob: (jobId: string, token: string) =>
     request<ApplicationsResponse>(`/jobs/${jobId}/applications`, {}, token),
 
-  updateStatus: (appId: string, status: ApplicationStatus, token: string) =>
+  updateStatus: (appId: string, status: ApplicationStatus, token: string, interview_at?: string) =>
     request<ApplicationResponse>(`/applications/${appId}/status`, {
       method: 'PUT',
-      body:   JSON.stringify({ status }),
+      body:   JSON.stringify({ status, interview_at: interview_at || undefined }),
+    }, token),
+
+  withdraw: (appId: string, token: string) =>
+    request<ApplicationResponse>(`/applications/${appId}/withdraw`, {
+      method: 'POST',
     }, token),
 
   matchBreakdown: (appId: string, token: string) =>
@@ -341,12 +389,22 @@ export interface MyApplication {
   status:            ApplicationStatus
   match_score:       number | null
   applied_at:        string
+  interview_at?:     string | null
   created_at:        string
   jobs: {
     id:          string
     title:       string
     description: string
     status:      string
+    job_type?:   JobType
+    pay_min?:    number | null
+    pay_max?:    number | null
+    pay_currency?: string
+    pay_period?: PayPeriod
+    start_date?: string | null
+    end_date?:   string | null
+    openings?:   number
+    deadline?:   string | null
     created_at:  string
     production_profiles: {
       id:           string

@@ -23,10 +23,10 @@ export async function createApplication(
 ): Promise<DbApplication> {
   const { job_id, talent_profile_id, cover_note } = input
 
-  // Guard: job must be published
+  // Guard: job must be published and deadline not passed
   const { data: job, error: jobErr } = await supabase
     .from('jobs')
-    .select('id, status, job_requirements(*)')
+    .select('id, status, deadline, job_requirements(*)')
     .eq('id', job_id)
     .single()
 
@@ -35,6 +35,12 @@ export async function createApplication(
   }
   if ((job as { status: string }).status !== 'published') {
     throw Object.assign(new Error('Can only apply to published jobs'), { statusCode: 409 })
+  }
+  if ((job as { deadline?: string | null }).deadline) {
+    const deadlineDate = new Date((job as { deadline: string }).deadline)
+    if (deadlineDate.getTime() < Date.now()) {
+      throw Object.assign(new Error('Application deadline has passed'), { statusCode: 409 })
+    }
   }
 
   // Guard: talent profile must exist
@@ -110,7 +116,8 @@ export async function createApplication(
 
 export async function updateApplicationStatus(
   applicationId: string,
-  status: ApplicationStatus
+  status: ApplicationStatus,
+  interview_at?: string | null
 ): Promise<DbApplication> {
   if (!APPLICATION_STATUSES.includes(status)) {
     throw Object.assign(
@@ -119,9 +126,14 @@ export async function updateApplicationStatus(
     )
   }
 
+  const updateFields: { status: ApplicationStatus; interview_at?: string | null } = { status }
+  if (status === 'interview') {
+    updateFields.interview_at = interview_at ?? null
+  }
+
   const { data, error } = await supabase
     .from('applications')
-    .update({ status })
+    .update(updateFields)
     .eq('id', applicationId)
     .select()
     .single()
@@ -132,6 +144,75 @@ export async function updateApplicationStatus(
 
   if (!data) {
     throw Object.assign(new Error('Application not found'), { statusCode: 404 })
+  }
+
+  // If status is 'hired', check if hired count >= openings, then auto-close job
+  if (status === 'hired') {
+    try {
+      const { data: appWithJob } = await supabase
+        .from('applications')
+        .select('job_id, jobs(id, openings, status)')
+        .eq('id', applicationId)
+        .single()
+
+      if (appWithJob?.job_id && appWithJob.jobs) {
+        const job = appWithJob.jobs as unknown as { id: string; openings: number; status: string }
+        if (job.status !== 'closed') {
+          const { count: hiredCount } = await supabase
+            .from('applications')
+            .select('id', { count: 'exact', head: true })
+            .eq('job_id', appWithJob.job_id)
+            .eq('status', 'hired')
+
+          if (hiredCount && hiredCount >= (job.openings ?? 1)) {
+            const { closeJob } = await import('./jobService')
+            await closeJob(appWithJob.job_id)
+          }
+        }
+      }
+    } catch (hiredErr) {
+      console.error('Failed to auto-close job after hiring:', hiredErr)
+    }
+  }
+
+  return data as DbApplication
+}
+
+export async function withdrawApplication(
+  applicationId: string,
+  talentProfileId: string
+): Promise<DbApplication> {
+  const { data: app, error: appErr } = await supabase
+    .from('applications')
+    .select('*')
+    .eq('id', applicationId)
+    .single()
+
+  if (appErr || !app) {
+    throw Object.assign(new Error('Application not found'), { statusCode: 404 })
+  }
+
+  if (app.talent_profile_id !== talentProfileId) {
+    throw Object.assign(new Error('Unauthorized to withdraw this application'), { statusCode: 403 })
+  }
+
+  const withdrawableStatuses: ApplicationStatus[] = ['applied', 'shortlisted', 'interview']
+  if (!withdrawableStatuses.includes(app.status)) {
+    throw Object.assign(
+      new Error(`Cannot withdraw an application that is already '${app.status}'`),
+      { statusCode: 409 }
+    )
+  }
+
+  const { data, error } = await supabase
+    .from('applications')
+    .update({ status: 'withdrawn' as ApplicationStatus })
+    .eq('id', applicationId)
+    .select()
+    .single()
+
+  if (error) {
+    throw Object.assign(new Error(error.message), { statusCode: 500 })
   }
 
   return data as DbApplication

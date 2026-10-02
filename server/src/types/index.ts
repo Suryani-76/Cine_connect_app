@@ -31,6 +31,8 @@ export interface DbProductionProfile {
 // ── Jobs ──────────────────────────────────────────────────────
 
 export type JobStatus = 'draft' | 'published' | 'closed'
+export type JobType = 'freelance' | 'contract' | 'full_time' | 'part_time'
+export type PayPeriod = 'hour' | 'day' | 'week' | 'month' | 'project'
 
 export interface DbJob {
   id: string
@@ -38,7 +40,17 @@ export interface DbJob {
   title: string
   description: string
   status: JobStatus
+  job_type: JobType
+  pay_min: number | null
+  pay_max: number | null
+  pay_currency: string
+  pay_period: PayPeriod
+  start_date: string | null
+  end_date: string | null
+  openings: number
+  deadline: string | null
   created_at: string
+  updated_at?: string
 }
 
 export interface DbJobRequirements {
@@ -81,9 +93,10 @@ export type ApplicationStatus =
   | 'interview'
   | 'hired'
   | 'rejected'
+  | 'withdrawn'
 
 export const APPLICATION_STATUSES: ApplicationStatus[] = [
-  'applied', 'shortlisted', 'interview', 'hired', 'rejected',
+  'applied', 'shortlisted', 'interview', 'hired', 'rejected', 'withdrawn',
 ]
 
 export interface DbApplication {
@@ -94,6 +107,7 @@ export interface DbApplication {
   status: ApplicationStatus
   match_score: number | null
   applied_at: string
+  interview_at: string | null
   created_at: string
 }
 
@@ -147,6 +161,7 @@ export type NotificationType =
   | 'new_application'
   | 'new_message'
   | 'high_match_talent'
+  | 'job_closed'
 
 export interface DbNotification {
   id:         string

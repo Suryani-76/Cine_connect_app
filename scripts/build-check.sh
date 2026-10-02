@@ -21,10 +21,10 @@ run_step() {
   echo -e "${BOLD}▶ ${label}${RESET}"
   if "$@"; then
     echo -e "${GREEN}  ✓ ${label} passed${RESET}"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     echo -e "${RED}  ✗ ${label} FAILED${RESET}"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
 }
 

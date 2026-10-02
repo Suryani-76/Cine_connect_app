@@ -129,3 +129,44 @@ describe('PUT /jobs/:id/requirements', () => {
     expect(res.status).toBe(400)
   })
 })
+
+describe('PUT /jobs/:id', () => {
+  it('returns 400 for invalid job id', async () => {
+    const res = await request(app).put('/jobs/bad-id').send({ title: 'New Title' })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/Invalid job id/)
+  })
+
+  it('returns 400 when pay_min > pay_max', async () => {
+    const res = await request(app)
+      .put('/jobs/123e4567-e89b-12d3-a456-426614174000')
+      .send({ pay_min: 50000, pay_max: 30000 })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/pay_min cannot exceed pay_max/)
+  })
+
+  it('returns 400 when start_date > end_date', async () => {
+    const res = await request(app)
+      .put('/jobs/123e4567-e89b-12d3-a456-426614174000')
+      .send({ start_date: '2026-12-01', end_date: '2026-11-01' })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/start_date cannot be after end_date/)
+  })
+
+  it('returns 400 when openings is less than 1', async () => {
+    const res = await request(app)
+      .put('/jobs/123e4567-e89b-12d3-a456-426614174000')
+      .send({ openings: 0 })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/Openings must be at least 1/)
+  })
+})
+
+describe('DELETE /jobs/:id', () => {
+  it('returns 400 for invalid job id', async () => {
+    const res = await request(app).delete('/jobs/bad-id')
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/Invalid job id/)
+  })
+})
+

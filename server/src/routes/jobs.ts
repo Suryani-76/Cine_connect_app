@@ -3,7 +3,7 @@ import {
   createJobHandler, setRequirementsHandler, publishJobHandler,
   listJobsHandler, getApplicationsHandler, closeJobHandler,
   getJobByIdHandler, getAnalyticsHandler, recordViewHandler,
-  talentMatchesHandler,
+  talentMatchesHandler, updateJobHandler, deleteJobHandler,
 } from '../controllers/jobController'
 import { requireAuth } from '../middleware/authMiddleware'
 import { loadCallerContext, requireRole, requireJobOwner } from '../middleware/callerContext'
@@ -21,6 +21,12 @@ jobsRouter.post('/:id/view',
 // Production owner only
 jobsRouter.post('/',
   requireAuth, loadCallerContext, requireRole('production'), createJobHandler)
+
+jobsRouter.put('/:id',
+  requireAuth, loadCallerContext, requireRole('production'), requireJobOwner, updateJobHandler)
+
+jobsRouter.delete('/:id',
+  requireAuth, loadCallerContext, requireRole('production'), requireJobOwner, deleteJobHandler)
 
 jobsRouter.put('/:id/requirements',
   requireAuth, loadCallerContext, requireRole('production'), requireJobOwner, setRequirementsHandler)

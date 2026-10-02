@@ -25,29 +25,31 @@ const STATUS_BADGE: Record<ApplicationStatus, string> = {
   interview:   'bg-amber-50    text-amber-700   border-amber-200',
   hired:       'bg-emerald-50  text-emerald-700 border-emerald-200',
   rejected:    'bg-red-50      text-red-600     border-red-200',
+  withdrawn:   'bg-zinc-100    text-zinc-500    border-zinc-200',
 }
 
 const ACTION_BTNS: {
   status: ApplicationStatus; label: string; cls: string; hide?: ApplicationStatus[]
 }[] = [
-  { status: 'shortlisted', label: 'Shortlist',          cls: 'border-brand/40    text-brand     hover:bg-brand/5',    hide: ['shortlisted','hired'] },
-  { status: 'interview',   label: 'Move to Interview',  cls: 'border-amber-400/50 text-amber-700 hover:bg-amber-50',  hide: ['interview','hired'] },
-  { status: 'hired',       label: 'Mark Hired',         cls: 'border-emerald-400/50 text-emerald-700 hover:bg-emerald-50', hide: ['hired'] },
-  { status: 'rejected',    label: 'Reject',             cls: 'border-red-300     text-red-500   hover:bg-red-50',     hide: ['rejected'] },
+  { status: 'shortlisted', label: 'Shortlist',          cls: 'border-brand/40    text-brand     hover:bg-brand/5',    hide: ['shortlisted','hired','withdrawn'] },
+  { status: 'interview',   label: 'Move to Interview',  cls: 'border-amber-400/50 text-amber-700 hover:bg-amber-50',  hide: ['interview','hired','withdrawn'] },
+  { status: 'hired',       label: 'Mark Hired',         cls: 'border-emerald-400/50 text-emerald-700 hover:bg-emerald-50', hide: ['hired','withdrawn'] },
+  { status: 'rejected',    label: 'Reject',             cls: 'border-red-300     text-red-500   hover:bg-red-50',     hide: ['rejected','withdrawn'] },
 ]
 
 // ── Pipeline indicator ────────────────────────────────────────
 
 function PipelineIndicator({ current }: { current: ApplicationStatus }) {
-  const stages   = PIPELINE.filter(p => p.status !== 'rejected')
-  const rejected = current === 'rejected'
-  const idx      = stages.findIndex(s => s.status === current)
+  const stages    = PIPELINE.filter(p => p.status !== 'rejected')
+  const rejected  = current === 'rejected'
+  const withdrawn = current === 'withdrawn'
+  const idx       = stages.findIndex(s => s.status === current)
 
   return (
     <div className="flex items-center mt-3">
       {stages.map((s, i) => {
-        const done   = !rejected && i <= idx
-        const active = !rejected && i === idx
+        const done   = !rejected && !withdrawn && i <= idx
+        const active = !rejected && !withdrawn && i === idx
         return (
           <div key={s.status} className="flex items-center flex-1 last:flex-none">
             <div className="flex flex-col items-center gap-1">
@@ -61,13 +63,16 @@ function PipelineIndicator({ current }: { current: ApplicationStatus }) {
             </div>
             {i < stages.length - 1 && (
               <div className={`flex-1 h-px mb-3 mx-0.5 transition-colors
-                ${!rejected && i < idx ? s.bar : 'bg-surface-border'}`} />
+                ${!rejected && !withdrawn && i < idx ? s.bar : 'bg-surface-border'}`} />
             )}
           </div>
         )
       })}
       {rejected && (
         <span className="ml-3 badge bg-red-50 text-red-600 border-red-200 text-[10px]">Rejected</span>
+      )}
+      {withdrawn && (
+        <span className="ml-3 badge bg-zinc-100 text-zinc-500 border-zinc-200 text-[10px]">Withdrawn</span>
       )}
     </div>
   )
@@ -163,14 +168,24 @@ function BreakdownPanel({ appId, token, inlineData }: {
 
 function ActionButtons({ appId, current, token, onUpdated }: {
   appId: string; current: ApplicationStatus; token: string
-  onUpdated: (id: string, status: ApplicationStatus) => void
+  onUpdated: (id: string, status: ApplicationStatus, interviewAt?: string) => void
 }) {
   const [loading, setLoading] = useState<ApplicationStatus | null>(null)
   const [error, setError]     = useState('')
+  const [showInterviewPicker, setShowInterviewPicker] = useState(false)
+  const [interviewDate, setInterviewDate] = useState('')
 
-  const handle = async (status: ApplicationStatus) => {
+  if (current === 'withdrawn') {
+    return <p className="text-xs text-zinc-500 italic">This application was withdrawn by the applicant.</p>
+  }
+
+  const handle = async (status: ApplicationStatus, interviewAt?: string) => {
     setError(''); setLoading(status)
-    try { await applicationsApi.updateStatus(appId, status, token); onUpdated(appId, status) }
+    try {
+      await applicationsApi.updateStatus(appId, status, token, interviewAt)
+      onUpdated(appId, status, interviewAt)
+      setShowInterviewPicker(false)
+    }
     catch (e) { setError(e instanceof Error ? e.message : 'Update failed') }
     finally { setLoading(null) }
   }
@@ -180,13 +195,50 @@ function ActionButtons({ appId, current, token, onUpdated }: {
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
         {visible.map(a => (
-          <button key={a.status} onClick={() => handle(a.status)} disabled={loading !== null}
+          <button key={a.status}
+            onClick={() => {
+              if (a.status === 'interview') {
+                setShowInterviewPicker(v => !v)
+              } else {
+                setShowInterviewPicker(false)
+                handle(a.status)
+              }
+            }}
+            disabled={loading !== null}
             className={`text-xs px-3 py-1.5 rounded-btn border font-semibold transition-all
               disabled:opacity-40 disabled:cursor-not-allowed ${a.cls}`}>
             {loading === a.status ? '…' : a.label}
           </button>
         ))}
       </div>
+
+      {showInterviewPicker && (
+        <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-lg space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-amber-900">Set Interview Date & Time (Optional)</span>
+            <button
+              type="button"
+              onClick={() => setShowInterviewPicker(false)}
+              className="text-xs text-amber-700 hover:text-amber-900">✕</button>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+            <input
+              type="datetime-local"
+              value={interviewDate}
+              onChange={e => setInterviewDate(e.target.value)}
+              className="text-xs px-2.5 py-1.5 rounded border border-amber-300 bg-white text-content-primary focus:outline-none focus:ring-1 focus:ring-amber-500 flex-1"
+            />
+            <button
+              type="button"
+              disabled={loading !== null}
+              onClick={() => handle('interview', interviewDate ? new Date(interviewDate).toISOString() : undefined)}
+              className="text-xs px-3 py-1.5 rounded-btn font-semibold bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-50">
+              {loading === 'interview' ? 'Saving…' : 'Confirm Interview'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   )
@@ -196,15 +248,20 @@ function ActionButtons({ appId, current, token, onUpdated }: {
 
 function ApplicantCard({ app: init, rank, token, onStatusUpdated }: {
   app: ScoredApplication; rank: number; token: string
-  onStatusUpdated: (id: string, status: ApplicationStatus) => void
+  onStatusUpdated: (id: string, status: ApplicationStatus, interviewAt?: string) => void
 }) {
   const navigate = useNavigate()
   const [app, setApp]           = useState(init)
   const [showBreakdown, setBreakdown] = useState(false)
   useEffect(() => setApp(init), [init])
 
-  const handleUpdated = useCallback((id: string, status: ApplicationStatus) => {
-    setApp(prev => ({ ...prev, status })); onStatusUpdated(id, status)
+  const handleUpdated = useCallback((id: string, status: ApplicationStatus, interviewAt?: string) => {
+    setApp(prev => ({
+      ...prev,
+      status,
+      ...(interviewAt ? { interview_at: interviewAt } : {})
+    }))
+    onStatusUpdated(id, status, interviewAt)
   }, [onStatusUpdated])
 
   const talent   = app.talent_profiles
@@ -253,6 +310,11 @@ function ApplicantCard({ app: init, rank, token, onStatusUpdated }: {
               {talent.language        && <span>🗣 {talent.language}</span>}
             </div>
             <PipelineIndicator current={app.status} />
+            {app.interview_at && (
+              <div className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2.5 py-1 inline-flex items-center gap-1.5 font-medium">
+                <span>📅 Interview: {new Date(app.interview_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
+              </div>
+            )}
           </div>
 
           {/* Score */}
@@ -497,8 +559,8 @@ const Applications = () => {
       .finally(() => setLoadingApps(false))
   }, [selectedJobId, token])
 
-  const handleStatusUpdated = useCallback((id: string, status: ApplicationStatus) => {
-    setApplications(prev => prev.map(a => a.id === id ? { ...a, status } : a))
+  const handleStatusUpdated = useCallback((id: string, status: ApplicationStatus, interviewAt?: string) => {
+    setApplications(prev => prev.map(a => a.id === id ? { ...a, status, ...(interviewAt ? { interview_at: interviewAt } : {}) } : a))
   }, [])
 
   const displayed = filterStatus === 'all' ? applications : applications.filter(a => a.status === filterStatus)
@@ -566,7 +628,7 @@ const Applications = () => {
         {/* Filter tabs */}
         {applications.length > 0 && (
           <div className="flex gap-1 bg-surface-section border border-surface-border p-1 rounded-lg w-fit mb-6">
-            {(['all', ...PIPELINE.map(p => p.status)] as FilterStatus[]).map(s => (
+            {(['all', ...PIPELINE.map(p => p.status), 'withdrawn'] as FilterStatus[]).map(s => (
               <button key={s} onClick={() => setFilterStatus(s)}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors
                   ${filterStatus === s
