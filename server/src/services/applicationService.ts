@@ -9,6 +9,7 @@ import {
   TalentForScoring,
 } from '../types'
 import { calculateMatchScore, matchingSkills } from './matchScore'
+import { getActiveMatchWeights } from './matchConfigService'
 
 // ── Create application (with match_score persisted) ───────────
 
@@ -89,7 +90,8 @@ export async function createApplication(
     last_active_at:   t.last_active_at  ?? new Date(0).toISOString(),
   }
 
-  const { total: match_score } = calculateMatchScore(jobForScoring, talentForScoring)
+  const activeWeights = await getActiveMatchWeights()
+  const { total: match_score } = calculateMatchScore(jobForScoring, talentForScoring, activeWeights)
 
   const { data, error } = await supabase
     .from('applications')
@@ -289,28 +291,33 @@ export async function getMatchBreakdown(
     last_active_at:   talent.last_active_at  ?? new Date(0).toISOString(),
   }
 
-  const { total, signals } = calculateMatchScore(jobForScoring, talentForScoring)
+  const activeWeights = await getActiveMatchWeights()
+  const breakdown = calculateMatchScore(jobForScoring, talentForScoring, activeWeights)
   const ms = matchingSkills(jobForScoring.skills, talentForScoring.skills)
 
-  // Enrich each signal with its weight and weighted contribution
-  type SignalKey = keyof typeof signals
+  // Enrich each signal with its weight and weighted contribution and human-readable reason
+  type SignalKey = keyof typeof breakdown.signals
   const enriched = {} as MatchBreakdownResponse['signals']
-  for (const key of Object.keys(signals) as SignalKey[]) {
-    const score   = signals[key]
-    const weight  = WEIGHTS[key] ?? 0
+  for (const key of Object.keys(breakdown.signals) as SignalKey[]) {
+    const score   = breakdown.signals[key]
+    const weight  = activeWeights[key] ?? 0
     enriched[key] = {
       score,
       weight,
       weighted: Math.round(score * weight * 10) / 10,
+      reason:   breakdown.reasons[key],
     }
   }
 
   return {
     application_id:  applicationId,
-    total,
-    weight_table:    WEIGHTS,
+    total:           breakdown.total,
+    weight_table:    activeWeights as unknown as Record<string, number>,
     signals:         enriched,
+    reasons:         breakdown.reasons,
     matching_skills: ms,
+    missing_skills:  breakdown.missing_skills,
+    summary_reasons: breakdown.summary_reasons,
   }
 }
 

@@ -15,7 +15,7 @@ import { supabase } from '../db/supabase'
 
 export interface CallerContext {
   userId:          string
-  role:            'production' | 'talent'
+  role:            'production' | 'talent' | 'admin'
   profileId:       string        // production_profiles.id  OR  talent_profiles.id
   productionProfileId: string | null
   talentProfileId:     string | null

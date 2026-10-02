@@ -1,15 +1,10 @@
-import { JobForScoring, TalentForScoring } from '../types'
+import { JobForScoring, TalentForScoring, MatchWeights } from '../types'
+import { normalizeString } from '../utils/normalize'
+import { canonicalizeSkill } from './vocabService'
+import { DEFAULT_WEIGHTS } from './matchConfigService'
 
-// ── Weight table (must sum to 1.0) ────────────────────────────
-const WEIGHTS = {
-  skills_match:           0.30,
-  role_match:             0.20,
-  experience_match:       0.15,
-  language_match:         0.10,
-  location_proximity:     0.10,
-  profile_completeness:   0.10,
-  activity_recency:       0.05,
-} as const
+// ── Default Weight Table (sums to 100) ────────────────────────
+export const WEIGHTS = DEFAULT_WEIGHTS
 
 // ── Experience level → year-range midpoints ───────────────────
 const EXP_MIDPOINTS: Record<string, number> = {
@@ -19,121 +14,205 @@ const EXP_MIDPOINTS: Record<string, number> = {
   any:    4,   // treat 'any' as neutral midpoint
 }
 
-// ── Individual signal functions (each returns 0–100) ──────────
+// ── Signal Helpers with Explanations ──────────────────────────
 
-/** % of job skills that appear in talent's skill list (case-insensitive) */
-function skillsMatch(jobSkills: string[], talentSkills: string[]): number {
-  if (!jobSkills.length) return 100  // no requirement → full score
-
-  const talentSet = new Set(talentSkills.map(s => s.toLowerCase()))
-  const matches = jobSkills.filter(s => talentSet.has(s.toLowerCase())).length
-  return Math.round((matches / jobSkills.length) * 100)
+interface SignalResult {
+  score: number
+  reason: string
 }
 
-/** 100 if talent's primary role appears in job's role list, else 0 */
-function roleMatch(jobRoles: string[], talentRole: string | null): number {
-  if (!jobRoles.length || !talentRole) return 50   // no requirement / no data → neutral
-  const lower = talentRole.toLowerCase()
-  return jobRoles.some(r => r.toLowerCase() === lower) ? 100 : 0
+/** % of job skills that appear in talent's skill list (case/punctuation/alias normalized) */
+function skillsMatchSignal(jobSkills: string[], talentSkills: string[]): SignalResult & { matching: string[]; missing: string[] } {
+  if (!jobSkills.length) {
+    return {
+      score: 100,
+      reason: 'No specific skills required (full score)',
+      matching: [],
+      missing: [],
+    }
+  }
+
+  // Build canonical set of talent skills
+  const talentCanonSet = new Set(
+    talentSkills.map(s => normalizeString(canonicalizeSkill(s)))
+  )
+
+  const matching: string[] = []
+  const missing: string[] = []
+
+  for (const js of jobSkills) {
+    const jsCanon = normalizeString(canonicalizeSkill(js))
+    if (talentCanonSet.has(jsCanon)) {
+      matching.push(js)
+    } else {
+      missing.push(js)
+    }
+  }
+
+  const score = Math.round((matching.length / jobSkills.length) * 100)
+
+  let reason = ''
+  if (missing.length === 0) {
+    reason = `Matches all ${jobSkills.length} required skills (${matching.join(', ')})`
+  } else if (matching.length === 0) {
+    reason = `Missing all ${jobSkills.length} required skills: ${missing.join(', ')}`
+  } else {
+    reason = `Missing ${missing.length} of ${jobSkills.length} required skills: ${missing.join(', ')}`
+  }
+
+  return { score, reason, matching, missing }
+}
+
+/** 100 if talent's primary role appears in job's role list, else 0 (50 for neutral) */
+function roleMatchSignal(jobRoles: string[], talentRole: string | null): SignalResult {
+  if (!jobRoles.length) {
+    return { score: 50, reason: 'No specific role required (neutral score)' }
+  }
+  if (!talentRole) {
+    return { score: 50, reason: 'Talent has no primary role specified (neutral score)' }
+  }
+
+  const talentCanon = normalizeString(canonicalizeSkill(talentRole))
+  const isMatch = jobRoles.some(r => {
+    const rCanon = normalizeString(canonicalizeSkill(r))
+    return rCanon === talentCanon || rCanon.includes(talentCanon) || talentCanon.includes(rCanon)
+  })
+
+  if (isMatch) {
+    return { score: 100, reason: `Primary role matches requirement: ${talentRole}` }
+  }
+  return { score: 0, reason: `Role (${talentRole}) does not match required roles: ${jobRoles.join(', ')}` }
 }
 
 /**
- * Score based on how close talent's experience_years is to the
- * midpoint of the job's required level.
- * Uses a Gaussian-like decay: score = 100 × e^(–0.15 × gap²)
- * so nearby years score near 100, far away years approach 0.
+ * Score based on how close talent's experience_years is to the midpoint of the job's level.
+ * Uses Gaussian-like decay: score = 100 × e^(–0.15 × gap²)
  */
-function experienceMatch(
-  jobLevel: string | null,
-  talentYears: number
-): number {
-  if (!jobLevel || jobLevel === 'any') return 75   // no preference → above neutral
+function experienceMatchSignal(jobLevel: string | null, talentYears: number): SignalResult {
+  if (!jobLevel || jobLevel === 'any') {
+    return { score: 75, reason: 'No specific experience level required (above neutral)' }
+  }
 
-  const mid = EXP_MIDPOINTS[jobLevel] ?? 4
+  const normLevel = normalizeString(jobLevel)
+  const mid = EXP_MIDPOINTS[normLevel] ?? 4
   const gap = Math.abs(talentYears - mid)
-  return Math.round(100 * Math.exp(-0.15 * gap * gap))
+  const score = Math.round(100 * Math.exp(-0.15 * gap * gap))
+
+  let reason = ''
+  if (gap === 0) {
+    reason = `Experience (${talentYears} yr${talentYears === 1 ? '' : 's'}) perfectly matches ${jobLevel} level (~${mid} yrs)`
+  } else if (score >= 70) {
+    reason = `Experience (${talentYears} yr${talentYears === 1 ? '' : 's'}) closely matches ${jobLevel} level (~${mid} yrs)`
+  } else {
+    reason = `Experience (${talentYears} yr${talentYears === 1 ? '' : 's'}) differs from ${jobLevel} level midpoint (~${mid} yrs)`
+  }
+
+  return { score, reason }
 }
 
-/** 100 if both languages match (case-insensitive), 50 if either side is missing */
-function languageMatch(
-  jobLanguage: string | null,
-  talentLanguage: string | null
-): number {
-  if (!jobLanguage || !talentLanguage) return 50
-  return jobLanguage.toLowerCase() === talentLanguage.toLowerCase() ? 100 : 0
-}
+/** 100 if languages match under normalization, 50 if either side missing, else 0 */
+function languageMatchSignal(jobLanguage: string | null, talentLanguage: string | null): SignalResult {
+  if (!jobLanguage || !talentLanguage) {
+    return { score: 50, reason: 'Language requirement not specified' }
+  }
 
-/**
- * Simple location proximity:
- * - exact city match (case-insensitive)  → 100
- * - same country/region (first word)     → 50
- * - either side missing                  → 50 (neutral)
- * - no overlap                           → 0
- */
-function locationProximity(
-  jobLocation: string | null,
-  talentLocation: string | null
-): number {
-  if (!jobLocation || !talentLocation) return 50
+  const normJ = normalizeString(jobLanguage)
+  const normT = normalizeString(talentLanguage)
 
-  const jl = jobLocation.toLowerCase().trim()
-  const tl = talentLocation.toLowerCase().trim()
-
-  if (jl === tl) return 100
-
-  // Check for "remote" anywhere – accept everyone
-  if (jl.includes('remote') || tl.includes('remote')) return 90
-
-  // Same first word (city/country prefix)
-  const jFirst = jl.split(/[\s,]+/)[0]
-  const tFirst = tl.split(/[\s,]+/)[0]
-  if (jFirst && tFirst && jFirst === tFirst) return 50
-
-  return 0
+  if (normJ === normT) {
+    return { score: 100, reason: `Language matches (${jobLanguage})` }
+  }
+  return { score: 0, reason: `Language (${talentLanguage}) differs from job language (${jobLanguage})` }
 }
 
 /**
- * How complete the talent's profile is.
- * Scored fields: full_name, bio, role, skills (>0), language, location,
- *               avatar_url, portfolio_url   (8 fields)
+ * Location proximity:
+ * - exact city match (normalized) → 100
+ * - remote in either side         → 90
+ * - same region/country prefix   → 50
+ * - either missing               → 50
+ * - no overlap                   → 0
  */
-function profileCompleteness(talent: TalentForScoring): number {
-  const checks = [
-    Boolean(talent.full_name?.trim()),
-    Boolean(talent.bio?.trim()),
-    Boolean(talent.role?.trim()),
-    talent.skills.length > 0,
-    Boolean(talent.language?.trim()),
-    Boolean(talent.location?.trim()),
-    Boolean(talent.avatar_url?.trim()),
-    Boolean(talent.portfolio_url?.trim()),
+function locationProximitySignal(jobLocation: string | null, talentLocation: string | null): SignalResult {
+  if (!jobLocation || !talentLocation) {
+    return { score: 50, reason: 'Location not specified' }
+  }
+
+  const jl = normalizeString(jobLocation)
+  const tl = normalizeString(talentLocation)
+
+  if (jl === tl) {
+    return { score: 100, reason: `Located in the same city (${talentLocation})` }
+  }
+
+  if (jl.includes('remote') || tl.includes('remote')) {
+    return { score: 90, reason: 'Remote work supported' }
+  }
+
+  const jFirst = jl.split(' ')[0]
+  const tFirst = tl.split(' ')[0]
+  if (jFirst && tFirst && jFirst === tFirst) {
+    return { score: 50, reason: `Same region/state (${jFirst})` }
+  }
+
+  return { score: 0, reason: `Location (${talentLocation}) differs from job location (${jobLocation})` }
+}
+
+/** How complete the talent profile is (8 fields) */
+function profileCompletenessSignal(talent: TalentForScoring): SignalResult {
+  const fields = [
+    { name: 'full_name', filled: Boolean(talent.full_name?.trim()) },
+    { name: 'bio', filled: Boolean(talent.bio?.trim()) },
+    { name: 'role', filled: Boolean(talent.role?.trim()) },
+    { name: 'skills', filled: talent.skills.length > 0 },
+    { name: 'language', filled: Boolean(talent.language?.trim()) },
+    { name: 'location', filled: Boolean(talent.location?.trim()) },
+    { name: 'avatar_url', filled: Boolean(talent.avatar_url?.trim()) },
+    { name: 'portfolio_url', filled: Boolean(talent.portfolio_url?.trim()) },
   ]
-  const filled = checks.filter(Boolean).length
-  return Math.round((filled / checks.length) * 100)
+
+  const filledCount = fields.filter(f => f.filled).length
+  const missing = fields.filter(f => !f.filled).map(f => f.name)
+  const score = Math.round((filledCount / fields.length) * 100)
+
+  let reason = `Profile is ${score}% complete (${filledCount}/8 fields filled)`
+  if (missing.length > 0 && missing.length <= 3) {
+    reason += ` (missing: ${missing.join(', ')})`
+  }
+
+  return { score, reason }
 }
 
-/**
- * How recently the talent was active:
- * - within  7 days  → 100
- * - within 30 days  →  60
- * - within 90 days  →  30
- * - older           →   0
- */
-function activityRecency(lastActiveAt: string): number {
+/** Activity recency: 7d → 100, 30d → 60, 90d → 30, older → 0 */
+function activityRecencySignal(lastActiveAt: string): SignalResult {
   const now = Date.now()
   const last = new Date(lastActiveAt).getTime()
-  const daysAgo = (now - last) / (1000 * 60 * 60 * 24)
+  const daysAgo = Math.max(0, Math.floor((now - last) / (1000 * 60 * 60 * 24)))
 
-  if (daysAgo <=  7) return 100
-  if (daysAgo <= 30) return  60
-  if (daysAgo <= 90) return  30
-  return 0
+  if (daysAgo <= 7) {
+    return { score: 100, reason: daysAgo === 0 ? 'Active today' : `Active ${daysAgo} day${daysAgo === 1 ? '' : 's'} ago` }
+  }
+  if (daysAgo <= 30) {
+    return { score: 60, reason: `Active ${daysAgo} days ago (within 30 days)` }
+  }
+  if (daysAgo <= 90) {
+    return { score: 30, reason: `Active ${daysAgo} days ago (within 90 days)` }
+  }
+  return { score: 0, reason: 'Inactive for more than 90 days' }
 }
 
 // ── Public API ────────────────────────────────────────────────
 
+export interface SignalDetail {
+  score: number
+  weight: number
+  weighted: number
+  reason: string
+}
+
 export interface ScoreBreakdown {
   total: number
+  weight_table: Record<string, number>
   signals: {
     skills_match: number
     role_match: number
@@ -143,41 +222,115 @@ export interface ScoreBreakdown {
     profile_completeness: number
     activity_recency: number
   }
+  reasons: {
+    skills_match: string
+    role_match: string
+    experience_match: string
+    language_match: string
+    location_proximity: string
+    profile_completeness: string
+    activity_recency: string
+  }
+  matching_skills: string[]
+  missing_skills: string[]
+  summary_reasons: string[]
 }
 
 /**
  * Calculates a 0–100 match score between a job's requirements and
- * a talent profile, along with a per-signal breakdown.
+ * a talent profile, along with a per-signal breakdown, human-readable reasons,
+ * and support for custom or configurable weights.
  */
 export function calculateMatchScore(
   job: JobForScoring,
-  talent: TalentForScoring
+  talent: TalentForScoring,
+  customWeights?: Partial<MatchWeights>
 ): ScoreBreakdown {
-  const signals = {
-    skills_match:         skillsMatch(job.skills, talent.skills),
-    role_match:           roleMatch(job.roles, talent.role),
-    experience_match:     experienceMatch(job.experience_level, talent.experience_years),
-    language_match:       languageMatch(job.language, talent.language),
-    location_proximity:   locationProximity(job.location, talent.location),
-    profile_completeness: profileCompleteness(talent),
-    activity_recency:     activityRecency(talent.last_active_at),
+  const activeWeights: MatchWeights = {
+    skills_match:         customWeights?.skills_match         ?? WEIGHTS.skills_match,
+    role_match:           customWeights?.role_match           ?? WEIGHTS.role_match,
+    experience_match:     customWeights?.experience_match     ?? WEIGHTS.experience_match,
+    language_match:       customWeights?.language_match       ?? WEIGHTS.language_match,
+    location_proximity:   customWeights?.location_proximity   ?? WEIGHTS.location_proximity,
+    profile_completeness: customWeights?.profile_completeness ?? WEIGHTS.profile_completeness,
+    activity_recency:     customWeights?.activity_recency     ?? WEIGHTS.activity_recency,
   }
 
+  // Calculate each individual signal
+  const skillsRes     = skillsMatchSignal(job.skills, talent.skills)
+  const roleRes       = roleMatchSignal(job.roles, talent.role)
+  const expRes        = experienceMatchSignal(job.experience_level, talent.experience_years)
+  const langRes       = languageMatchSignal(job.language, talent.language)
+  const locRes        = locationProximitySignal(job.location, talent.location)
+  const compRes       = profileCompletenessSignal(talent)
+  const recencyRes    = activityRecencySignal(talent.last_active_at)
+
+  const signals = {
+    skills_match:         skillsRes.score,
+    role_match:           roleRes.score,
+    experience_match:     expRes.score,
+    language_match:       langRes.score,
+    location_proximity:   locRes.score,
+    profile_completeness: compRes.score,
+    activity_recency:     recencyRes.score,
+  }
+
+  const reasons = {
+    skills_match:         skillsRes.reason,
+    role_match:           roleRes.reason,
+    experience_match:     expRes.reason,
+    language_match:       langRes.reason,
+    location_proximity:   locRes.reason,
+    profile_completeness: compRes.reason,
+    activity_recency:     recencyRes.reason,
+  }
+
+  // Weight scale: weights in activeWeights sum to 100, so divide by 100
   const total = Math.round(
-    signals.skills_match         * WEIGHTS.skills_match         +
-    signals.role_match           * WEIGHTS.role_match           +
-    signals.experience_match     * WEIGHTS.experience_match     +
-    signals.language_match       * WEIGHTS.language_match       +
-    signals.location_proximity   * WEIGHTS.location_proximity   +
-    signals.profile_completeness * WEIGHTS.profile_completeness +
-    signals.activity_recency     * WEIGHTS.activity_recency
+    (signals.skills_match         * activeWeights.skills_match +
+     signals.role_match           * activeWeights.role_match +
+     signals.experience_match     * activeWeights.experience_match +
+     signals.language_match       * activeWeights.language_match +
+     signals.location_proximity   * activeWeights.location_proximity +
+     signals.profile_completeness * activeWeights.profile_completeness +
+     signals.activity_recency     * activeWeights.activity_recency) / 100
   )
 
-  return { total, signals }
+  // Top human-readable summary reasons
+  const summary_reasons: string[] = []
+  if (skillsRes.missing.length > 0) {
+    summary_reasons.push(skillsRes.reason)
+  }
+  if (signals.role_match === 100) {
+    summary_reasons.push(roleRes.reason)
+  } else if (signals.role_match === 0) {
+    summary_reasons.push(roleRes.reason)
+  }
+  if (signals.location_proximity === 100) {
+    summary_reasons.push(locRes.reason)
+  }
+  if (summary_reasons.length === 0) {
+    summary_reasons.push(skillsRes.reason)
+  }
+
+  return {
+    total,
+    weight_table: activeWeights as unknown as Record<string, number>,
+    signals,
+    reasons,
+    matching_skills: skillsRes.matching,
+    missing_skills: skillsRes.missing,
+    summary_reasons,
+  }
 }
 
 /** Returns matching skill names between job requirements and a talent's skills */
 export function matchingSkills(jobSkills: string[], talentSkills: string[]): string[] {
-  const talentSet = new Set(talentSkills.map(s => s.toLowerCase()))
-  return jobSkills.filter(s => talentSet.has(s.toLowerCase()))
+  const talentCanonSet = new Set(
+    talentSkills.map(s => normalizeString(canonicalizeSkill(s)))
+  )
+  return jobSkills.filter(s => {
+    const sCanon = normalizeString(canonicalizeSkill(s))
+    return talentCanonSet.has(sCanon)
+  })
 }

@@ -4,6 +4,7 @@ import {
   listJobsHandler, getApplicationsHandler, closeJobHandler,
   getJobByIdHandler, getAnalyticsHandler, recordViewHandler,
   talentMatchesHandler, updateJobHandler, deleteJobHandler,
+  getMyJobMatchHandler,
 } from '../controllers/jobController'
 import { requireAuth } from '../middleware/authMiddleware'
 import { loadCallerContext, requireRole, requireJobOwner } from '../middleware/callerContext'
@@ -12,6 +13,11 @@ export const jobsRouter = Router()
 
 // Public — attach caller context if token present (optional auth)
 jobsRouter.get('/',     listJobsHandler)      // non-owners only see published
+
+// Applicant preview match score
+jobsRouter.get('/:id/my-match',
+  requireAuth, loadCallerContext, getMyJobMatchHandler)
+
 jobsRouter.get('/:id',  getJobByIdHandler)    // non-owners only see published
 
 // Auth required — load context

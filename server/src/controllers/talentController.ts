@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
-import { createTalentProfile, searchTalent } from '../services/talentService'
+import { createTalentProfile, updateTalentProfile, searchTalent } from '../services/talentService'
 import { sanitizeObject } from '../utils/sanitize'
 
 function firstZodError(err: z.ZodError): string {
@@ -50,6 +50,32 @@ export const createProfileHandler = async (
       sanitizeObject({ user_id: caller.userId, ...parsed.data })
     )
     res.status(201).json({ profile })
+  } catch (err) { next(err) }
+}
+
+/**
+ * PUT /talent/profile
+ * Updates talent profile and enqueues match score recomputation.
+ */
+export const updateProfileHandler = async (
+  req: Request, res: Response, next: NextFunction
+): Promise<void> => {
+  try {
+    const caller = req.caller!
+    if (caller.role !== 'talent' || !caller.talentProfileId) {
+      res.status(403).json({ error: 'Talent account required' }); return
+    }
+
+    const parsed = createTalentSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: firstZodError(parsed.error) }); return
+    }
+
+    const profile = await updateTalentProfile(
+      caller.talentProfileId,
+      sanitizeObject(parsed.data)
+    )
+    res.status(200).json({ profile })
   } catch (err) { next(err) }
 }
 

@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { calculateMatchScore, matchingSkills } from '../matchScore'
 import { JobForScoring, TalentForScoring } from '../../types'
+import { normalizeString, areStringsEqualNormalized } from '../../utils/normalize'
+import { canonicalizeSkill } from '../vocabService'
+import { validateWeights, DEFAULT_WEIGHTS, MatchWeights } from '../matchConfigService'
 
 // ── Fixtures ──────────────────────────────────────────────────
 
@@ -297,3 +300,139 @@ describe('matchingSkills', () => {
     expect(matchingSkills(['Acting'], [])).toEqual([])
   })
 })
+
+// ── Normalization utils ───────────────────────────────────────
+
+describe('String normalization', () => {
+  it('handles unicode NFKD decomposition and strips diacritics', () => {
+    expect(normalizeString('Crème Brûlée')).toBe('creme brulee')
+    expect(normalizeString('München')).toBe('munchen')
+  })
+
+  it('strips punctuation and collapses whitespace', () => {
+    expect(normalizeString('DaVinci-Resolve!')).toBe('davinci resolve')
+    expect(normalizeString('   Sound    Mixing...  ')).toBe('sound mixing')
+    expect(normalizeString('1st A.D. (Continuity)')).toBe('1st a d continuity')
+  })
+
+  it('areStringsEqualNormalized matches equivalent variants', () => {
+    expect(areStringsEqualNormalized('Colourist', 'colourist')).toBe(true)
+    expect(areStringsEqualNormalized('Sound-Mixing!', 'Sound Mixing')).toBe(true)
+    expect(areStringsEqualNormalized('Mumbai, Maharashtra', 'mumbai maharashtra')).toBe(true)
+  })
+
+  it('normalizes skill and language comparisons in matchScore', () => {
+    const job: JobForScoring = { ...baseJob, language: 'Hindi / English', skills: ['DaVinci-Resolve!'] }
+    const talent: TalentForScoring = { ...baseTalent, language: 'hindi english', skills: ['davinci resolve'] }
+    const { signals } = calculateMatchScore(job, talent)
+    expect(signals.skills_match).toBe(100)
+    expect(signals.language_match).toBe(100)
+  })
+})
+
+// ── Skill and role aliases ────────────────────────────────────
+
+describe('Controlled vocabulary aliases', () => {
+  it('canonicalizes common film aliases', () => {
+    expect(canonicalizeSkill('DoP')).toBe('Cinematographer')
+    expect(canonicalizeSkill('DOP')).toBe('Cinematographer')
+    expect(canonicalizeSkill('Director of Photography')).toBe('Cinematographer')
+    expect(canonicalizeSkill('Colourist')).toBe('Colorist')
+    expect(canonicalizeSkill('DIT')).toBe('Digital Imaging Technician (DIT)')
+    expect(canonicalizeSkill('DaVinci')).toBe('DaVinci Resolve')
+    expect(canonicalizeSkill('ProTools')).toBe('Pro Tools')
+  })
+
+  it('matches skills when job or talent uses an alias', () => {
+    const job: JobForScoring = { ...baseJob, skills: ['DaVinci Resolve'] }
+    const talent: TalentForScoring = { ...baseTalent, skills: ['DaVinci'] }
+    const { signals } = calculateMatchScore(job, talent)
+    expect(signals.skills_match).toBe(100)
+  })
+
+  it('matches roles when talent role is an alias of required role', () => {
+    const job: JobForScoring = { ...baseJob, roles: ['Cinematographer'] }
+    const talent: TalentForScoring = { ...baseTalent, role: 'DoP' }
+    const { signals } = calculateMatchScore(job, talent)
+    expect(signals.role_match).toBe(100)
+  })
+})
+
+// ── Explainability & Human-Readable Reasons ───────────────────
+
+describe('Explainability & reasons', () => {
+  it('returns human-readable reasons for every signal', () => {
+    const breakdown = calculateMatchScore(baseJob, baseTalent)
+    expect(breakdown.reasons).toBeDefined()
+    expect(breakdown.reasons.skills_match).toContain('Matches all 3 required skills')
+    expect(breakdown.reasons.role_match).toContain('Primary role matches requirement')
+    expect(breakdown.reasons.experience_match).toContain('Experience (4 yrs) perfectly matches')
+    expect(breakdown.reasons.language_match).toContain('Language matches')
+    expect(breakdown.reasons.location_proximity).toContain('Located in the same city')
+    expect(breakdown.reasons.profile_completeness).toContain('Profile is 100% complete')
+    expect(breakdown.reasons.activity_recency).toContain('Active')
+  })
+
+  it('returns explicit missing skills reason when partial overlap', () => {
+    const talent: TalentForScoring = {
+      ...baseTalent,
+      skills: ['Cinematography'], // missing Lighting and DaVinci Resolve
+    }
+    const breakdown = calculateMatchScore(baseJob, talent)
+    expect(breakdown.reasons.skills_match).toContain('Missing 2 of 3 required skills: Lighting, DaVinci Resolve')
+    expect(breakdown.missing_skills).toEqual(['Lighting', 'DaVinci Resolve'])
+  })
+
+  it('returns summary reasons for top matches and gaps', () => {
+    const breakdown = calculateMatchScore(baseJob, baseTalent)
+    expect(breakdown.summary_reasons.length).toBeGreaterThan(0)
+  })
+})
+
+// ── Configurable Weights & Validation ─────────────────────────
+
+describe('Configurable match weights', () => {
+  it('default weights sum to 100', () => {
+    const check = validateWeights(DEFAULT_WEIGHTS)
+    expect(check.valid).toBe(true)
+    expect(check.sum).toBe(100)
+  })
+
+  it('validateWeights rejects weights that do not sum to 100', () => {
+    const invalidUnder = { ...DEFAULT_WEIGHTS, skills_match: 20 }
+    expect(validateWeights(invalidUnder).valid).toBe(false)
+
+    const invalidOver = { ...DEFAULT_WEIGHTS, skills_match: 40 }
+    expect(validateWeights(invalidOver).valid).toBe(false)
+  })
+
+  it('validateWeights rejects negative or NaN weights', () => {
+    const negative = { ...DEFAULT_WEIGHTS, skills_match: -10, role_match: 60 }
+    expect(validateWeights(negative).valid).toBe(false)
+
+    const nanVal = { ...DEFAULT_WEIGHTS, skills_match: NaN }
+    expect(validateWeights(nanVal).valid).toBe(false)
+  })
+
+  it('calculateMatchScore applies custom active weights correctly', () => {
+    // Custom: skills 50%, role 50%, everything else 0%
+    const customWeights: MatchWeights = {
+      skills_match: 50,
+      role_match: 50,
+      experience_match: 0,
+      language_match: 0,
+      location_proximity: 0,
+      profile_completeness: 0,
+      activity_recency: 0,
+    }
+    const talent: TalentForScoring = {
+      ...baseTalent,
+      skills: ['Cinematography', 'Lighting', 'DaVinci Resolve'], // 100
+      role: 'Actor', // 0
+    }
+    const breakdown = calculateMatchScore(baseJob, talent, customWeights)
+    // 100 * 0.5 + 0 * 0.5 = 50
+    expect(breakdown.total).toBe(50)
+  })
+})
+

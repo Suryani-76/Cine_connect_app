@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, MapPin, Globe, Briefcase, Clock, Building2, ExternalLink, X, Bookmark, BookmarkCheck } from 'lucide-react'
-import { jobsApi, applicationsApi, savedJobsApi, jobAnalyticsApi, JobWithProduction } from '../lib/api'
+import { jobsApi, applicationsApi, savedJobsApi, jobAnalyticsApi, JobWithProduction, MatchBreakdown } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 
@@ -21,7 +21,18 @@ function ApplyModal({
   const [coverNote, setCoverNote] = useState('')
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState('')
+  const [matchPreview, setMatchPreview] = useState<MatchBreakdown | null>(null)
+  const [matchLoading, setMatchLoading] = useState(false)
   const remaining = 1000 - coverNote.length
+
+  useEffect(() => {
+    if (!token || !jobId) return
+    setMatchLoading(true)
+    jobsApi.myMatch(jobId, token)
+      .then(res => setMatchPreview(res))
+      .catch(() => setMatchPreview(null))
+      .finally(() => setMatchLoading(false))
+  }, [jobId, token])
 
   const handleSubmit = async () => {
     setError('')
@@ -61,6 +72,41 @@ function ApplyModal({
 
         {/* Body */}
         <div className="px-6 py-5 space-y-4">
+          {/* Match Score Preview & Explainability */}
+          {matchLoading ? (
+            <div className="p-3 bg-surface-section rounded-xl border border-surface-border animate-pulse space-y-2">
+              <div className="h-4 bg-slate-200 rounded w-1/3" />
+              <div className="h-3 bg-slate-200 rounded w-2/3" />
+            </div>
+          ) : matchPreview ? (
+            <div className="p-4 bg-blue-50/70 border border-brand/20 rounded-xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="mono-text text-xl font-bold text-brand">{matchPreview.total}%</span>
+                  <span className="text-xs font-semibold text-content-heading uppercase tracking-wide">Match Preview</span>
+                </div>
+                <span className="text-[11px] text-content-muted">Based on your talent profile</span>
+              </div>
+
+              {matchPreview.summary_reasons && matchPreview.summary_reasons.length > 0 && (
+                <ul className="text-xs text-content-secondary space-y-1">
+                  {matchPreview.summary_reasons.slice(0, 3).map((r, i) => (
+                    <li key={i} className="flex items-start gap-1.5">
+                      <span className="text-brand shrink-0">•</span>
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {matchPreview.missing_skills && matchPreview.missing_skills.length > 0 && (
+                <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2.5 py-1">
+                  Missing required skills: <span className="font-semibold">{matchPreview.missing_skills.join(', ')}</span>
+                </p>
+              )}
+            </div>
+          ) : null}
+
           <div>
             <div className="flex justify-between mb-1.5">
               <label className="label mb-0">Cover note <span className="text-content-muted font-normal">(optional)</span></label>

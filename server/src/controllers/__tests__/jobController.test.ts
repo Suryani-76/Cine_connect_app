@@ -170,3 +170,18 @@ describe('DELETE /jobs/:id', () => {
   })
 })
 
+describe('GET /jobs/:id/my-match', () => {
+  it('returns 400 for invalid job id', async () => {
+    const res = await request(app).get('/jobs/bad-id/my-match')
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/Invalid job id/)
+  })
+
+  it('returns 403 when caller is not talent', async () => {
+    // caller in this suite is default production
+    const res = await request(app).get('/jobs/123e4567-e89b-12d3-a456-426614174000/my-match')
+    expect(res.status).toBe(403)
+    expect(res.body.error).toMatch(/Talent account required/)
+  })
+})
+

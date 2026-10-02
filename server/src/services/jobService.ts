@@ -1,6 +1,8 @@
 import { supabase } from '../db/supabase'
 import { DbJob, DbJobRequirements, DbJobWithRequirements, JobStatus, JobType, PayPeriod, ScoredApplication, JobForScoring, TalentForScoring, NotificationType } from '../types'
 import { calculateMatchScore, matchingSkills } from './matchScore'
+import { enqueueMatchRecompute } from './recomputeService'
+import { getActiveMatchWeights } from './matchConfigService'
 
 // ── Create ────────────────────────────────────────────────────
 
@@ -220,6 +222,16 @@ export async function setRequirements(
     throw Object.assign(new Error(error.message), { statusCode: 500 })
   }
 
+  // Enqueue background match recompute for active applications to this job
+  try {
+    await enqueueMatchRecompute({
+      jobId: input.job_id,
+      reason: 'Job requirements updated',
+    })
+  } catch (recomputeErr) {
+    console.warn('[JobService] Failed to enqueue match recompute:', recomputeErr)
+  }
+
   return data as DbJobRequirements
 }
 
@@ -294,7 +306,10 @@ export async function listJobs(
 
 export interface ScoredApplicationWithMeta extends ScoredApplication {
   matching_skills: string[]
+  missing_skills?: string[]
   score_breakdown: ReturnType<typeof calculateMatchScore>['signals']
+  reasons?: ReturnType<typeof calculateMatchScore>['reasons']
+  summary_reasons?: string[]
 }
 
 /**
@@ -302,6 +317,7 @@ export interface ScoredApplicationWithMeta extends ScoredApplication {
  *  - the applicant's talent profile
  *  - a computed match_score (0–100)
  *  - the overlapping skills list
+ *  - per-signal reasons and summary reasons
  * Sorted by match_score descending.
  */
 export async function getApplicationsForJob(
@@ -338,6 +354,8 @@ export async function getApplicationsForJob(
     location:         req?.location         ?? null,
   }
 
+  const activeWeights = await getActiveMatchWeights()
+
   const scored: ScoredApplicationWithMeta[] = (apps ?? []).map((app: Record<string, unknown>) => {
     const talent = app['talent_profiles'] as TalentForScoring & { skills: string[] }
 
@@ -354,20 +372,105 @@ export async function getApplicationsForJob(
       last_active_at:   (talent?.last_active_at as string) ?? new Date(0).toISOString(),
     }
 
-    const { total, signals } = calculateMatchScore(jobForScoring, talentForScoring)
+    const breakdown = calculateMatchScore(jobForScoring, talentForScoring, activeWeights)
     const ms = matchingSkills(jobForScoring.skills, talentForScoring.skills)
 
     return {
       ...(app as unknown as ScoredApplication),
-      match_score:      total,
+      match_score:      breakdown.total,
       matching_skills:  ms,
-      score_breakdown:  signals,
+      missing_skills:   breakdown.missing_skills,
+      score_breakdown:  breakdown.signals,
+      reasons:          breakdown.reasons,
+      summary_reasons:  breakdown.summary_reasons,
     }
   })
 
   // Sort highest score first
   scored.sort((a, b) => b.match_score - a.match_score)
   return scored
+}
+
+/**
+ * Returns explainable match score preview for an applicant viewing a published job.
+ */
+export async function getMyJobMatch(jobId: string, talentProfileId: string) {
+  // Fetch job requirements and verify job exists and is published
+  const { data: job, error: jobError } = await supabase
+    .from('jobs')
+    .select('id, title, status, job_requirements(skills, roles, experience_level, language, location)')
+    .eq('id', jobId)
+    .single()
+
+  if (jobError || !job) {
+    throw Object.assign(new Error('Job not found'), { statusCode: 404 })
+  }
+
+  if (job.status !== 'published') {
+    throw Object.assign(new Error('Job is not published'), { statusCode: 404 })
+  }
+
+  // Fetch talent profile
+  const { data: talent, error: talentError } = await supabase
+    .from('talent_profiles')
+    .select('id, user_id, full_name, bio, role, skills, experience_years, language, location, avatar_url, portfolio_url, last_active_at')
+    .eq('id', talentProfileId)
+    .single()
+
+  if (talentError || !talent) {
+    throw Object.assign(new Error('Talent profile not found'), { statusCode: 404 })
+  }
+
+  const req = (job as unknown as { job_requirements: DbJobRequirements | null }).job_requirements
+
+  const jobForScoring: JobForScoring = {
+    skills:           req?.skills           ?? [],
+    roles:            req?.roles            ?? [],
+    experience_level: req?.experience_level ?? null,
+    language:         req?.language         ?? null,
+    location:         req?.location         ?? null,
+  }
+
+  const talentForScoring: TalentForScoring = {
+    skills:           talent.skills          ?? [],
+    role:             talent.role            ?? null,
+    experience_years: talent.experience_years ?? 0,
+    language:         talent.language        ?? null,
+    location:         talent.location        ?? null,
+    full_name:        talent.full_name       ?? null,
+    bio:              talent.bio             ?? null,
+    avatar_url:       talent.avatar_url      ?? null,
+    portfolio_url:    talent.portfolio_url   ?? null,
+    last_active_at:   talent.last_active_at  ?? new Date(0).toISOString(),
+  }
+
+  const activeWeights = await getActiveMatchWeights()
+  const breakdown = calculateMatchScore(jobForScoring, talentForScoring, activeWeights)
+  const ms = matchingSkills(jobForScoring.skills, talentForScoring.skills)
+
+  type SignalKey = keyof typeof breakdown.signals
+  const enriched = {} as Record<SignalKey, { score: number; weight: number; weighted: number; reason: string }>
+  for (const key of Object.keys(breakdown.signals) as SignalKey[]) {
+    const score   = breakdown.signals[key]
+    const weight  = activeWeights[key] ?? 0
+    enriched[key] = {
+      score,
+      weight,
+      weighted: Math.round(score * weight * 10) / 10,
+      reason: breakdown.reasons[key],
+    }
+  }
+
+  return {
+    job_id:          jobId,
+    total:           breakdown.total,
+    weight_table:    activeWeights,
+    signals:         enriched,
+    reasons:         breakdown.reasons,
+    matching_skills: ms,
+    missing_skills:  breakdown.missing_skills,
+    summary_reasons: breakdown.summary_reasons,
+  }
 }
 
 // ── Close job ─────────────────────────────────────────────────

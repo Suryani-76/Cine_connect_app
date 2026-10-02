@@ -1,9 +1,11 @@
-import { useState, FormEvent, KeyboardEvent } from 'react'
+import { useState, FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Check } from 'lucide-react'
 import { jobsApi, SetRequirementsPayload, JobType, PayPeriod } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { AutocompleteInput } from '../components/AutocompleteInput'
+import { AutocompleteTagInput } from '../components/AutocompleteTagInput'
 
 interface Step1Form {
   title: string
@@ -89,51 +91,6 @@ function StepIndicator({ current }: { current: number }) {
           </div>
         )
       })}
-    </div>
-  )
-}
-
-// ── Tag input ─────────────────────────────────────────────────
-
-function TagInput({ label, placeholder, tags, onChange, error }: {
-  label: string; placeholder: string; tags: string[]
-  onChange: (t: string[]) => void; error?: string
-}) {
-  const [input, setInput] = useState('')
-
-  const add = () => {
-    const v = input.trim()
-    if (v && !tags.includes(v)) onChange([...tags, v])
-    setInput('')
-  }
-
-  const handleKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add() }
-    if (e.key === 'Backspace' && !input && tags.length) onChange(tags.slice(0, -1))
-  }
-
-  return (
-    <div>
-      <label className="label">{label}</label>
-      <div className={`flex flex-wrap gap-2 rounded-btn bg-white border px-3 py-2
-        focus-within:ring-2 focus-within:ring-brand/30 focus-within:border-brand transition
-        ${error ? 'border-red-400' : 'border-surface-border'}`}>
-        {tags.map(tag => (
-          <span key={tag} className="flex items-center gap-1 bg-blue-50 text-brand border border-brand/20
-            text-xs px-2.5 py-1 rounded-full font-medium">
-            {tag}
-            <button type="button" onClick={() => onChange(tags.filter(t => t !== tag))}
-              className="text-brand/60 hover:text-brand ml-0.5 transition-colors">×</button>
-          </span>
-        ))}
-        <input value={input} onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKey} onBlur={add}
-          placeholder={tags.length === 0 ? placeholder : ''}
-          className="flex-1 min-w-[120px] bg-transparent text-sm text-content-primary
-            placeholder-content-muted outline-none" />
-      </div>
-      <p className="mt-1 text-xs text-content-muted">Press Enter or comma to add</p>
-      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
     </div>
   )
 }
@@ -401,15 +358,23 @@ const CreateJob = () => {
           {/* Step 2 */}
           {step === 2 && (
             <form onSubmit={handleStep2} noValidate className="space-y-5">
-              <TagInput label="Skills" placeholder="e.g. Cinematography, Lighting…"
+              <AutocompleteTagInput
+                label="Skills"
+                placeholder="e.g. Cinematography, Lighting…"
                 tags={step2.skills}
                 onChange={t => { setStep2(p => ({ ...p, skills: t })); setS2Errors(p => ({ ...p, skills: undefined })) }}
-                error={step2Errors.skills} />
+                type="skills"
+                error={step2Errors.skills}
+              />
 
-              <TagInput label="Roles" placeholder="e.g. Director of Photography, Gaffer…"
+              <AutocompleteTagInput
+                label="Roles"
+                placeholder="e.g. Director of Photography, Gaffer…"
                 tags={step2.roles}
                 onChange={t => { setStep2(p => ({ ...p, roles: t })); setS2Errors(p => ({ ...p, roles: undefined })) }}
-                error={step2Errors.roles} />
+                type="roles"
+                error={step2Errors.roles}
+              />
 
               <div>
                 <label htmlFor="exp" className="label">Experience level</label>
@@ -428,10 +393,14 @@ const CreateJob = () => {
                     placeholder="e.g. English" className="input" />
                 </div>
                 <div>
-                  <label htmlFor="location" className="label">Location</label>
-                  <input id="location" value={step2.location}
-                    onChange={e => setStep2(p => ({ ...p, location: e.target.value }))}
-                    placeholder="e.g. Mumbai, Remote" className="input" />
+                  <AutocompleteInput
+                    id="location"
+                    label="Location"
+                    value={step2.location}
+                    onChange={val => setStep2(p => ({ ...p, location: val }))}
+                    type="cities"
+                    placeholder="e.g. Mumbai, Remote"
+                  />
                 </div>
               </div>
 

@@ -464,6 +464,11 @@ function CompareModal({ apps, onClose }: { apps: ScoredApplication[]; onClose: (
                             <div className="w-full h-1.5 bg-surface-section rounded-full">
                               <div className={`${barCls} h-1.5 rounded-full`} style={{ width: `${s}%` }} />
                             </div>
+                            {a.reasons?.[sig.key] && (
+                              <span className="text-[10px] text-content-muted leading-tight mt-1 line-clamp-2 max-w-[130px]" title={a.reasons[sig.key]}>
+                                {a.reasons[sig.key]}
+                              </span>
+                            )}
                           </div>
                         </td>
                       )
@@ -485,6 +490,23 @@ function CompareModal({ apps, onClose }: { apps: ScoredApplication[]; onClose: (
                         <span className="text-[10px] text-content-muted">+{a.matching_skills.length - 4}</span>
                       )}
                     </div>
+                  </td>
+                ))}
+              </tr>
+
+              {/* Summary Insights */}
+              <tr>
+                <td className="py-3 pr-4 text-xs text-content-secondary font-medium">Key insights</td>
+                {apps.map(a => (
+                  <td key={a.id} className="py-3 px-3 text-left">
+                    <ul className="text-[11px] text-content-secondary space-y-1">
+                      {(a.summary_reasons ?? []).slice(0, 2).map((sr, idx) => (
+                        <li key={idx} className="flex items-start gap-1">
+                          <span className="text-brand shrink-0">•</span>
+                          <span className="line-clamp-2 leading-tight">{sr}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </td>
                 ))}
               </tr>

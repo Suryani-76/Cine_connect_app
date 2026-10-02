@@ -12,7 +12,7 @@ export interface DbUser {
   id: string
   email: string
   username: string
-  role: 'talent' | 'production'
+  role: 'talent' | 'production' | 'admin'
   created_at: string
 }
 
@@ -116,20 +116,31 @@ export interface ScoredApplication extends DbApplication {
   talent_profiles: DbTalentProfile
 }
 
+export interface SignalBreakdownItem {
+  score: number
+  weight: number
+  weighted: number
+  reason?: string
+}
+
 export interface MatchBreakdownResponse {
-  application_id: string
+  application_id?: string
+  job_id?: string
   total: number
   weight_table: Record<string, number>
   signals: {
-    skills_match:         { score: number; weight: number; weighted: number }
-    role_match:           { score: number; weight: number; weighted: number }
-    experience_match:     { score: number; weight: number; weighted: number }
-    language_match:       { score: number; weight: number; weighted: number }
-    location_proximity:   { score: number; weight: number; weighted: number }
-    profile_completeness: { score: number; weight: number; weighted: number }
-    activity_recency:     { score: number; weight: number; weighted: number }
+    skills_match:         SignalBreakdownItem
+    role_match:           SignalBreakdownItem
+    experience_match:     SignalBreakdownItem
+    language_match:       SignalBreakdownItem
+    location_proximity:   SignalBreakdownItem
+    profile_completeness: SignalBreakdownItem
+    activity_recency:     SignalBreakdownItem
   }
+  reasons?: Record<string, string>
   matching_skills: string[]
+  missing_skills?: string[]
+  summary_reasons?: string[]
 }
 
 // ── Match scoring input shapes ────────────────────────────────
@@ -179,4 +190,111 @@ export interface DashboardStats {
   new_applications:     number
   recommended_talent:   number
   unread_notifications: number
+}
+
+// ── Vocabulary & Controlled Terms ─────────────────────────────
+
+export interface DbSkill {
+  id: string
+  name: string
+  category: string
+  is_verified: boolean
+  created_at: string
+}
+
+export interface DbRole {
+  id: string
+  name: string
+  department: string
+  is_verified: boolean
+  created_at: string
+}
+
+export interface DbCity {
+  id: string
+  name: string
+  state: string | null
+  country: string
+  is_verified: boolean
+  created_at: string
+}
+
+export interface DbSkillAlias {
+  id: string
+  alias: string
+  canonical_name: string
+  created_at: string
+}
+
+// ── Match Engine Config ───────────────────────────────────────
+
+export interface MatchWeights {
+  skills_match: number
+  role_match: number
+  experience_match: number
+  language_match: number
+  location_proximity: number
+  profile_completeness: number
+  activity_recency: number
+}
+
+export interface DbMatchConfig extends MatchWeights {
+  id: string
+  is_active: boolean
+  updated_by: string | null
+  updated_at: string
+  created_at: string
+}
+
+export interface DbMatchConfigAuditLog {
+  id: string
+  user_id: string | null
+  previous_weights: MatchWeights
+  new_weights: MatchWeights
+  reason: string | null
+  created_at: string
+}
+
+// ── Match Recompute Queue ─────────────────────────────────────
+
+export type RecomputeQueueStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
+export interface DbMatchRecomputeQueueItem {
+  id: string
+  job_id: string | null
+  talent_profile_id: string | null
+  reason: string
+  status: RecomputeQueueStatus
+  attempts: number
+  created_at: string
+  processed_at: string | null
+}
+
+// ── Extended Explainability ───────────────────────────────────
+
+export interface SignalExplanationDetail {
+  score: number
+  weight: number
+  weighted: number
+  reason: string
+}
+
+export interface ExtendedMatchBreakdownResponse {
+  application_id?: string
+  job_id?: string
+  talent_profile_id?: string
+  total: number
+  weight_table: Record<string, number>
+  signals: {
+    skills_match: SignalExplanationDetail
+    role_match: SignalExplanationDetail
+    experience_match: SignalExplanationDetail
+    language_match: SignalExplanationDetail
+    location_proximity: SignalExplanationDetail
+    profile_completeness: SignalExplanationDetail
+    activity_recency: SignalExplanationDetail
+  }
+  matching_skills: string[]
+  missing_skills: string[]
+  summary_reasons: string[]
 }

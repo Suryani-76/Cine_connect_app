@@ -1,5 +1,6 @@
 import { supabase } from '../db/supabase'
 import { DbTalentProfile } from '../types'
+import { enqueueMatchRecompute } from './recomputeService'
 
 // ── Create / upsert talent profile ───────────────────────────
 
@@ -61,6 +62,55 @@ export async function createTalentProfile(
       })
     }
     throw Object.assign(new Error(error.message), { statusCode: 500 })
+  }
+
+  try {
+    await enqueueMatchRecompute({
+      talentProfileId: (data as DbTalentProfile).id,
+      reason: 'Talent profile created',
+    })
+  } catch (recomputeErr) {
+    console.warn('[TalentService] Failed to enqueue match recompute:', recomputeErr)
+  }
+
+  return data as DbTalentProfile
+}
+
+// ── Update talent profile ─────────────────────────────────────
+
+export async function updateTalentProfile(
+  talentProfileId: string,
+  input: Partial<CreateTalentProfileInput>
+): Promise<DbTalentProfile> {
+  const updatePayload: Record<string, unknown> = {}
+  if (input.full_name !== undefined)        updatePayload.full_name = input.full_name
+  if (input.bio !== undefined)              updatePayload.bio = input.bio
+  if (input.role !== undefined)             updatePayload.role = input.role
+  if (input.skills !== undefined)           updatePayload.skills = input.skills
+  if (input.experience_years !== undefined) updatePayload.experience_years = input.experience_years
+  if (input.language !== undefined)         updatePayload.language = input.language
+  if (input.location !== undefined)         updatePayload.location = input.location
+  if (input.avatar_url !== undefined)       updatePayload.avatar_url = input.avatar_url
+  if (input.portfolio_url !== undefined)    updatePayload.portfolio_url = input.portfolio_url
+
+  const { data, error } = await supabase
+    .from('talent_profiles')
+    .update(updatePayload)
+    .eq('id', talentProfileId)
+    .select('id, user_id, full_name, bio, role, skills, experience_years, language, location, avatar_url, portfolio_url, last_active_at, created_at')
+    .single()
+
+  if (error) {
+    throw Object.assign(new Error(error.message), { statusCode: 500 })
+  }
+
+  try {
+    await enqueueMatchRecompute({
+      talentProfileId,
+      reason: 'Talent profile updated',
+    })
+  } catch (recomputeErr) {
+    console.warn('[TalentService] Failed to enqueue match recompute:', recomputeErr)
   }
 
   return data as DbTalentProfile

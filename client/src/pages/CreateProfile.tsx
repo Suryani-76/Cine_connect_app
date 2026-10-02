@@ -4,6 +4,8 @@ import { Film, Check } from 'lucide-react'
 import { productionApi, talentApi } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { AutocompleteInput } from '../components/AutocompleteInput'
+import { AutocompleteTagInput } from '../components/AutocompleteTagInput'
 
 // ── Step dot ──────────────────────────────────────────────────
 
@@ -98,13 +100,13 @@ function ProductionForm({ token, onDone }: {
 
 // ── Talent form ───────────────────────────────────────────────
 
-interface TalentForm   { full_name: string; role: string; bio: string; skills: string; location: string; language: string }
+interface TalentForm   { full_name: string; role: string; bio: string; skills: string[]; location: string; language: string }
 interface TalentErrors { full_name?: string; role?: string }
 
 function TalentForm({ token, onDone }: {
   token: string; onDone: (id: string) => void
 }) {
-  const [form, setForm]     = useState<TalentForm>({ full_name: '', role: '', bio: '', skills: '', location: '', language: '' })
+  const [form, setForm]     = useState<TalentForm>({ full_name: '', role: '', bio: '', skills: [], location: '', language: '' })
   const [errors, setErrors] = useState<TalentErrors>({})
   const [serverError, setErr] = useState('')
   const [loading, setLoading] = useState(false)
@@ -123,10 +125,9 @@ function TalentForm({ token, onDone }: {
     if (Object.keys(err).length) { setErrors(err); return }
     setLoading(true)
     try {
-      const skills = form.skills ? form.skills.split(',').map(s => s.trim()).filter(Boolean) : []
       const res = await talentApi.createProfile({
         full_name: form.full_name.trim(), role: form.role.trim(),
-        bio: form.bio.trim() || undefined, skills,
+        bio: form.bio.trim() || undefined, skills: form.skills,
         location: form.location.trim() || undefined, language: form.language.trim() || undefined,
       }, token)
       onDone(res.profile.id)
@@ -147,29 +148,42 @@ function TalentForm({ token, onDone }: {
           {errors.full_name && <p className="mt-1.5 text-xs text-red-500">{errors.full_name}</p>}
         </div>
         <div>
-          <label htmlFor="role" className="label">
-            Primary role <span className="text-red-500">*</span>
-          </label>
-          <input id="role" name="role" type="text"
-            value={form.role} onChange={set} placeholder="e.g. Cinematographer"
-            className={errors.role ? 'input-error' : 'input'} />
-          {errors.role && <p className="mt-1.5 text-xs text-red-500">{errors.role}</p>}
+          <AutocompleteInput
+            id="role"
+            label="Primary role"
+            required
+            value={form.role}
+            onChange={val => {
+              setForm(p => ({ ...p, role: val }))
+              setErrors(p => ({ ...p, role: undefined }))
+            }}
+            type="roles"
+            placeholder="e.g. Cinematographer"
+            error={errors.role}
+          />
         </div>
       </div>
 
       <div>
-        <label htmlFor="skills" className="label">Skills</label>
-        <input id="skills" name="skills" type="text"
-          value={form.skills} onChange={set}
-          placeholder="Cinematography, Lighting, DaVinci Resolve…" className="input" />
-        <p className="mt-1 text-xs text-content-muted">Comma-separated</p>
+        <AutocompleteTagInput
+          label="Skills"
+          placeholder="Search film skills or type custom and hit Enter…"
+          tags={form.skills}
+          onChange={tags => setForm(p => ({ ...p, skills: tags }))}
+          type="skills"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label htmlFor="location" className="label">Location</label>
-          <input id="location" name="location" type="text"
-            value={form.location} onChange={set} placeholder="e.g. Mumbai" className="input" />
+          <AutocompleteInput
+            id="location"
+            label="Location"
+            value={form.location}
+            onChange={val => setForm(p => ({ ...p, location: val }))}
+            type="cities"
+            placeholder="e.g. Mumbai, Kochi"
+          />
         </div>
         <div>
           <label htmlFor="language" className="label">Language</label>

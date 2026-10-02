@@ -4,7 +4,7 @@ import {
   createJob, setRequirements, publishJob, listJobs,
   getApplicationsForJob, closeJob, getJobById,
   getJobAnalytics, recordJobView, rankTalentForJob,
-  updateJob, deleteJob,
+  updateJob, deleteJob, getMyJobMatch,
 } from '../services/jobService'
 import { JobStatus } from '../types'
 import { sanitizeObject } from '../utils/sanitize'
@@ -310,5 +310,24 @@ export const talentMatchesHandler = async (
     if (!isUuid(id)) { res.status(400).json({ error: 'Invalid job id' }); return }
     const talent = await rankTalentForJob(id)
     res.status(200).json({ talent })
+  } catch (err) { next(err) }
+}
+
+// ── GET /jobs/:id/my-match — applicant score preview ──────────
+
+export const getMyJobMatchHandler = async (
+  req: Request, res: Response, next: NextFunction
+): Promise<void> => {
+  try {
+    const id = jid(req)
+    if (!isUuid(id)) { res.status(400).json({ error: 'Invalid job id' }); return }
+
+    const caller = req.caller
+    if (!caller || caller.role !== 'talent' || !caller.talentProfileId) {
+      res.status(403).json({ error: 'Talent account required' }); return
+    }
+
+    const match = await getMyJobMatch(id, caller.talentProfileId)
+    res.status(200).json(match)
   } catch (err) { next(err) }
 }

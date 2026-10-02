@@ -226,6 +226,10 @@ export const jobsApi = {
 
   /** List published jobs for talent browse — no production_id filter */
   listPublished: () => request<JobsResponse>('/jobs?status=published'),
+
+  /** Applicant preview match score before applying */
+  myMatch: (jobId: string, token: string) =>
+    request<MatchBreakdown>(`/jobs/${jobId}/my-match`, {}, token),
 }
 
 // ── Talent ────────────────────────────────────────────────────
@@ -312,10 +316,12 @@ export interface SignalDetail {
   score:    number
   weight:   number
   weighted: number
+  reason?:  string
 }
 
 export interface MatchBreakdown {
-  application_id: string
+  application_id?: string
+  job_id?:         string
   total:          number
   weight_table:   Record<string, number>
   signals: {
@@ -327,7 +333,10 @@ export interface MatchBreakdown {
     profile_completeness: SignalDetail
     activity_recency:     SignalDetail
   }
+  reasons?: Record<string, string>
   matching_skills: string[]
+  missing_skills?: string[]
+  summary_reasons?: string[]
 }
 
 export interface ScoredApplication {
@@ -338,6 +347,9 @@ export interface ScoredApplication {
   status:            ApplicationStatus
   match_score:       number
   matching_skills:   string[]
+  missing_skills?:   string[]
+  reasons?:          Record<string, string>
+  summary_reasons?:  string[]
   score_breakdown:   ScoreBreakdown
   applied_at:        string
   interview_at?:     string | null
@@ -520,6 +532,9 @@ export const jobAnalyticsApi = {
 
   talentMatches: (jobId: string, token: string) =>
     request<RankedTalentResponse>(`/jobs/${jobId}/talent-matches`, {}, token),
+
+  myMatch: (jobId: string, token: string) =>
+    request<MatchBreakdown>(`/jobs/${jobId}/my-match`, {}, token),
 }
 
 // ── Talent search ranked by match score ───────────────────────
@@ -556,4 +571,55 @@ export const talentAlertsApi = {
 
   delete: (alertId: string, token: string) =>
     request<{ ok: boolean }>(`/talent-alerts/${alertId}`, { method: 'DELETE' }, token),
+}
+
+// ── Controlled Vocabulary ─────────────────────────────────────
+
+export interface VocabItem {
+  id?: string
+  name: string
+  category?: string
+  department?: string
+  state?: string | null
+  country?: string
+  is_verified?: boolean
+}
+
+export const vocabApi = {
+  skills: (q?: string) =>
+    request<{ skills: VocabItem[] }>(`/vocab/skills${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  roles: (q?: string) =>
+    request<{ roles: VocabItem[] }>(`/vocab/roles${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  cities: (q?: string) =>
+    request<{ cities: VocabItem[] }>(`/vocab/cities${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+}
+
+// ── Match Engine Admin ────────────────────────────────────────
+
+export interface MatchWeights {
+  skills_match: number
+  role_match: number
+  experience_match: number
+  language_match: number
+  location_proximity: number
+  profile_completeness: number
+  activity_recency: number
+}
+
+export const adminApi = {
+  getMatchConfig: (token: string) =>
+    request<{ weights: MatchWeights }>('/admin/match-config', {}, token),
+
+  updateMatchConfig: (weights: MatchWeights, token: string, reason?: string) =>
+    request<{ success: boolean; weights: MatchWeights }>('/admin/match-config', {
+      method: 'PUT',
+      body: JSON.stringify({ ...weights, reason }),
+    }, token),
+
+  triggerRecompute: (token: string, batchSize?: number) =>
+    request<{ processedQueueItems: number; updatedApplicationsCount: number }>(
+      `/admin/recompute/process${batchSize ? `?batch_size=${batchSize}` : ''}`,
+      { method: 'POST' },
+      token
+    ),
 }

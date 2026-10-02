@@ -13,6 +13,8 @@ import { notificationsRouter } from './routes/notifications'
 import { dashboardRouter } from './routes/dashboard'
 import { savedJobsRouter } from './routes/savedJobs'
 import { talentAlertsRouter } from './routes/talentAlerts'
+import { vocabRouter } from './routes/vocab'
+import { adminRouter } from './routes/admin'
 import { errorHandler } from './middleware/errorHandler'
 
 const app  = express()
@@ -76,6 +78,8 @@ app.use('/notifications', notificationsRouter)
 app.use('/dashboard', dashboardRouter)
 app.use('/saved-jobs', savedJobsRouter)
 app.use('/talent-alerts', talentAlertsRouter)
+app.use('/vocab', vocabRouter)
+app.use('/admin', adminRouter)
 
 // ── 404 ───────────────────────────────────────────────────────
 app.use((_req, res) => {
