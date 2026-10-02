@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { z } from 'zod'
-import { createJob, setRequirements, publishJob, listJobs, getApplicationsForJob, closeJob, getJobById } from '../services/jobService'
+import { createJob, setRequirements, publishJob, listJobs, getApplicationsForJob, closeJob, getJobById, getJobAnalytics, recordJobView } from '../services/jobService'
 import { JobStatus } from '../types'
 import { sanitizeObject } from '../utils/sanitize'
 
@@ -203,4 +203,42 @@ export const getJobByIdHandler = async (
   } catch (err) {
     next(err)
   }
+}
+
+/** GET /jobs/:id/analytics — authenticated production house */
+export const getAnalyticsHandler = async (
+  req: Request, res: Response, next: NextFunction
+): Promise<void> => {
+  try {
+    const id = jobId(req)
+    if (!isUuid(id)) { res.status(400).json({ error: 'Invalid job id' }); return }
+    const analytics = await getJobAnalytics(id)
+    res.status(200).json({ analytics })
+  } catch (err) { next(err) }
+}
+
+/** POST /jobs/:id/view — public, records a view */
+export const recordViewHandler = async (
+  req: Request, res: Response, next: NextFunction
+): Promise<void> => {
+  try {
+    const id = jobId(req)
+    if (!isUuid(id)) { res.status(400).json({ error: 'Invalid job id' }); return }
+    const viewerId = (req as import('../types').AuthedRequest).user?.id ?? null
+    await recordJobView(id, viewerId)
+    res.status(200).json({ ok: true })
+  } catch (err) { next(err) }
+}
+
+/** GET /jobs/:id/talent-matches — authenticated production house */
+export const talentMatchesHandler = async (
+  req: Request, res: Response, next: NextFunction
+): Promise<void> => {
+  try {
+    const id = jobId(req)
+    if (!isUuid(id)) { res.status(400).json({ error: 'Invalid job id' }); return }
+    const { rankTalentForJob } = await import('../services/jobService')
+    const talent = await rankTalentForJob(id)
+    res.status(200).json({ talent })
+  } catch (err) { next(err) }
 }

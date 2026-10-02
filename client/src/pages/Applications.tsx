@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useSearchParams, Link } from 'react-router-dom'
-import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
+import { useSearchParams, Link, useNavigate } from 'react-router-dom'
+import { ChevronDown, ChevronUp, ExternalLink, MessageCircle, User } from 'lucide-react'
 import {
   applicationsApi, jobsApi,
   ScoredApplication, MatchBreakdown, Job,
@@ -198,6 +198,7 @@ function ApplicantCard({ app: init, rank, token, onStatusUpdated }: {
   app: ScoredApplication; rank: number; token: string
   onStatusUpdated: (id: string, status: ApplicationStatus) => void
 }) {
+  const navigate = useNavigate()
   const [app, setApp]           = useState(init)
   const [showBreakdown, setBreakdown] = useState(false)
   useEffect(() => setApp(init), [init])
@@ -235,9 +236,12 @@ function ApplicantCard({ app: init, rank, token, onStatusUpdated }: {
           {/* Name + meta */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-semibold text-content-heading leading-tight">
+              <button
+                onClick={() => navigate(`/profile/${talent.user_id}`)}
+                className="font-semibold text-content-heading leading-tight hover:text-brand transition-colors flex items-center gap-1">
                 {talent.full_name ?? 'Anonymous Talent'}
-              </h3>
+                <User size={12} className="opacity-50" />
+              </button>
               <span className={`badge text-[11px] ${STATUS_BADGE[app.status]}`}>
                 {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
               </span>
@@ -308,6 +312,12 @@ function ApplicantCard({ app: init, rank, token, onStatusUpdated }: {
 
       {/* Footer */}
       <div className="flex border-t border-surface-border bg-surface-section">
+        <button
+          onClick={() => navigate(`/chat?peer=${talent.user_id}`)}
+          className="flex-1 py-2.5 text-xs text-center text-brand hover:text-brand-dark
+            flex items-center justify-center gap-1 transition-colors font-semibold">
+          <MessageCircle size={12} /> Message
+        </button>
         {talent.portfolio_url && (
           <a href={talent.portfolio_url} target="_blank" rel="noopener noreferrer"
             className="flex-1 py-2.5 text-xs text-center text-brand hover:text-brand-dark
@@ -317,6 +327,107 @@ function ApplicantCard({ app: init, rank, token, onStatusUpdated }: {
         )}
         <div className="flex-1 py-2.5 text-xs text-center text-content-muted">
           Applied {new Date(app.applied_at ?? app.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Comparison modal ──────────────────────────────────────────
+
+function CompareModal({ apps, onClose }: { apps: ScoredApplication[]; onClose: () => void }) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [onClose])
+
+  const SIGNALS = [
+    { key: 'skills_match',         label: 'Skills',       weight: '30%' },
+    { key: 'role_match',           label: 'Role',         weight: '20%' },
+    { key: 'experience_match',     label: 'Experience',   weight: '15%' },
+    { key: 'language_match',       label: 'Language',     weight: '10%' },
+    { key: 'location_proximity',   label: 'Location',     weight: '10%' },
+    { key: 'profile_completeness', label: 'Profile',      weight: '10%' },
+    { key: 'activity_recency',     label: 'Activity',     weight: '5%'  },
+  ] as const
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(11,37,69,0.55)', backdropFilter: 'blur(4px)' }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl shadow-card-md w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-border sticky top-0 bg-white">
+          <h2 className="text-lg font-bold text-content-heading">Candidate Comparison</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-section transition-colors text-content-tertiary hover:text-content-primary">✕</button>
+        </div>
+
+        <div className="p-6 overflow-x-auto">
+          <table className="w-full min-w-[600px]">
+            <thead>
+              <tr>
+                <th className="text-left text-xs font-semibold text-content-tertiary uppercase tracking-wider pb-4 pr-4 w-36">Signal</th>
+                {apps.map(a => (
+                  <th key={a.id} className="pb-4 px-3 text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-navy to-brand flex items-center justify-center text-white font-bold text-sm">
+                        {(a.talent_profiles.full_name ?? '?')[0].toUpperCase()}
+                      </div>
+                      <p className="text-xs font-semibold text-content-heading truncate max-w-[100px]">
+                        {a.talent_profiles.full_name ?? 'Talent'}
+                      </p>
+                      <span className="mono-text text-lg font-bold text-brand">{a.match_score}%</span>
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {SIGNALS.map(sig => {
+                const scores = apps.map(a => a.score_breakdown[sig.key])
+                const maxScore = Math.max(...scores)
+                return (
+                  <tr key={sig.key}>
+                    <td className="py-3 pr-4 text-xs text-content-secondary font-medium">
+                      {sig.label} <span className="text-content-muted">({sig.weight})</span>
+                    </td>
+                    {apps.map((a, i) => {
+                      const s = scores[i]
+                      const isWinner = s === maxScore && scores.filter(x => x === maxScore).length === 1
+                      const barCls = s >= 75 ? 'bg-emerald-500' : s >= 40 ? 'bg-brand' : 'bg-surface-subtle'
+                      return (
+                        <td key={a.id} className={`py-3 px-3 text-center ${isWinner ? 'bg-emerald-50' : ''}`}>
+                          <div className="flex flex-col items-center gap-1">
+                            <span className={`mono-text text-sm font-bold ${isWinner ? 'text-emerald-700' : 'text-content-heading'}`}>{s}</span>
+                            <div className="w-full h-1.5 bg-surface-section rounded-full">
+                              <div className={`${barCls} h-1.5 rounded-full`} style={{ width: `${s}%` }} />
+                            </div>
+                          </div>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
+
+              {/* Skills row */}
+              <tr>
+                <td className="py-3 pr-4 text-xs text-content-secondary font-medium">Matching skills</td>
+                {apps.map(a => (
+                  <td key={a.id} className="py-3 px-3">
+                    <div className="flex flex-wrap gap-1 justify-center">
+                      {a.matching_skills.slice(0, 4).map(s => (
+                        <span key={s} className="badge bg-blue-50 border-brand/20 text-brand text-[10px]">{s}</span>
+                      ))}
+                      {a.matching_skills.length > 4 && (
+                        <span className="text-[10px] text-content-muted">+{a.matching_skills.length - 4}</span>
+                      )}
+                    </div>
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -360,6 +471,8 @@ const Applications = () => {
   const [selectedJobId, setSelectedJobId] = useState(jobId)
   const [applications, setApplications]   = useState<ScoredApplication[]>([])
   const [filterStatus, setFilterStatus]   = useState<FilterStatus>('all')
+  const [compareIds, setCompareIds]       = useState<Set<string>>(new Set())
+  const [showCompare, setShowCompare]     = useState(false)
   const [loadingJobs, setLoadingJobs]     = useState(true)
   const [loadingApps, setLoadingApps]     = useState(false)
   const [error, setError]                 = useState('')
@@ -513,12 +626,48 @@ const Applications = () => {
 
         {/* List */}
         {!loadingApps && displayed.length > 0 && (
-          <div className="space-y-4">
+          <div className="space-y-4 pl-7">
             {displayed.map((app, i) => (
-              <ApplicantCard key={app.id} app={app} rank={i + 1}
-                token={accessToken} onStatusUpdated={handleStatusUpdated} />
+              <div key={app.id} className="relative">
+                <label className="absolute -left-6 top-5 cursor-pointer" title="Select to compare">
+                  <input type="checkbox"
+                    checked={compareIds.has(app.id)}
+                    onChange={e => {
+                      const next = new Set(compareIds)
+                      if (e.target.checked && next.size < 3) next.add(app.id)
+                      else next.delete(app.id)
+                      setCompareIds(next)
+                    }}
+                    className="w-4 h-4 rounded accent-brand cursor-pointer"
+                    disabled={!compareIds.has(app.id) && compareIds.size >= 3}
+                  />
+                </label>
+                <ApplicantCard app={app} rank={i + 1}
+                  token={accessToken} onStatusUpdated={handleStatusUpdated} />
+              </div>
             ))}
           </div>
+        )}
+
+        {compareIds.size >= 2 && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-20
+            bg-brand-navy text-white rounded-2xl shadow-card-md px-6 py-3
+            flex items-center gap-4">
+            <span className="text-sm font-semibold">{compareIds.size} selected</span>
+            <button onClick={() => setShowCompare(true)}
+              className="bg-brand text-white text-sm font-bold px-4 py-1.5 rounded-lg hover:bg-brand-light transition-colors">
+              Compare →
+            </button>
+            <button onClick={() => setCompareIds(new Set())}
+              className="text-white/60 hover:text-white text-sm transition-colors">Clear</button>
+          </div>
+        )}
+
+        {showCompare && compareIds.size >= 2 && (
+          <CompareModal
+            apps={applications.filter(a => compareIds.has(a.id))}
+            onClose={() => setShowCompare(false)}
+          />
         )}
       </main>
     </div>

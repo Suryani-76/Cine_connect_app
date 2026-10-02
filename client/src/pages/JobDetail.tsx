@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, MapPin, Globe, Briefcase, Clock, Building2, ExternalLink, X } from 'lucide-react'
-import { jobsApi, applicationsApi, JobWithProduction } from '../lib/api'
+import { ArrowLeft, MapPin, Globe, Briefcase, Clock, Building2, ExternalLink, X, Bookmark, BookmarkCheck } from 'lucide-react'
+import { jobsApi, applicationsApi, savedJobsApi, jobAnalyticsApi, JobWithProduction } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 
@@ -139,6 +139,7 @@ const JobDetail = () => {
   const [error, setError]       = useState('')
   const [showModal, setModal]   = useState(false)
   const [applied, setApplied]   = useState(false)
+  const [saved, setSaved]       = useState(false)
 
   usePageTitle(job?.title ?? 'Job')
 
@@ -146,7 +147,7 @@ const JobDetail = () => {
     if (!id) return
     setLoading(true)
     jobsApi.getById(id)
-      .then(r => setJob(r.job))
+      .then(r => { setJob(r.job); jobAnalyticsApi.recordView(id).catch(() => {}) })
       .catch(e => setError(e instanceof Error ? e.message : 'Could not load job'))
       .finally(() => setLoading(false))
   }, [id])
@@ -263,16 +264,31 @@ const JobDetail = () => {
               </div>
             </div>
 
-            {/* Apply button */}
+            {/* Apply + bookmark buttons */}
             {isTalent && isPublished && !applied && (
-              <button
-                onClick={() => {
-                  if (!talentProfileId) { navigate('/create-profile'); return }
-                  setModal(true)
-                }}
-                className="btn-primary shrink-0 text-base px-6 py-3">
-                Apply now
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={async () => {
+                    if (!talentProfileId || !token) return
+                    if (saved) {
+                      await savedJobsApi.unsave(job.id, talentProfileId, token).catch(() => {})
+                      setSaved(false)
+                    } else {
+                      await savedJobsApi.save(job.id, talentProfileId, token).catch(() => {})
+                      setSaved(true)
+                    }
+                  }}
+                  title={saved ? 'Remove bookmark' : 'Save job'}
+                  className={`p-2.5 rounded-lg border transition-colors
+                    ${saved ? 'border-brand bg-brand/5 text-brand' : 'border-surface-border text-content-tertiary hover:border-brand hover:text-brand'}`}>
+                  {saved ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
+                </button>
+                <button
+                  onClick={() => { if (!talentProfileId) { navigate('/create-profile'); return } setModal(true) }}
+                  className="btn-primary text-base px-6 py-3">
+                  Apply now
+                </button>
+              </div>
             )}
             {isTalent && isClosed && (
               <span className="text-sm text-content-tertiary italic">Applications closed</span>

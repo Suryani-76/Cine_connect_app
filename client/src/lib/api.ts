@@ -429,3 +429,82 @@ export const dashboardApi = {
       token
     ),
 }
+
+// ── Saved Jobs ────────────────────────────────────────────────
+
+export interface SavedJobsResponse { saved: { job_id: string }[] }
+
+export const savedJobsApi = {
+  list: (talentProfileId: string, token: string) =>
+    request<SavedJobsResponse>(`/saved-jobs?talent_profile_id=${talentProfileId}`, {}, token),
+
+  save: (jobId: string, talentProfileId: string, token: string) =>
+    request<{ ok: boolean }>('/saved-jobs', {
+      method: 'POST',
+      body: JSON.stringify({ job_id: jobId, talent_profile_id: talentProfileId }),
+    }, token),
+
+  unsave: (jobId: string, talentProfileId: string, token: string) =>
+    request<{ ok: boolean }>('/saved-jobs', {
+      method: 'DELETE',
+      body: JSON.stringify({ job_id: jobId, talent_profile_id: talentProfileId }),
+    }, token),
+}
+
+// ── Job analytics ─────────────────────────────────────────────
+
+export interface JobAnalytics {
+  job_id:          string
+  view_count:      number
+  applicant_count: number
+  avg_match_score: number | null
+}
+
+export interface JobAnalyticsResponse { analytics: JobAnalytics }
+
+export const jobAnalyticsApi = {
+  get: (jobId: string, token: string) =>
+    request<JobAnalyticsResponse>(`/jobs/${jobId}/analytics`, {}, token),
+
+  recordView: (jobId: string) =>
+    request<{ ok: boolean }>(`/jobs/${jobId}/view`, { method: 'POST' }),
+
+  talentMatches: (jobId: string, token: string) =>
+    request<RankedTalentResponse>(`/jobs/${jobId}/talent-matches`, {}, token),
+}
+
+// ── Talent search ranked by match score ───────────────────────
+
+export interface RankedTalent {
+  profile:     TalentProfile
+  match_score: number
+}
+
+export interface RankedTalentResponse { talent: RankedTalent[] }
+
+// ── Talent alerts ─────────────────────────────────────────────
+
+export interface TalentAlert {
+  id:       string
+  user_id:  string
+  label:    string
+  skills:   string[]
+  role:     string | null
+  location: string | null
+  language: string | null
+  active:   boolean
+  created_at: string
+}
+
+export interface TalentAlertsResponse { alerts: TalentAlert[] }
+
+export const talentAlertsApi = {
+  list: (userId: string, token: string) =>
+    request<TalentAlertsResponse>(`/talent-alerts?user_id=${userId}`, {}, token),
+
+  create: (payload: { user_id: string; label: string; skills?: string[]; role?: string; location?: string; language?: string }, token: string) =>
+    request<{ alert: TalentAlert }>('/talent-alerts', { method: 'POST', body: JSON.stringify(payload) }, token),
+
+  delete: (alertId: string, token: string) =>
+    request<{ ok: boolean }>(`/talent-alerts/${alertId}`, { method: 'DELETE' }, token),
+}

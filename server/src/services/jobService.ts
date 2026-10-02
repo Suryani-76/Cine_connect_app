@@ -305,3 +305,77 @@ export async function getJobById(jobId: string): Promise<DbJobWithProductionProf
   // leaves the auth check to the controller so owners can preview drafts.
   return data as unknown as DbJobWithProductionProfile
 }
+
+// ── Job analytics ─────────────────────────────────────────────
+
+export interface JobAnalytics {
+  job_id:        string
+  view_count:    number
+  applicant_count: number
+  avg_match_score: number | null
+}
+
+export async function getJobAnalytics(jobId: string): Promise<JobAnalytics> {
+  const [viewRes, appRes] = await Promise.all([
+    supabase.from('job_views').select('id', { count: 'exact', head: true }).eq('job_id', jobId),
+    supabase.from('applications').select('match_score').eq('job_id', jobId),
+  ])
+
+  const view_count = viewRes.count ?? 0
+  const apps = appRes.data ?? []
+  const applicant_count = apps.length
+  const scores = apps.map((a: { match_score: number | null }) => a.match_score).filter((s): s is number => s !== null)
+  const avg_match_score = scores.length > 0
+    ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+    : null
+
+  return { job_id: jobId, view_count, applicant_count, avg_match_score }
+}
+
+export async function recordJobView(jobId: string, viewerId: string | null): Promise<void> {
+  // Upsert — one unique view per job+viewer pair
+  await supabase.from('job_views').upsert(
+    { job_id: jobId, viewer_id: viewerId },
+    { onConflict: 'job_id,viewer_id', ignoreDuplicates: true }
+  )
+}
+
+// ── Rank talent by match score for a job ─────────────────────
+
+export interface RankedTalent {
+  profile:     import('../types').DbTalentProfile
+  match_score: number
+}
+
+export async function rankTalentForJob(jobId: string): Promise<RankedTalent[]> {
+  // Fetch job requirements
+  const { data: jobRow, error: jobErr } = await supabase
+    .from('jobs')
+    .select('job_requirements(skills, roles, experience_level, language, location)')
+    .eq('id', jobId)
+    .single()
+
+  if (jobErr || !jobRow) throw Object.assign(new Error('Job not found'), { statusCode: 404 })
+
+  const req = (jobRow as unknown as { job_requirements: JobForScoring | null }).job_requirements
+  const jobForScoring: JobForScoring = {
+    skills: req?.skills ?? [], roles: req?.roles ?? [],
+    experience_level: req?.experience_level ?? null,
+    language: req?.language ?? null, location: req?.location ?? null,
+  }
+
+  // Fetch all talent profiles
+  const { data: talents, error: tErr } = await supabase
+    .from('talent_profiles')
+    .select('id, user_id, full_name, bio, role, skills, experience_years, language, location, avatar_url, portfolio_url, last_active_at, created_at')
+    .order('last_active_at', { ascending: false })
+
+  if (tErr) throw Object.assign(new Error(tErr.message), { statusCode: 500 })
+
+  return ((talents ?? []) as TalentForScoring[])
+    .map(t => ({
+      profile: t as unknown as import('../types').DbTalentProfile,
+      match_score: calculateMatchScore(jobForScoring, t).total,
+    }))
+    .sort((a, b) => b.match_score - a.match_score)
+}

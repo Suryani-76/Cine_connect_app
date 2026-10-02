@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { Pencil, X, Check, ExternalLink } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Pencil, X, Check, ExternalLink, MessageCircle, Upload } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -94,6 +94,7 @@ function EditableField({
 const Profile = () => {
   const { user, logout } = useAuth()
   const { id: paramId }  = useParams<{ id?: string }>()
+  const navigate         = useNavigate()
   const viewingOwnProfile = !paramId || paramId === user?.id
   usePageTitle(viewingOwnProfile ? 'My Profile' : 'Profile')
 
@@ -220,8 +221,8 @@ const Profile = () => {
           {/* ── Header ────────────────────────────────────────── */}
           <div className="card p-6 mb-6">
             <div className="flex items-start gap-5">
-              {/* Avatar */}
-              <div className="shrink-0">
+              {/* Avatar with upload for own profile */}
+              <div className="shrink-0 relative group">
                 {profile?.type === 'talent' && profile.avatar_url ? (
                   <img src={profile.avatar_url} alt="Avatar"
                     loading="lazy" width={64} height={64}
@@ -233,6 +234,28 @@ const Profile = () => {
                       ? (profile.company_name?.[0] ?? '?').toUpperCase()
                       : (profile?.full_name?.[0] ?? user?.email?.[0] ?? '?').toUpperCase()}
                   </div>
+                )}
+                {/* Upload overlay for own profile */}
+                {isOwn && (
+                  <label className="absolute inset-0 rounded-full flex items-center justify-center
+                    bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    title="Upload photo">
+                    <Upload size={16} className="text-white" />
+                    <input type="file" accept="image/*" className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (!file || !userId) return
+                        const ext  = file.name.split('.').pop()
+                        const path = `avatars/${userId}.${ext}`
+                        const { error: upErr } = await supabase.storage
+                          .from('avatars')
+                          .upload(path, file, { upsert: true })
+                        if (upErr) return
+                        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+                        const url = urlData.publicUrl
+                        await saveField('avatar_url', url)
+                      }} />
+                  </label>
                 )}
               </div>
 
@@ -256,6 +279,15 @@ const Profile = () => {
                   {profile?.type === 'production' ? 'Production House' : 'Talent'}
                 </p>
               </div>
+
+              {/* Message button for non-own profiles */}
+              {!isOwn && paramId && (
+                <button
+                  onClick={() => navigate(`/chat?peer=${paramId}`)}
+                  className="btn-outline flex items-center gap-2 shrink-0">
+                  <MessageCircle size={15} /> Message
+                </button>
+              )}
             </div>
           </div>
 

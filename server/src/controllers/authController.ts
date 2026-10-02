@@ -87,3 +87,37 @@ export const verify = async (
     next(err)
   }
 }
+
+/**
+ * POST /auth/forgot-password
+ * Body: { email }
+ * Sends a Supabase password-reset email (magic link).
+ */
+export const forgotPassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { email } = req.body as { email?: string }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      res.status(400).json({ error: 'Valid email address is required' })
+      return
+    }
+
+    const { supabase } = await import('../db/supabase')
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${process.env.ALLOWED_ORIGINS?.split(',')[0] ?? 'http://localhost:5173'}/reset-password`,
+    })
+
+    if (error) {
+      res.status(400).json({ error: error.message })
+      return
+    }
+
+    // Always return 200 — don't leak whether email exists
+    res.status(200).json({ message: 'If this email is registered, a reset link has been sent.' })
+  } catch (err) {
+    next(err)
+  }
+}

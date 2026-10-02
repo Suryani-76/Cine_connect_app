@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Plus, Film, Users, Star, Bell, ChevronRight } from 'lucide-react'
-import { jobsApi, applicationsApi, dashboardApi, Job, DashboardStats, MyApplication } from '../lib/api'
+import { jobsApi, applicationsApi, dashboardApi, Job, DashboardStats, MyApplication, ApplicationStatus } from '../lib/api'
 import { NotificationBell } from '../components/NotificationBell'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { supabase } from '../lib/supabase'
 
 // ── Stat card ─────────────────────────────────────────────────
 
@@ -310,6 +311,22 @@ function TalentHome() {
       .catch(() => {})
       .finally(() => setLApps(false))
   }, [profileId, accessToken])
+
+  // Realtime: update application status live when production house changes it
+  useEffect(() => {
+    if (!profileId) return
+    const channel = supabase
+      .channel(`my-apps:${profileId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'applications',
+        filter: `talent_profile_id=eq.${profileId}`,
+      }, (payload) => {
+        const updated = payload.new as { id: string; status: ApplicationStatus }
+        setMyApps(prev => prev.map(a => a.id === updated.id ? { ...a, status: updated.status } : a))
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [profileId])
 
   return (
     <div className="page">

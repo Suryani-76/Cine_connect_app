@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Send } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Send, CheckCheck } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -47,8 +47,10 @@ function Bubble({ msg, isMine }: { msg: Message; isMine: boolean }) {
           : 'bg-surface-overlay text-content-primary rounded-bl-sm border border-surface-border'
         }`}>
         {msg.body}
-        <span className={`block text-[10px] mt-1 text-right ${isMine ? 'text-gray-800/60' : 'text-content-muted'}`}>
+        <span className={`flex items-center justify-end gap-1 text-[10px] mt-1 ${isMine ? 'text-gray-800/60' : 'text-content-muted'}`}>
           {timeLabel(msg.created_at)}
+          {isMine && msg.read && <CheckCheck size={12} className="text-emerald-600" />}
+          {isMine && !msg.read && <CheckCheck size={12} className="opacity-40" />}
         </span>
       </div>
     </div>
@@ -60,10 +62,12 @@ function Bubble({ msg, isMine }: { msg: Message; isMine: boolean }) {
 const Chat = () => {
   const { user, token } = useAuth()
   const userId = user?.id ?? ''
+  const [searchParams] = useSearchParams()
+  const peerFromUrl = searchParams.get('peer')
   usePageTitle('Messages')
 
   const [conversations, setConversations] = useState<Conversation[]>([])
-  const [activePeerId, setActivePeerId]   = useState<string | null>(null)
+  const [activePeerId, setActivePeerId]   = useState<string | null>(peerFromUrl)
   const [messages, setMessages]           = useState<Message[]>([])
   const [draft, setDraft]                 = useState('')
   const [sending, setSending]             = useState(false)
@@ -167,6 +171,10 @@ const Chat = () => {
           // Append to thread if it's from the active peer
           if (newMsg.sender_id === activePeerId || newMsg.recipient_id === activePeerId) {
             setMessages(prev => [...prev, newMsg])
+            // Auto-mark as read since we're viewing the thread
+            if (newMsg.recipient_id === userId) {
+              supabase.from('messages').update({ read: true }).eq('id', newMsg.id)
+            }
           }
           // Update conversation list
           setConversations(prev => {

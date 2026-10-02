@@ -152,6 +152,16 @@ const WEIGHTS: Record<string, number> = {
 export async function getMatchBreakdown(
   applicationId: string
 ): Promise<MatchBreakdownResponse> {
+  // Fetch the application — check if we have a stored match_score first
+  const { data: appCheck } = await supabase
+    .from('applications')
+    .select('id, match_score, job_id, talent_profile_id')
+    .eq('id', applicationId)
+    .single()
+
+  // If no stored score, always recompute. If score is stored, still compute for breakdown details
+  // but this confirms the app exists before the expensive join query
+  if (!appCheck) throw Object.assign(new Error('Application not found'), { statusCode: 404 })
   // Fetch the application with talent profile and job requirements in one shot
   const { data: app, error: appError } = await supabase
     .from('applications')

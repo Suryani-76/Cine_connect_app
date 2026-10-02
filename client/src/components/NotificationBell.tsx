@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Bell } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { notificationsApi, AppNotification } from '../lib/api'
 
@@ -9,7 +10,7 @@ const TYPE_META: Record<string, { icon: string }> = {
   high_match_talent: { icon: '⭐' },
 }
 
-function NotifRow({ notif, onRead }: { notif: AppNotification; onRead: (id: string) => void }) {
+function NotifRow({ notif, onRead, onNavigate }: { notif: AppNotification; onRead: (id: string) => void; onNavigate: (url: string) => void }) {
   const meta    = TYPE_META[notif.type] ?? { icon: '🔔' }
   const payload = notif.payload as Record<string, string>
   const summary =
@@ -21,6 +22,20 @@ function NotifRow({ notif, onRead }: { notif: AppNotification; onRead: (id: stri
       ? `${payload.talent_name ?? 'Talent'} scored ${payload.match_score ?? ''}% on "${payload.job_title ?? 'a job'}"`
       : 'You have a new notification'
 
+  // Determine navigation target based on type + payload
+  const getTarget = (): string | null => {
+    if (notif.type === 'new_application' && payload.job_id) {
+      return `/applications?job_id=${payload.job_id}`
+    }
+    if (notif.type === 'high_match_talent' && payload.job_id) {
+      return `/applications?job_id=${payload.job_id}`
+    }
+    if (notif.type === 'new_message' && payload.sender_id) {
+      return `/chat?peer=${payload.sender_id}`
+    }
+    return null
+  }
+
   const timeAgo = (() => {
     const diff = Date.now() - new Date(notif.created_at).getTime()
     const m = Math.floor(diff / 60000)
@@ -31,8 +46,14 @@ function NotifRow({ notif, onRead }: { notif: AppNotification; onRead: (id: stri
     return `${Math.floor(h / 24)}d ago`
   })()
 
+  const handleClick = () => {
+    if (!notif.read) onRead(notif.id)
+    const target = getTarget()
+    if (target) onNavigate(target)
+  }
+
   return (
-    <button onClick={() => !notif.read && onRead(notif.id)}
+    <button onClick={handleClick}
       className={`w-full text-left px-4 py-3 flex items-start gap-3
         hover:bg-surface-section transition-colors
         ${notif.read ? 'opacity-60' : ''}`}>
@@ -49,6 +70,7 @@ function NotifRow({ notif, onRead }: { notif: AppNotification; onRead: (id: stri
 }
 
 export function NotificationBell({ userId, token }: { userId: string; token: string }) {
+  const navigate    = useNavigate()
   const [open, setOpen]     = useState(false)
   const [notifs, setNotifs] = useState<AppNotification[]>([])
   const [unread, setUnread] = useState(0)
@@ -148,7 +170,7 @@ export function NotificationBell({ userId, token }: { userId: string; token: str
                 <p className="text-sm text-content-tertiary">No notifications yet</p>
               </div>
             )}
-            {!loading && notifs.map(n => <NotifRow key={n.id} notif={n} onRead={handleRead} />)}
+            {!loading && notifs.map(n => <NotifRow key={n.id} notif={n} onRead={handleRead} onNavigate={(url) => { setOpen(false); navigate(url) }} />)}
           </div>
 
           {notifs.length > 0 && (
