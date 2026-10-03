@@ -11,9 +11,9 @@ function firstZodError(err: z.ZodError): string {
 }
 
 const createProfileSchema = z.object({
-  company_name:       z.string().min(1, 'Company name is required').max(120),
-  bio:                z.string().max(500).optional(),
-  production_details: z.string().max(2000).optional(),
+  company_name:       z.string().min(1, 'Company name is required').max(150),
+  bio:                z.string().max(2000).optional(),
+  production_details: z.string().max(3000).optional(),
 })
 
 /**

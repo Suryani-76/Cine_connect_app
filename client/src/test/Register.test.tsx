@@ -97,12 +97,33 @@ describe('Register page', () => {
     })
   })
 
+  it('shows consent required error if not checked', async () => {
+    renderRegister()
+    await userEvent.type(screen.getByLabelText(/email/i), 'test@test.com')
+    await userEvent.type(screen.getByLabelText(/username/i), 'testuser')
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123')
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123')
+    fireEvent.click(screen.getByRole('button', { name: /create account/i }))
+    await waitFor(() => {
+      expect(screen.getByText(/you must agree to the terms/i)).toBeInTheDocument()
+    })
+  })
+
+  it('renders links to terms and privacy policies', () => {
+    renderRegister()
+    const termsLink = screen.getAllByRole('link', { name: /terms of service/i })[0]
+    const privacyLink = screen.getAllByRole('link', { name: /privacy policy/i })[0]
+    expect(termsLink).toHaveAttribute('href', '/terms')
+    expect(privacyLink).toHaveAttribute('href', '/privacy')
+  })
+
   it('navigates to /verify on successful registration', async () => {
     renderRegister()
     await userEvent.type(screen.getByLabelText(/email/i), 'test@test.com')
     await userEvent.type(screen.getByLabelText(/username/i), 'testuser')
     await userEvent.type(screen.getByLabelText(/^password$/i), 'password123')
     await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123')
+    await userEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: /create account/i }))
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/verify', expect.objectContaining({

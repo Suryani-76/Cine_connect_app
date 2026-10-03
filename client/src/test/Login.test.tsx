@@ -59,7 +59,7 @@ describe('Login page', () => {
   it('renders the CineConnect brand', () => {
     renderLogin()
     // Brand is split across two spans so query by partial text on a container
-    expect(screen.getByText('Connect')).toBeInTheDocument()
+    expect(screen.getAllByText('Connect')[0]).toBeInTheDocument()
   })
 
   it('shows email validation error when submitted empty', async () => {

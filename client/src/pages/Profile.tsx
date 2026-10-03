@@ -4,6 +4,7 @@ import { Pencil, X, Check, ExternalLink, MessageCircle, Upload } from 'lucide-re
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { PublicFooter } from '../components/PublicFooter'
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -208,6 +209,9 @@ const Profile = () => {
             <Link to="/home"         className="nav-link">Home</Link>
             <Link to="/applications" className="nav-link">Applications</Link>
             {isOwn && (
+              <Link to="/settings" className="nav-link">Settings</Link>
+            )}
+            {isOwn && (
               <button onClick={logout}
                 className="nav-link text-red-400 hover:text-red-300">Sign out</button>
             )}
@@ -341,9 +345,22 @@ const Profile = () => {
                 )}
               </>
             )}
+
+            {isOwn && (
+              <div className="card p-5 border-surface-border bg-surface-section flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6">
+                <div>
+                  <h4 className="text-sm font-semibold text-content-heading">Data Rights & Privacy (DPDP / GDPR)</h4>
+                  <p className="text-xs text-content-tertiary">Download your data, inspect legal consents, or request account erasure.</p>
+                </div>
+                <Link to="/settings" className="btn-secondary text-xs whitespace-nowrap self-start sm:self-auto">
+                  Manage Data & Privacy
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </main>
+      <PublicFooter />
     </div>
   )
 }

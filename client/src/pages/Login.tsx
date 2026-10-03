@@ -4,6 +4,7 @@ import { Eye, EyeOff, Film, ArrowLeft } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { PublicFooter } from '../components/PublicFooter'
 
 interface FieldErrors { email?: string; password?: string }
 
@@ -141,23 +142,27 @@ const Login = () => {
 
   if (showForgot) {
     return (
-      <div className="min-h-screen bg-surface-section flex items-center justify-center px-4">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-brand-navy mb-4">
-              <Film size={22} className="text-white" />
+      <div className="min-h-screen bg-surface-section flex flex-col justify-between">
+        <div className="flex-1 flex items-center justify-center px-4 py-12">
+          <div className="w-full max-w-md">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-brand-navy mb-4">
+                <Film size={22} className="text-white" />
+              </div>
+              <h1 className="brand-text text-3xl text-brand-navy">Cine<span className="text-brand">Connect</span></h1>
             </div>
-            <h1 className="brand-text text-3xl text-brand-navy">Cine<span className="text-brand">Connect</span></h1>
+            <ForgotPasswordPanel onBack={() => setShowForgot(false)} />
           </div>
-          <ForgotPasswordPanel onBack={() => setShowForgot(false)} />
         </div>
+        <PublicFooter />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-surface-section flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-surface-section flex flex-col justify-between">
+      <div className="flex-1 flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-brand-navy mb-4">
             <Film size={22} className="text-white" />
@@ -215,6 +220,8 @@ const Login = () => {
           </p>
         </div>
       </div>
+      </div>
+      <PublicFooter />
     </div>
   )
 }

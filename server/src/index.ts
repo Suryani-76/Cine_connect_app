@@ -1,36 +1,56 @@
-import 'dotenv/config'
-import express from 'express'
-import cors from 'cors'
-import helmet from 'helmet'
-import { rateLimit } from 'express-rate-limit'
-import { healthRouter } from './routes/health'
-import { authRouter } from './routes/auth'
-import { productionRouter } from './routes/production'
-import { jobsRouter } from './routes/jobs'
-import { talentRouter } from './routes/talent'
-import { applicationsRouter } from './routes/applications'
-import { notificationsRouter } from './routes/notifications'
-import { dashboardRouter } from './routes/dashboard'
-import { savedJobsRouter } from './routes/savedJobs'
-import { talentAlertsRouter } from './routes/talentAlerts'
-import { vocabRouter } from './routes/vocab'
-import { adminRouter } from './routes/admin'
-import { errorHandler } from './middleware/errorHandler'
+import "dotenv/config"
+import express from "express"
+import cors from "cors"
+import helmet from "helmet"
+import { rateLimit } from "express-rate-limit"
+import { healthRouter } from "./routes/health"
+import { authRouter } from "./routes/auth"
+import { accountRouter } from "./routes/account"
+import { productionRouter } from "./routes/production"
+import { jobsRouter } from "./routes/jobs"
+import { talentRouter } from "./routes/talent"
+import { applicationsRouter } from "./routes/applications"
+import { notificationsRouter } from "./routes/notifications"
+import { dashboardRouter } from "./routes/dashboard"
+import { savedJobsRouter } from "./routes/savedJobs"
+import { talentAlertsRouter } from "./routes/talentAlerts"
+import { vocabRouter } from "./routes/vocab"
+import { adminRouter } from "./routes/admin"
+import { errorHandler } from "./middleware/errorHandler"
 
 const app  = express()
 const PORT = process.env.PORT ?? 3000
 
+// ── Reverse Proxy Trust (Fly.io Mumbai) ────────────────────────
+// Enables accurate req.ip evaluation behind Fly.io edge proxies
+app.set("trust proxy", 1)
+
 // ── Security headers ──────────────────────────────────────────
 app.use(helmet())
 
-// ── CORS — restrict to known client origins ───────────────────
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173')
-  .split(',')
+// ── CORS — restrict to exact known client origins ─────────────
+const rawAllowed = process.env.ALLOWED_ORIGINS?.trim()
+
+if (process.env.NODE_ENV === "production") {
+  if (!rawAllowed) {
+    console.error("FATAL [CORS]: ALLOWED_ORIGINS must be set in production.")
+    process.exit(1)
+  }
+  const origins = rawAllowed.split(",").map(o => o.trim())
+  if (origins.some(o => o === "*" || o === "" || o.includes("/*"))) {
+    console.error("FATAL [CORS]: Wildcards are strictly disallowed in ALLOWED_ORIGINS in production.")
+    process.exit(1)
+  }
+}
+
+const ALLOWED_ORIGINS = (rawAllowed || "http://localhost:5173")
+  .split(",")
   .map(o => o.trim())
+  .filter(Boolean)
 
 app.use(cors({
   origin: (origin, cb) => {
-    // Allow requests with no origin (curl, mobile apps, server-to-server)
+    // Allow non-browser requests (server-to-server, curl, tests) with no Origin header
     if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true)
     cb(new Error(`CORS: origin ${origin} not allowed`))
   },
@@ -38,8 +58,8 @@ app.use(cors({
 }))
 
 // ── Body parsing ──────────────────────────────────────────────
-app.use(express.json({ limit: '1mb' }))
-app.use(express.urlencoded({ extended: true, limit: '1mb' }))
+app.use(express.json({ limit: "1mb" }))
+app.use(express.urlencoded({ extended: true, limit: "1mb" }))
 
 // ── Rate limiters ─────────────────────────────────────────────
 
@@ -47,43 +67,46 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }))
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, max: 10,
   standardHeaders: true, legacyHeaders: false,
-  message: { error: 'Too many attempts. Please try again in 15 minutes.' },
+  message: { error: "Too many attempts. Please try again in 15 minutes." },
+  keyGenerator: (req) => req.ip ?? "unknown",
 })
 
 /** General API limiter: 300 req per min per IP */
 const generalLimiter = rateLimit({
   windowMs: 60 * 1000, max: 300,
   standardHeaders: true, legacyHeaders: false,
-  message: { error: 'Too many requests. Please slow down.' },
+  message: { error: "Too many requests. Please slow down." },
+  keyGenerator: (req) => req.ip ?? "unknown",
 })
 
-/** Step 0.3 — Dedicated rate limiter for job view recording: 30/min/IP */
+/** Dedicated rate limiter for job view recording: 30/min/IP */
 const viewLimiter = rateLimit({
   windowMs: 60 * 1000, max: 30,
   standardHeaders: true, legacyHeaders: false,
-  message: { error: 'Too many view requests.' },
-  keyGenerator: (req) => req.ip ?? 'unknown',
+  message: { error: "Too many view requests." },
+  keyGenerator: (req) => req.ip ?? "unknown",
 })
 
 app.use(generalLimiter)
 
 // ── Routes ────────────────────────────────────────────────────
-app.use('/health', healthRouter)
-app.use('/auth', authLimiter, authRouter)       // strict limit on auth
-app.use('/production', productionRouter)
-app.use('/jobs', viewLimiter, jobsRouter)
-app.use('/talent', talentRouter)
-app.use('/applications', applicationsRouter)
-app.use('/notifications', notificationsRouter)
-app.use('/dashboard', dashboardRouter)
-app.use('/saved-jobs', savedJobsRouter)
-app.use('/talent-alerts', talentAlertsRouter)
-app.use('/vocab', vocabRouter)
-app.use('/admin', adminRouter)
+app.use("/health", healthRouter)
+app.use("/auth", authLimiter, authRouter)       // strict limit on auth
+app.use("/account", accountRouter)              // data export & deletion (DPDP/GDPR)
+app.use("/production", productionRouter)
+app.use("/jobs", viewLimiter, jobsRouter)
+app.use("/talent", talentRouter)
+app.use("/applications", applicationsRouter)
+app.use("/notifications", notificationsRouter)
+app.use("/dashboard", dashboardRouter)
+app.use("/saved-jobs", savedJobsRouter)
+app.use("/talent-alerts", talentAlertsRouter)
+app.use("/vocab", vocabRouter)
+app.use("/admin", adminRouter)
 
 // ── 404 ───────────────────────────────────────────────────────
 app.use((_req, res) => {
-  res.status(404).json({ error: 'Route not found' })
+  res.status(404).json({ error: "Route not found" })
 })
 
 // ── Centralised error handler (must be last) ──────────────────
@@ -94,8 +117,8 @@ app.listen(PORT, () => {
 })
 
 // Prevent unhandled promise rejections from crashing the process
-process.on('unhandledRejection', (reason) => {
-  console.error('[unhandledRejection]', reason)
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason)
 })
 
 export default app

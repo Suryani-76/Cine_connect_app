@@ -4,6 +4,7 @@ import { Eye, EyeOff, Film } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { PublicFooter } from '../components/PublicFooter'
 
 const MIN_LENGTH = 8
 
@@ -192,6 +193,7 @@ const ResetPassword = () => {
           </p>
         </div>
       </div>
+      <PublicFooter />
     </div>
   )
 }

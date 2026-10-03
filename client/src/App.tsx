@@ -4,7 +4,7 @@ import { Toaster } from 'sonner'
 import { AuthProvider } from './context/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 
-// ── Lazy-loaded pages (Task 5 — code splitting) ───────────────
+// ── Lazy-loaded pages ─────────────────────────────────────────
 const Login         = lazy(() => import('./pages/Login'))
 const Register      = lazy(() => import('./pages/Register'))
 const Verify        = lazy(() => import('./pages/Verify'))
@@ -18,6 +18,13 @@ const Profile       = lazy(() => import('./pages/Profile'))
 const JobDetail     = lazy(() => import('./pages/JobDetail'))
 const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 const NotFound      = lazy(() => import('./pages/NotFound'))
+const Settings      = lazy(() => import('./pages/Settings'))
+
+// Legal & Compliance pages (Step 3.1)
+const Privacy       = lazy(() => import('./pages/Privacy'))
+const Terms         = lazy(() => import('./pages/Terms'))
+const Cookies       = lazy(() => import('./pages/Cookies'))
+const Contact       = lazy(() => import('./pages/Contact'))
 
 function PageLoader() {
   return (
@@ -46,11 +53,17 @@ function App() {
       <BrowserRouter>
         <Suspense fallback={<PageLoader />}>
           <Routes>
-            {/* ── Public ── */}
+            {/* ── Public Auth ── */}
             <Route path="/login"          element={<Login />} />
             <Route path="/register"       element={<Register />} />
             <Route path="/verify"         element={<Verify />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+
+            {/* ── Legal & Contact (Public) ── */}
+            <Route path="/privacy"        element={<Privacy />} />
+            <Route path="/terms"          element={<Terms />} />
+            <Route path="/cookies"        element={<Cookies />} />
+            <Route path="/contact"        element={<Contact />} />
 
             {/* ── Onboarding ── */}
             <Route path="/create-profile" element={
@@ -78,6 +91,9 @@ function App() {
             } />
             <Route path="/profile" element={
               <ProtectedRoute><Profile /></ProtectedRoute>
+            } />
+            <Route path="/settings" element={
+              <ProtectedRoute><Settings /></ProtectedRoute>
             } />
             <Route path="/profile/:id" element={
               <ProtectedRoute><Profile /></ProtectedRoute>

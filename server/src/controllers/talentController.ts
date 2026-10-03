@@ -9,9 +9,9 @@ function firstZodError(err: z.ZodError): string {
 
 const createTalentSchema = z.object({
   full_name:        z.string().max(120).optional(),
-  bio:              z.string().max(500).optional(),
+  bio:              z.string().max(2000).optional(),
   role:             z.string().max(100).optional(),
-  skills:           z.array(z.string().min(1)).max(30).optional(),
+  skills:           z.array(z.string().min(1).max(50)).max(30).optional(),
   experience_years: z.number().int().min(0).max(50).optional(),
   language:         z.string().max(60).optional(),
   location:         z.string().max(120).optional(),

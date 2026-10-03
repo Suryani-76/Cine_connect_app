@@ -40,6 +40,12 @@ export interface RegisterPayload {
   password: string
   username: string
   role: 'production' | 'talent'
+  invite_code?: string
+  consent?: {
+    terms: boolean
+    privacy: boolean
+    version: string
+  }
 }
 
 export interface RegisterResponse {
@@ -71,6 +77,15 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  getConsentStatus: (token: string) =>
+    request<{ consent: { terms: boolean; privacy: boolean; version: string; consented_at: string } | null; latest_version: string; prompt_required: boolean }>('/auth/consent-status', {}, token),
+
+  recordConsent: (payload: { terms: boolean; privacy: boolean; version: string }, token: string) =>
+    request<{ message: string; version: string }>('/auth/consent', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, token),
 }
 // ── Production profile ────────────────────────────────────────
 
@@ -622,4 +637,52 @@ export const adminApi = {
       { method: 'POST' },
       token
     ),
+}
+
+
+// ── Account Data Rights (DPDP Act 2023 / GDPR) ────────────────
+
+export interface ExportUserDataResponse {
+  exported_at: string
+  jurisdiction_notice: string
+  user: {
+    id: string
+    email: string
+    username: string
+    role: string
+    created_at: string
+  }
+  consents: Array<{
+    version: string
+    terms_accepted: boolean
+    privacy_accepted: boolean
+    consented_at: string
+  }>
+  profile: unknown
+  applications: unknown[]
+  jobs: unknown[]
+  alerts: unknown[]
+  saved_jobs: unknown[]
+  messages: unknown[]
+  notifications: unknown[]
+}
+
+export const accountApi = {
+  exportData: async (token: string): Promise<Blob> => {
+    const res = await fetch(`${BASE_URL}/account/export`, {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Export failed" }))
+      throw new Error((err as { error?: string }).error || "Failed to export account data")
+    }
+    return res.blob()
+  },
+
+  deleteAccount: (token: string) =>
+    request<{ message: string }>("/account", {
+      method: "DELETE",
+    }, token),
 }

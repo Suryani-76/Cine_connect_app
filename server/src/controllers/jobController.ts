@@ -83,7 +83,7 @@ const updateJobSchema = z.object({
 })
 
 const requirementsSchema = z.object({
-  skills:           z.array(z.string().min(1)).max(20).optional(),
+  skills:           z.array(z.string().min(1).max(50)).max(30).optional(),
   roles:            z.array(z.string().min(1)).max(20).optional(),
   experience_level: z.enum(['entry','mid','senior','any'] as const,
     "experience_level must be 'entry', 'mid', 'senior', or 'any'").optional(),
