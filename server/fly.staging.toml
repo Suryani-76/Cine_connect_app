@@ -1,9 +1,9 @@
-# Fly.io deployment config for CineConnect server (Production)
-# Deploy with: fly deploy --config server/fly.toml
+# Fly.io deployment config for CineConnect server (Staging)
+# Deploy with: fly deploy --config server/fly.staging.toml
 # Docs: https://fly.io/docs/reference/configuration/
 
-app = "cineconnect-server"
-primary_region = "bom"  # Mumbai — closest to target audience
+app = "cineconnect-server-staging"
+primary_region = "bom"  # Mumbai
 kill_signal = "SIGTERM"
 kill_timeout = "20s"
 
@@ -12,7 +12,7 @@ kill_timeout = "20s"
 
 [env]
   PORT = "3000"
-  NODE_ENV = "production"
+  NODE_ENV = "staging"
 
 # Process Groups:
 # app: Express API server
@@ -23,7 +23,7 @@ kill_timeout = "20s"
   email_worker = "node dist/workers/emailWorker.js"
   recompute_worker = "node dist/workers/recomputeWorker.js"
 
-# Secrets (set via: fly secrets set KEY=value)
+# Secrets (set via: fly secrets set KEY=value --config server/fly.staging.toml)
 # SUPABASE_URL
 # SUPABASE_SERVICE_ROLE_KEY
 # ALLOWED_ORIGINS
@@ -37,7 +37,7 @@ kill_timeout = "20s"
   internal_port = 3000
   auto_stop_machines = true
   auto_start_machines = true
-  min_machines_running = 2
+  min_machines_running = 1
 
   [[services.ports]]
     port = 80
@@ -50,8 +50,8 @@ kill_timeout = "20s"
 
   [services.concurrency]
     type = "connections"
-    hard_limit = 250
-    soft_limit = 200
+    hard_limit = 200
+    soft_limit = 150
 
   [[services.http_checks]]
     interval = "15s"

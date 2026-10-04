@@ -1,0 +1,183 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  # ── 1. Run Tests ────────────────────────────────────────────────
+  test:
+    name: 1. Test Suite & Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify database table references
+        run: npx tsx scripts/check-table-refs.ts
+
+      - name: Server Typecheck & Tests
+        run: |
+          cd server
+          npm run test
+        env:
+          SUPABASE_URL: https://placeholder.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-key
+
+      - name: Client Typecheck, Tests & Build
+        run: |
+          cd client
+          npm run test
+          npm run build
+        env:
+          VITE_API_URL: http://localhost:3000
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder-anon-key
+
+  # ── 2. Apply Migrations ─────────────────────────────────────────
+  migrations:
+    name: 2. Apply Staging Migrations
+    runs-on: ubuntu-latest
+    needs: [test]
+    environment: staging
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Apply migrations to Staging Database
+        run: |
+          if [ -n "${{ secrets.STAGING_SUPABASE_DB_URL }}" ]; then
+            echo "Applying database migrations sequentially to staging..."
+            supabase db push --db-url "${{ secrets.STAGING_SUPABASE_DB_URL }}"
+          else
+            echo "STAGING_SUPABASE_DB_URL not set — skipping remote migration push."
+          fi
+
+  # ── 3. Deploy Server ────────────────────────────────────────────
+  deploy-server:
+    name: 3. Deploy Server (Fly.io Staging)
+    runs-on: ubuntu-latest
+    needs: [migrations]
+    environment: staging
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy Server to Fly.io
+        run: |
+          if [ -n "${{ secrets.FLY_API_TOKEN }}" ]; then
+            flyctl deploy --config server/fly.staging.toml --remote-only
+          else
+            echo "FLY_API_TOKEN not set — skipping remote Fly deployment."
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  # ── 4. Deploy Client ────────────────────────────────────────────
+  deploy-client:
+    name: 4. Deploy Client (Staging)
+    runs-on: ubuntu-latest
+    needs: [deploy-server]
+    environment: staging
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build client with staging environment
+        run: |
+          cd client
+          npm run build
+        env:
+          VITE_API_URL: ${{ vars.STAGING_API_URL || 'https://cineconnect-server-staging.fly.dev' }}
+          VITE_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL || 'https://staging.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY || 'placeholder' }}
+
+      - name: Upload client artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-staging-build
+          path: client/dist
+
+  # ── 5. Smoke Test ───────────────────────────────────────────────
+  smoke-test:
+    name: 5. Smoke Test (Liveness & Authenticated Read)
+    runs-on: ubuntu-latest
+    needs: [deploy-client]
+    environment: staging
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Run Smoke Test Suite
+        run: |
+          TARGET_URL="${{ vars.STAGING_API_URL || 'https://cineconnect-server-staging.fly.dev' }}"
+          TOKEN="${{ secrets.STAGING_SMOKE_AUTH_TOKEN || '' }}"
+          npx tsx scripts/smoke-test.ts "$TARGET_URL" "$TOKEN"
+
+  # ── 6. Rollback Notice on Failure ───────────────────────────────
+  rollback-notice:
+    name: Rollback Instructions (Failure Handler)
+    runs-on: ubuntu-latest
+    needs: [migrations, deploy-server, deploy-client, smoke-test]
+    if: failure()
+    steps:
+      - name: Output Rollback Runbook
+        run: |
+          echo "================================================================="
+          echo "🚨 STAGING DEPLOYMENT / SMOKE TEST FAILED!"
+          echo "================================================================="
+          echo ""
+          echo "Follow these emergency rollback commands:"
+          echo ""
+          echo "1. Rollback Fly.io Staging Server:"
+          echo "   export FLY_API_TOKEN=<YOUR_TOKEN>"
+          echo "   flyctl releases list --config server/fly.staging.toml"
+          echo "   flyctl releases rollback --config server/fly.staging.toml"
+          echo ""
+          echo "2. Revert Git Merge:"
+          echo "   git checkout main"
+          echo "   git revert HEAD -m 1"
+          echo "   git push origin main"
+          echo ""
+          echo "3. Check Server Logs:"
+          echo "   flyctl logs --config server/fly.staging.toml"
+          echo ""
+          echo "================================================================="
+          exit 1
