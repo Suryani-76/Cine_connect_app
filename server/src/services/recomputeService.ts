@@ -75,7 +75,7 @@ export async function recomputeSingleApplication(
       status,
       match_score,
       talent_profiles (
-        id, user_id, full_name, bio, role, skills, experience_years,
+        id, user_id, full_name, bio, role, roles, showreel_url, skills, experience_years,
         language, location, avatar_url, portfolio_url, last_active_at
       ),
       jobs (
@@ -103,9 +103,23 @@ export async function recomputeSingleApplication(
     location:         jobReq?.location         ?? null,
   }
 
+  let creditsCount = 0
+  if (talent?.id) {
+    try {
+      const { count } = await supabase
+        .from('talent_credits')
+        .select('id', { count: 'exact', head: true })
+        .eq('talent_profile_id', talent.id)
+      creditsCount = count ?? 0
+    } catch {
+      creditsCount = 0
+    }
+  }
+
   const talentForScoring: TalentForScoring = {
     skills:           talent.skills          ?? [],
     role:             talent.role            ?? null,
+    roles:            talent.roles           ?? [],
     experience_years: talent.experience_years ?? 0,
     language:         talent.language        ?? null,
     location:         talent.location        ?? null,
@@ -113,6 +127,8 @@ export async function recomputeSingleApplication(
     bio:              talent.bio             ?? null,
     avatar_url:       talent.avatar_url      ?? null,
     portfolio_url:    talent.portfolio_url   ?? null,
+    showreel_url:     talent.showreel_url    ?? null,
+    credits_count:    creditsCount,
     last_active_at:   talent.last_active_at  ?? new Date(0).toISOString(),
   }
 

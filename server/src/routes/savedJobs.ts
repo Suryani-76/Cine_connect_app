@@ -33,6 +33,19 @@ savedJobsRouter.post('/',
     } catch (err) { next(err) }
   })
 
+savedJobsRouter.delete('/:id',
+  requireAuth, loadCallerContext, requireRole('talent'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const jobId = req.params.id
+      if (!jobId || !/^[0-9a-f-]{36}$/i.test(jobId)) {
+        res.status(400).json({ error: 'job_id must be a valid UUID' }); return
+      }
+      await unsaveJob(jobId, req.caller!.talentProfileId!)
+      res.json({ ok: true })
+    } catch (err) { next(err) }
+  })
+
 savedJobsRouter.delete('/',
   requireAuth, loadCallerContext, requireRole('talent'),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -45,3 +58,4 @@ savedJobsRouter.delete('/',
       res.json({ ok: true })
     } catch (err) { next(err) }
   })
+

@@ -48,6 +48,7 @@ vi.mock('../../middleware/callerContext', () => {
     requireApplicationAccess: vi.fn((_mode: string) =>
       (_req: Request, _res: Response, next: NextFunction) => next()
     ),
+    optionalCallerContext: vi.fn((_req: Request, _res: Response, next: NextFunction) => next()),
   }
 })
 

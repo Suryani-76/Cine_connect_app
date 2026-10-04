@@ -4,6 +4,7 @@ import { ArrowLeft, MapPin, Globe, Briefcase, Clock, Building2, ExternalLink, X,
 import { jobsApi, applicationsApi, savedJobsApi, jobAnalyticsApi, JobWithProduction, MatchBreakdown } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { VerifiedBadge } from '../components/VerifiedBadge'
 
 // ── Apply modal ───────────────────────────────────────────────
 
@@ -327,6 +328,7 @@ function getDeadlineStatus(deadline: string | null | undefined): { text: string;
               <div className="flex items-center gap-2 mb-4">
                 <Building2 size={15} className="text-content-tertiary shrink-0" />
                 <span className="text-sm font-semibold text-brand">{prod.company_name}</span>
+                {prod.verified && <VerifiedBadge />}
               </div>
 
               {/* Meta pills */}
@@ -455,7 +457,10 @@ function getDeadlineStatus(deadline: string | null | undefined): { text: string;
               {prod.company_name[0]?.toUpperCase()}
             </div>
             <div>
-              <p className="font-semibold text-content-heading">{prod.company_name}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="font-semibold text-content-heading">{prod.company_name}</p>
+                {prod.verified && <VerifiedBadge />}
+              </div>
             </div>
           </div>
           {prod.bio && <p className="text-sm text-content-secondary leading-relaxed">{prod.bio}</p>}

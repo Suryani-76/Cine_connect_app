@@ -3,9 +3,14 @@ import { useAuth, UserRole } from '../context/AuthContext'
 import { ReactNode } from 'react'
 import { Film } from 'lucide-react'
 
-interface Props { children: ReactNode; role?: UserRole }
+interface Props {
+  children: ReactNode
+  role?: UserRole
+  roles?: UserRole[]
+  allowedRoles?: UserRole[]
+}
 
-export function ProtectedRoute({ children, role }: Props) {
+export function ProtectedRoute({ children, role, roles, allowedRoles }: Props) {
   const { isAuthenticated, user, loading } = useAuth()
   const location = useLocation()
 
@@ -24,7 +29,8 @@ export function ProtectedRoute({ children, role }: Props) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
 
-  if (role && user?.role !== role) {
+  const effectiveAllowedRoles = allowedRoles ?? roles ?? (role ? [role] : undefined)
+  if (effectiveAllowedRoles && (!user?.role || !effectiveAllowedRoles.includes(user.role))) {
     return <Navigate to="/home" replace />
   }
 

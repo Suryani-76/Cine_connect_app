@@ -5,6 +5,7 @@ import { jobsApi, applicationsApi, dashboardApi, Job, DashboardStats, MyApplicat
 import { NotificationBell } from '../components/NotificationBell'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { VerifiedBadge } from '../components/VerifiedBadge'
 import { supabase } from '../lib/supabase'
 
 // ── Stat card ─────────────────────────────────────────────────
@@ -197,6 +198,8 @@ const ProductionHome = () => {
             Cine<span className="text-brand">Connect</span>
           </span>
           <nav className="flex items-center gap-1">
+            <Link to="/jobs"         className="nav-link">Jobs</Link>
+            <Link to="/alerts"       className="nav-link">Alerts</Link>
             <Link to="/search"       className="nav-link">Find Talent</Link>
             <Link to="/applications" className="nav-link">Applications</Link>
             <Link to="/profile"      className="nav-link">Profile</Link>
@@ -353,8 +356,10 @@ function TalentHome() {
             Cine<span className="text-brand">Connect</span>
           </span>
           <nav className="flex items-center gap-1">
-            <Link to="/search"  className="nav-link">Search</Link>
-            <Link to="/profile" className="nav-link">Profile</Link>
+            <Link to="/jobs"       className="nav-link">Jobs</Link>
+            <Link to="/saved-jobs" className="nav-link">Saved</Link>
+            <Link to="/search"     className="nav-link">Search</Link>
+            <Link to="/profile"    className="nav-link">Profile</Link>
             {userId && token && <NotificationBell userId={userId} token={token} />}
           </nav>
         </div>
@@ -404,7 +409,10 @@ function TalentHome() {
                     {/* Job info */}
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-content-heading truncate">{job.title}</p>
-                      <p className="text-sm text-content-tertiary">{prod.company_name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm text-content-tertiary">{prod.company_name}</p>
+                        {prod.verified && <VerifiedBadge />}
+                      </div>
                     </div>
 
                     {/* Status + score + withdraw */}
@@ -435,9 +443,17 @@ function TalentHome() {
           )}
         </section>
 
-        {/* ── Open Jobs ───────────────────────────────────────── */}
+        {/* ── Open Jobs (Featured Preview) ─────────────────── */}
         <section>
-          <h2 className="section-title mb-4">Open Jobs</h2>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="section-title">Featured Opportunities</h2>
+              <p className="text-xs text-content-tertiary mt-0.5">Top open roles across film productions</p>
+            </div>
+            <Link to="/jobs" className="text-sm font-semibold text-brand hover:underline flex items-center gap-1">
+              Browse all jobs &rarr;
+            </Link>
+          </div>
 
           {loadingBrowse && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -455,7 +471,7 @@ function TalentHome() {
 
           {!loadingBrowse && browseJobs.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {browseJobs.map(job => {
+              {browseJobs.slice(0, 4).map(job => {
                 const req   = job.job_requirements
                 const pills = [...(req?.roles?.slice(0,2) ?? []), ...(req?.skills?.slice(0,2) ?? [])]
                 const meta  = [req?.location, req?.language].filter(Boolean) as string[]

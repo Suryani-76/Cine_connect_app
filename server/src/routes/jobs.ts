@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { rateLimit } from 'express-rate-limit'
 import {
   createJobHandler, setRequirementsHandler, publishJobHandler,
   listJobsHandler, getApplicationsHandler, closeJobHandler,
@@ -7,21 +8,33 @@ import {
   getMyJobMatchHandler,
 } from '../controllers/jobController'
 import { requireAuth } from '../middleware/authMiddleware'
-import { loadCallerContext, requireRole, requireJobOwner } from '../middleware/callerContext'
+import { loadCallerContext, optionalCallerContext, requireRole, requireJobOwner } from '../middleware/callerContext'
 
 export const jobsRouter = Router()
 
+/** Dedicated rate limiter for job view recording: 30/min/IP */
+export const viewLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many view requests." },
+  validate: { keyGeneratorIpFallback: false },
+  keyGenerator: (req) => req.ip ?? "unknown",
+})
+
 // Public — attach caller context if token present (optional auth)
-jobsRouter.get('/',     listJobsHandler)      // non-owners only see published
+jobsRouter.get('/', optionalCallerContext, listJobsHandler)      // non-owners only see published
 
 // Applicant preview match score
 jobsRouter.get('/:id/my-match',
   requireAuth, loadCallerContext, getMyJobMatchHandler)
 
-jobsRouter.get('/:id',  getJobByIdHandler)    // non-owners only see published
+jobsRouter.get('/:id', optionalCallerContext, getJobByIdHandler)    // non-owners only see published
 
 // Auth required — load context
 jobsRouter.post('/:id/view',
+  viewLimiter,
   requireAuth, loadCallerContext, recordViewHandler)  // skip owner's own views
 
 // Production owner only

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { AuthProvider } from './context/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -19,12 +19,22 @@ const JobDetail     = lazy(() => import('./pages/JobDetail'))
 const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 const NotFound      = lazy(() => import('./pages/NotFound'))
 const Settings      = lazy(() => import('./pages/Settings'))
+const Admin         = lazy(() => import('./pages/Admin'))
 
 // Legal & Compliance pages (Step 3.1)
 const Privacy       = lazy(() => import('./pages/Privacy'))
 const Terms         = lazy(() => import('./pages/Terms'))
 const Cookies       = lazy(() => import('./pages/Cookies'))
 const Contact       = lazy(() => import('./pages/Contact'))
+const Unsubscribe   = lazy(() => import('./pages/Unsubscribe'))
+
+// Milestone M2 pages
+const Landing       = lazy(() => import('./pages/Landing'))
+const BrowseJobs    = lazy(() => import('./pages/BrowseJobs'))
+const SavedJobs     = lazy(() => import('./pages/SavedJobs'))
+const Alerts        = lazy(() => import('./pages/Alerts'))
+const EditJob       = lazy(() => import('./pages/EditJob'))
+const CompanyDetail = lazy(() => import('./pages/CompanyDetail'))
 
 function PageLoader() {
   return (
@@ -64,11 +74,16 @@ function App() {
             <Route path="/terms"          element={<Terms />} />
             <Route path="/cookies"        element={<Cookies />} />
             <Route path="/contact"        element={<Contact />} />
+            <Route path="/unsubscribe/:token" element={<Unsubscribe />} />
 
             {/* ── Onboarding ── */}
             <Route path="/create-profile" element={
               <ProtectedRoute><CreateProfile /></ProtectedRoute>
             } />
+
+            {/* ── Public Marketplace & Directory ── */}
+            <Route path="/jobs" element={<BrowseJobs />} />
+            <Route path="/company/:id" element={<CompanyDetail />} />
 
             {/* ── App (authenticated) ── */}
             <Route path="/home" element={
@@ -78,10 +93,19 @@ function App() {
               <ProtectedRoute><Search /></ProtectedRoute>
             } />
             <Route path="/jobs/create" element={
-              <ProtectedRoute><CreateJob /></ProtectedRoute>
+              <ProtectedRoute allowedRoles={['production']}><CreateJob /></ProtectedRoute>
+            } />
+            <Route path="/jobs/:id/edit" element={
+              <ProtectedRoute allowedRoles={['production']}><EditJob /></ProtectedRoute>
             } />
             <Route path="/jobs/:id" element={
               <ProtectedRoute><JobDetail /></ProtectedRoute>
+            } />
+            <Route path="/saved-jobs" element={
+              <ProtectedRoute allowedRoles={['talent']}><SavedJobs /></ProtectedRoute>
+            } />
+            <Route path="/alerts" element={
+              <ProtectedRoute allowedRoles={['production']}><Alerts /></ProtectedRoute>
             } />
             <Route path="/applications" element={
               <ProtectedRoute><Applications /></ProtectedRoute>
@@ -95,12 +119,15 @@ function App() {
             <Route path="/settings" element={
               <ProtectedRoute><Settings /></ProtectedRoute>
             } />
+            <Route path="/admin" element={
+              <ProtectedRoute><Admin /></ProtectedRoute>
+            } />
             <Route path="/profile/:id" element={
               <ProtectedRoute><Profile /></ProtectedRoute>
             } />
 
             {/* ── Defaults ── */}
-            <Route path="/"   element={<Navigate to="/home" replace />} />
+            <Route path="/"   element={<Landing />} />
             <Route path="*"   element={<NotFound />} />
           </Routes>
         </Suspense>

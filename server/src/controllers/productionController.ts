@@ -3,6 +3,8 @@ import { z } from 'zod'
 import {
   createProductionProfile,
   getProductionProfileById,
+  getProductionProfileByUserId,
+  updateProductionProfile,
 } from '../services/productionProfileService'
 import { sanitizeObject } from '../utils/sanitize'
 
@@ -14,6 +16,13 @@ const createProfileSchema = z.object({
   company_name:       z.string().min(1, 'Company name is required').max(150),
   bio:                z.string().max(2000).optional(),
   production_details: z.string().max(3000).optional(),
+})
+
+const updateProfileSchema = z.object({
+  company_name:       z.string().min(1, 'Company name must not be empty').max(150).optional(),
+  bio:                z.string().max(2000).optional(),
+  production_details: z.string().max(3000).optional(),
+  logo_url:           z.string().url('logo_url must be a valid URL').optional().nullable(),
 })
 
 /**
@@ -38,6 +47,45 @@ export const createProfile = async (
       sanitizeObject({ user_id: caller.userId, ...parsed.data })
     )
     res.status(201).json({ profile })
+  } catch (err) { next(err) }
+}
+
+/**
+ * GET /production/profile — caller's own production profile
+ */
+export const getMyProfile = async (
+  req: Request, res: Response, next: NextFunction
+): Promise<void> => {
+  try {
+    const caller = req.caller!
+    if (caller.role !== 'production') {
+      res.status(403).json({ error: 'Production account required' }); return
+    }
+
+    const profile = await getProductionProfileByUserId(caller.userId)
+    res.status(200).json({ profile })
+  } catch (err) { next(err) }
+}
+
+/**
+ * PUT /production/profile — update caller's own production profile
+ */
+export const updateProfile = async (
+  req: Request, res: Response, next: NextFunction
+): Promise<void> => {
+  try {
+    const caller = req.caller!
+    if (caller.role !== 'production') {
+      res.status(403).json({ error: 'Production account required' }); return
+    }
+
+    const parsed = updateProfileSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: firstZodError(parsed.error) }); return
+    }
+
+    const profile = await updateProductionProfile(caller.userId, sanitizeObject(parsed.data))
+    res.status(200).json({ profile })
   } catch (err) { next(err) }
 }
 

@@ -2,6 +2,7 @@ import { useState, FormEvent } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { Eye, EyeOff, Film, ArrowLeft } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { productionApi, talentApi } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { PublicFooter } from '../components/PublicFooter'
@@ -120,14 +121,16 @@ const Login = () => {
         .from('users').select('role').eq('id', data.user.id).single()
       const role = (userRow?.role ?? 'production') as 'production' | 'talent'
       let profileId: string | null = null
-      if (role === 'production') {
-        const { data: pp } = await supabase
-          .from('production_profiles').select('id').eq('user_id', data.user.id).single()
-        profileId = pp?.id ?? null
-      } else {
-        const { data: tp } = await supabase
-          .from('talent_profiles').select('id').eq('user_id', data.user.id).single()
-        profileId = tp?.id ?? null
+      try {
+        if (role === 'production') {
+          const pp = await productionApi.getMyProfile(data.session.access_token)
+          profileId = pp.profile?.id ?? null
+        } else {
+          const tp = await talentApi.getMyProfile(data.session.access_token)
+          profileId = tp.profile?.id ?? null
+        }
+      } catch {
+        profileId = null
       }
       setSession(data.session.access_token, data.session.refresh_token, {
         id: data.user.id, email: data.user.email ?? email, role, profileId,

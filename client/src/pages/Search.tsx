@@ -1,6 +1,6 @@
 import { useState, FormEvent, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Search as SearchIcon, X, ExternalLink } from 'lucide-react'
+import { Search as SearchIcon, X, ExternalLink, ArrowRight } from 'lucide-react'
 import { talentApi, TalentProfile } from '../lib/api'
 import { usePageTitle } from '../hooks/usePageTitle'
 
@@ -20,25 +20,51 @@ function TalentCard({ talent, highlightSkills }: { talent: TalentProfile; highli
     daysAgo <= 7  ? 'text-emerald-600' :
     daysAgo <= 30 ? 'text-amber-600'   : 'text-content-muted'
 
+  const availabilityConfig = {
+    open:        { label: 'Available', dot: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' },
+    busy:        { label: 'Busy',      dot: 'bg-amber-500',   badge: 'bg-amber-500/10 text-amber-600 border-amber-500/30' },
+    unavailable: { label: 'Unavailable', dot: 'bg-gray-400', badge: 'bg-gray-500/10 text-gray-400 border-gray-500/30' },
+  }[talent.availability || 'open']
+
   return (
     <div className="card-hover p-5 flex flex-col gap-4">
       {/* Header */}
-      <div className="flex items-start gap-3">
-        {talent.avatar_url
-          ? <img src={talent.avatar_url} alt={talent.full_name ?? 'Talent avatar'}
-              loading="lazy" width={44} height={44}
-              className="w-11 h-11 rounded-full object-cover shrink-0" />
-          : <div className="w-11 h-11 rounded-full bg-gradient-to-br from-brand-navy to-brand
-              flex items-center justify-center text-white font-bold text-sm shrink-0">{initials}</div>
-        }
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-content-heading leading-tight truncate">
-            {talent.full_name ?? 'Anonymous Talent'}
-          </p>
-          {talent.role && <p className="text-sm text-brand mt-0.5 truncate">{talent.role}</p>}
-          <p className={`text-xs mt-0.5 ${activityCls}`}>{activityLabel}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3 min-w-0">
+          {talent.avatar_url
+            ? <img src={talent.avatar_url} alt={talent.full_name ?? 'Talent avatar'}
+                loading="lazy" width={44} height={44}
+                className="w-11 h-11 rounded-full object-cover shrink-0" />
+            : <div className="w-11 h-11 rounded-full bg-gradient-to-br from-brand-navy to-brand
+                flex items-center justify-center text-white font-bold text-sm shrink-0">{initials}</div>
+          }
+          <div className="flex-1 min-w-0">
+            <Link to={`/profile/${talent.id}`} className="font-semibold text-content-heading leading-tight truncate hover:text-brand transition-colors block">
+              {talent.full_name ?? 'Anonymous Talent'}
+            </Link>
+            {talent.role && <p className="text-sm text-brand mt-0.5 truncate">{talent.role}</p>}
+            <p className={`text-xs mt-0.5 ${activityCls}`}>{activityLabel}</p>
+          </div>
         </div>
+
+        {/* Availability Badge */}
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border shrink-0 ${availabilityConfig.badge}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${availabilityConfig.dot}`} />
+          {availabilityConfig.label}
+        </span>
       </div>
+
+      {/* Secondary Roles */}
+      {talent.roles && talent.roles.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] text-content-muted">Also:</span>
+          {talent.roles.filter(r => r !== talent.role).map(r => (
+            <span key={r} className="text-xs px-2 py-0.5 rounded bg-surface-overlay text-content-secondary border border-surface-border">
+              {r}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Meta */}
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-content-tertiary">
@@ -72,26 +98,40 @@ function TalentCard({ talent, highlightSkills }: { talent: TalentProfile; highli
         </div>
       )}
 
-      {/* Portfolio */}
-      {talent.portfolio_url && (
-        <a href={talent.portfolio_url} target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand-dark font-semibold transition-colors mt-auto">
-          View portfolio <ExternalLink size={11} />
-        </a>
-      )}
+      {/* Actions */}
+      <div className="flex items-center justify-between mt-auto pt-2 border-t border-surface-border">
+        {talent.portfolio_url ? (
+          <a href={talent.portfolio_url} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand-dark font-medium transition-colors">
+            Portfolio <ExternalLink size={11} />
+          </a>
+        ) : <span />}
+
+        <Link
+          to={`/profile/${talent.id}`}
+          className="inline-flex items-center gap-1 text-xs text-brand font-medium hover:underline">
+          View Profile <ArrowRight size={12} />
+        </Link>
+      </div>
     </div>
   )
 }
 
 // ── Filter sidebar ────────────────────────────────────────────
 
-interface Filters { skills: string; role: string; location: string; language: string }
+interface Filters {
+  skills: string
+  role: string
+  location: string
+  language: string
+  availability: string
+}
 
 function FilterSidebar({ filters, onChange, onSubmit, onClear, loading }: {
   filters: Filters; onChange: (f: Filters) => void
   onSubmit: (e: FormEvent) => void; onClear: () => void; loading: boolean
 }) {
-  const set = (key: keyof Filters) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set = (key: keyof Filters) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     onChange({ ...filters, [key]: e.target.value })
   const hasFilters = Object.values(filters).some(v => v.trim())
 
@@ -105,6 +145,19 @@ function FilterSidebar({ filters, onChange, onSubmit, onClear, loading }: {
             <X size={12} /> Clear all
           </button>
         )}
+      </div>
+
+      <div>
+        <label className="label">Availability</label>
+        <select
+          value={filters.availability}
+          onChange={set('availability')}
+          className="input bg-surface-overlay text-sm">
+          <option value="">All availability statuses</option>
+          <option value="open">🟢 Available</option>
+          <option value="busy">🟡 Busy</option>
+          <option value="unavailable">⚪ Unavailable</option>
+        </select>
       </div>
 
       {[
@@ -129,7 +182,7 @@ function FilterSidebar({ filters, onChange, onSubmit, onClear, loading }: {
 
 // ── Page ──────────────────────────────────────────────────────
 
-const EMPTY: Filters = { skills: '', role: '', location: '', language: '' }
+const EMPTY: Filters = { skills: '', role: '', location: '', language: '', availability: '' }
 
 const Search = () => {
   usePageTitle('Find Talent')
@@ -146,9 +199,10 @@ const Search = () => {
       const skills = f.skills ? f.skills.split(',').map(s => s.trim()).filter(Boolean) : undefined
       const res = await talentApi.search({
         skills,
-        role:     f.role.trim()     || undefined,
-        location: f.location.trim() || undefined,
-        language: f.language.trim() || undefined,
+        role:         f.role.trim()         || undefined,
+        location:     f.location.trim()     || undefined,
+        language:     f.language.trim()     || undefined,
+        availability: f.availability.trim() || undefined,
       })
       setResults(res.talent); setSearched(true)
     } catch (err: unknown) {
@@ -198,58 +252,68 @@ const Search = () => {
         </div>
 
         <div className="flex gap-6">
-          {/* Sidebar */}
-          <aside className={`w-64 shrink-0 ${sidebarOpen ? 'block' : 'hidden'} sm:block`}>
-            <div className="card p-5 sticky top-20">
+          {/* Sidebar desktop */}
+          <aside className="hidden sm:block w-64 shrink-0">
+            <div className="card p-5 sticky top-24">
               <FilterSidebar
-                filters={filters} onChange={setFilters}
-                onSubmit={handleSubmit} onClear={handleClear} loading={loading}
+                filters={filters}
+                onChange={setFilters}
+                onSubmit={handleSubmit}
+                onClear={handleClear}
+                loading={loading}
               />
             </div>
           </aside>
 
-          {/* Results */}
-          <div className="flex-1 min-w-0">
-            {error && <div className="error-banner mb-6"><p className="text-sm text-red-600">{error}</p></div>}
+          {/* Sidebar mobile */}
+          {sidebarOpen && (
+            <div className="fixed inset-0 z-50 sm:hidden bg-black/60 flex justify-end">
+              <div className="w-80 bg-surface-card h-full p-6 overflow-y-auto">
+                <FilterSidebar
+                  filters={filters}
+                  onChange={setFilters}
+                  onSubmit={e => { handleSubmit(e); setSidebar(false) }}
+                  onClear={() => { handleClear(); setSidebar(false) }}
+                  loading={loading}
+                />
+              </div>
+            </div>
+          )}
 
-            {/* Skeleton */}
-            {loading && (
+          {/* Results grid */}
+          <div className="flex-1 min-w-0">
+            {error && (
+              <div className="card p-4 border-l-4 border-l-red-500 bg-red-500/10 text-red-400 text-sm mb-6">
+                {error}
+              </div>
+            )}
+
+            {loading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[1,2,3,4,5,6].map(i => (
-                  <div key={i} className="card p-5">
-                    <div className="flex gap-3 mb-4">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="card p-5 space-y-3">
+                    <div className="flex gap-3">
                       <div className="skeleton w-11 h-11 rounded-full" />
-                      <div className="flex-1 space-y-2">
-                        <div className="skeleton h-4 w-2/3" />
-                        <div className="skeleton h-3 w-1/2" />
+                      <div className="space-y-1.5 flex-1">
+                        <div className="skeleton h-4 w-32 rounded" />
+                        <div className="skeleton h-3 w-20 rounded" />
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <div className="skeleton h-3 w-full" />
-                      <div className="skeleton h-3 w-5/6" />
-                    </div>
+                    <div className="skeleton h-3 w-full rounded" />
+                    <div className="skeleton h-3 w-2/3 rounded" />
                   </div>
                 ))}
               </div>
-            )}
-
-            {/* Empty */}
-            {!loading && searched && results.length === 0 && (
-              <div className="text-center py-20">
-                <p className="text-4xl mb-4">🔍</p>
-                <p className="font-bold text-content-heading mb-1">No talent found</p>
-                <p className="text-sm text-content-tertiary mb-4">Try adjusting your filters.</p>
-                <button onClick={handleClear} className="btn-outline text-sm px-4 py-2">
-                  Clear filters
-                </button>
+            ) : results.length === 0 ? (
+              <div className="card p-12 text-center text-content-muted">
+                <p className="text-3xl mb-3">🔍</p>
+                <p className="font-semibold text-content-primary">No talent found</p>
+                <p className="text-xs text-content-tertiary mt-1">Try relaxing your search terms or clearing filters</p>
               </div>
-            )}
-
-            {/* Grid */}
-            {!loading && results.length > 0 && (
+            ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {results.map(talent => (
-                  <TalentCard key={talent.id} talent={talent} highlightSkills={highlightSkills} />
+                {results.map(t => (
+                  <TalentCard key={t.id} talent={t} highlightSkills={highlightSkills} />
                 ))}
               </div>
             )}

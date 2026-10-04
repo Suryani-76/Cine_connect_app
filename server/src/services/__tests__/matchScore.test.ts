@@ -25,6 +25,8 @@ const baseTalent: TalentForScoring = {
   bio:              'Experienced cinematographer with 4 years in Bollywood.',
   avatar_url:       'https://example.com/avatar.jpg',
   portfolio_url:    'https://priyasharma.com',
+  showreel_url:     'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  credits_count:    2,
   last_active_at:   new Date().toISOString(), // active today
 }
 
@@ -86,8 +88,23 @@ describe('calculateMatchScore', () => {
     expect(signals.role_match).toBe(100)
   })
 
-  it('role_match = 0 when talent role does not match', () => {
-    const talent = { ...baseTalent, role: 'Sound Engineer' }
+  it('role_match = 100 when talent primary role does not match but secondary role matches', () => {
+    const talent = {
+      ...baseTalent,
+      role: 'Actor', // does not match job
+      roles: ['Actor', 'Cinematographer', 'Editor'], // contains Cinematographer!
+    }
+    const { signals, reasons } = calculateMatchScore(baseJob, talent)
+    expect(signals.role_match).toBe(100)
+    expect(reasons.role_match).toContain('Secondary role matches requirement: Cinematographer')
+  })
+
+  it('role_match = 0 when neither primary nor secondary roles match', () => {
+    const talent = {
+      ...baseTalent,
+      role: 'Sound Engineer',
+      roles: ['Sound Engineer', 'Boom Operator'],
+    }
     const { signals } = calculateMatchScore(baseJob, talent)
     expect(signals.role_match).toBe(0)
   })
@@ -99,7 +116,7 @@ describe('calculateMatchScore', () => {
   })
 
   it('role_match = 50 when talent has no role (neutral)', () => {
-    const talent = { ...baseTalent, role: null }
+    const talent = { ...baseTalent, role: null, roles: [] }
     const { signals } = calculateMatchScore(baseJob, talent)
     expect(signals.role_match).toBe(50)
   })
@@ -192,7 +209,7 @@ describe('calculateMatchScore', () => {
 
   // ── profile_completeness (10%) ──────────────────────────────
 
-  it('profile_completeness = 100 for fully filled profile', () => {
+  it('profile_completeness = 100 for fully filled profile (all 10 fields)', () => {
     const { signals } = calculateMatchScore(baseJob, baseTalent)
     expect(signals.profile_completeness).toBe(100)
   })
@@ -202,23 +219,46 @@ describe('calculateMatchScore', () => {
       skills: [], role: null, experience_years: 0,
       language: null, location: null, full_name: null,
       bio: null, avatar_url: null, portfolio_url: null,
+      showreel_url: null, credits_count: 0,
       last_active_at: new Date().toISOString(),
     }
     const { signals } = calculateMatchScore(baseJob, empty)
     expect(signals.profile_completeness).toBe(0)
   })
 
-  it('profile_completeness = 38 for 3/8 profile fields filled', () => {
+  it('profile_completeness = 30 for 3/10 profile fields filled (10% each)', () => {
     const partial: TalentForScoring = {
       skills: ['Cinematography'], role: 'Cinematographer',
       experience_years: 4, language: 'English',
       location: null, full_name: null, bio: null,
       avatar_url: null, portfolio_url: null,
+      showreel_url: null, credits_count: 0,
       last_active_at: new Date().toISOString(),
     }
     const { signals } = calculateMatchScore(baseJob, partial)
-    // skills(✓) role(✓) language(✓) — 3 of 8 fields = 37.5 → rounds to 38
-    expect(signals.profile_completeness).toBe(38)
+    // skills(✓) role(✓) language(✓) — 3 of 10 fields = 30%
+    expect(signals.profile_completeness).toBe(30)
+  })
+
+  it('profile_completeness gains 10% for showreel and 10% for credits', () => {
+    const withoutMedia: TalentForScoring = {
+      skills: ['Cinematography'], role: 'Cinematographer',
+      experience_years: 4, language: 'English',
+      location: 'Mumbai', full_name: 'Priya', bio: 'Bio',
+      avatar_url: 'https://example.com/a.jpg', portfolio_url: 'https://example.com',
+      showreel_url: null, credits_count: 0,
+      last_active_at: new Date().toISOString(),
+    }
+    // 8 fields filled: 80%
+    expect(calculateMatchScore(baseJob, withoutMedia).signals.profile_completeness).toBe(80)
+
+    // With showreel: 9 fields = 90%
+    const withShowreel = { ...withoutMedia, showreel_url: 'https://vimeo.com/123456789' }
+    expect(calculateMatchScore(baseJob, withShowreel).signals.profile_completeness).toBe(90)
+
+    // With showreel and at least 1 credit: 10 fields = 100%
+    const withCredit = { ...withShowreel, credits_count: 1 }
+    expect(calculateMatchScore(baseJob, withCredit).signals.profile_completeness).toBe(100)
   })
 
   // ── activity_recency (5%) ───────────────────────────────────

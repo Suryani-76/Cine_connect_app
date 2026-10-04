@@ -1,8 +1,8 @@
 /**
  * callerContext.ts
  * ────────────────
- * Resolves the authenticated caller's public profile from req.user.id.
- * Cached on req.caller so DB is hit once per request.
+ * Resolves the authenticated caller's profile and administrative status from req.user.id.
+ * Caches database lookups so the database is queried at most once per request.
  *
  * Usage:
  *   router.get('/foo', requireAuth, loadCallerContext, requireRole('production'), handler)
@@ -14,9 +14,13 @@ import { supabase } from '../db/supabase'
 // ── Augment Express Request ───────────────────────────────────
 
 export interface CallerContext {
-  userId:          string
-  role:            'production' | 'talent' | 'admin'
-  profileId:       string        // production_profiles.id  OR  talent_profiles.id
+  userId:              string
+  email?:              string
+  username?:           string
+  role:                'production' | 'talent'
+  isAdmin?:            boolean
+  suspendedAt?:        string | null
+  profileId:           string        // production_profiles.id  OR  talent_profiles.id
   productionProfileId: string | null
   talentProfileId:     string | null
 }
@@ -45,19 +49,41 @@ export const loadCallerContext = async (
   }
 
   try {
-    // Fetch public.users row to get the role
-    const { data: userRow, error: userErr } = await supabase
-      .from('users')
-      .select('id, role')
-      .eq('id', authUser.id)
-      .single()
+    // 1. Resolve user record (cached on req by requireAuth if available)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let userRow = (req as any).userRecord
+    if (!userRow) {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, email, username, role, suspended_at')
+        .eq('id', authUser.id)
+        .single()
 
-    if (userErr || !userRow) {
-      res.status(401).json({ error: 'User record not found' })
+      if (error || !data) {
+        res.status(401).json({ error: 'User record not found' })
+        return
+      }
+      userRow = data
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(req as any).userRecord = userRow
+    }
+
+    // 2. Reject suspended users
+    if (userRow.suspended_at) {
+      res.status(403).json({ error: 'Account suspended' })
       return
     }
 
-    const role = userRow.role as 'production' | 'talent'
+    // 3. Resolve Admin status via admins table
+    const { data: adminRow } = await supabase
+      .from('admins')
+      .select('user_id')
+      .eq('user_id', authUser.id)
+      .maybeSingle()
+
+    const isAdmin = !!adminRow
+
+    const role = (userRow.role === 'talent' ? 'talent' : 'production') as 'production' | 'talent'
     let productionProfileId: string | null = null
     let talentProfileId:     string | null = null
 
@@ -66,20 +92,24 @@ export const loadCallerContext = async (
         .from('production_profiles')
         .select('id')
         .eq('user_id', authUser.id)
-        .single()
+        .maybeSingle()
       productionProfileId = pp?.id ?? null
     } else {
       const { data: tp } = await supabase
         .from('talent_profiles')
         .select('id')
         .eq('user_id', authUser.id)
-        .single()
+        .maybeSingle()
       talentProfileId = tp?.id ?? null
     }
 
     req.caller = {
       userId:              authUser.id,
+      email:               userRow.email,
+      username:            userRow.username,
       role,
+      isAdmin,
+      suspendedAt:         userRow.suspended_at ?? null,
       profileId:           (productionProfileId ?? talentProfileId) as string,
       productionProfileId,
       talentProfileId,
@@ -97,7 +127,6 @@ export const requireRole = (role: 'production' | 'talent') =>
   (req: Request, res: Response, next: NextFunction): void => {
     if (!req.caller) { res.status(401).json({ error: 'Unauthorized' }); return }
     if (req.caller.role !== role) {
-      // 403 for role mismatches (not IDOR — they just have the wrong role)
       res.status(403).json({ error: `This action requires a ${role} account` })
       return
     }
@@ -106,11 +135,6 @@ export const requireRole = (role: 'production' | 'talent') =>
 
 // ── Job ownership guard ───────────────────────────────────────
 
-/**
- * Verifies the caller is the production owner of jobs/:id.
- * Reads the job id from req.params.id.
- * Returns 404 (not 403) if job belongs to someone else — avoids leaking existence.
- */
 export const requireJobOwner = async (
   req: Request,
   res: Response,
@@ -130,7 +154,6 @@ export const requireJobOwner = async (
     .single()
 
   if (!job || job.production_id !== req.caller.productionProfileId) {
-    // Return 404 — don't leak whether a different-owner job exists
     res.status(404).json({ error: 'Job not found' })
     return
   }
@@ -140,12 +163,6 @@ export const requireJobOwner = async (
 
 // ── Application access guard ──────────────────────────────────
 
-/**
- * mode 'production-owner': caller must own the job the application is for.
- * mode 'talent-owner':     caller must be the applicant.
- * mode 'any-party':        either of the above.
- * Returns 404 on ownership failure (avoids leaking existence).
- */
 export const requireApplicationAccess = (
   mode: 'production-owner' | 'talent-owner' | 'any-party'
 ) => async (
@@ -178,3 +195,31 @@ export const requireApplicationAccess = (
 
   next()
 }
+
+/**
+ * Optional caller context loader: If Authorization header exists, extracts user and
+ * loads caller context. If missing or invalid, proceeds silently as anonymous.
+ */
+export const optionalCallerContext = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const authHeader = req.headers.authorization
+  if (!authHeader?.startsWith('Bearer ')) {
+    return next()
+  }
+
+  const token = authHeader.slice(7).trim()
+  try {
+    const { data, error } = await supabase.auth.getUser(token)
+    if (error || !data?.user) {
+      return next()
+    }
+    ;(req as any).user = data.user
+    return loadCallerContext(req, res, next)
+  } catch {
+    return next()
+  }
+}
+

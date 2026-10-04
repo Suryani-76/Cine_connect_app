@@ -16,6 +16,13 @@ import { savedJobsRouter } from "./routes/savedJobs"
 import { talentAlertsRouter } from "./routes/talentAlerts"
 import { vocabRouter } from "./routes/vocab"
 import { adminRouter } from "./routes/admin"
+import { usersRouter } from "./routes/users"
+import { messagesRouter } from "./routes/messages"
+import { conversationsRouter } from "./routes/conversations"
+import { blocksRouter } from "./routes/blocks"
+import { reportsRouter } from "./routes/reports"
+import { settingsRouter } from "./routes/settings"
+import { unsubscribeRouter } from "./routes/unsubscribe"
 import { errorHandler } from "./middleware/errorHandler"
 
 const app  = express()
@@ -79,14 +86,6 @@ const generalLimiter = rateLimit({
   keyGenerator: (req) => req.ip ?? "unknown",
 })
 
-/** Dedicated rate limiter for job view recording: 30/min/IP */
-const viewLimiter = rateLimit({
-  windowMs: 60 * 1000, max: 30,
-  standardHeaders: true, legacyHeaders: false,
-  message: { error: "Too many view requests." },
-  keyGenerator: (req) => req.ip ?? "unknown",
-})
-
 app.use(generalLimiter)
 
 // ── Routes ────────────────────────────────────────────────────
@@ -94,7 +93,7 @@ app.use("/health", healthRouter)
 app.use("/auth", authLimiter, authRouter)       // strict limit on auth
 app.use("/account", accountRouter)              // data export & deletion (DPDP/GDPR)
 app.use("/production", productionRouter)
-app.use("/jobs", viewLimiter, jobsRouter)
+app.use("/jobs", jobsRouter)
 app.use("/talent", talentRouter)
 app.use("/applications", applicationsRouter)
 app.use("/notifications", notificationsRouter)
@@ -103,6 +102,13 @@ app.use("/saved-jobs", savedJobsRouter)
 app.use("/talent-alerts", talentAlertsRouter)
 app.use("/vocab", vocabRouter)
 app.use("/admin", adminRouter)
+app.use("/users", usersRouter)
+app.use("/messages", messagesRouter)
+app.use("/conversations", conversationsRouter)
+app.use("/blocks", blocksRouter)
+app.use("/reports", reportsRouter)
+app.use("/settings", settingsRouter)
+app.use("/unsubscribe", unsubscribeRouter)
 
 // ── 404 ───────────────────────────────────────────────────────
 app.use((_req, res) => {
@@ -112,9 +118,39 @@ app.use((_req, res) => {
 // ── Centralised error handler (must be last) ──────────────────
 app.use(errorHandler)
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`)
 })
+
+// ── Graceful Shutdown (SIGTERM / SIGINT) ──────────────────────
+// Stop accepting new connections, drain in-flight requests, then exit cleanly.
+let isShuttingDown = false
+
+export function gracefulShutdown(signal: string) {
+  if (isShuttingDown) return
+  isShuttingDown = true
+  console.log(`[Shutdown] ${signal} signal received. Initiating graceful shutdown...`)
+
+  // Stop accepting new connections and drain existing in-flight requests
+  server.close((err) => {
+    if (err) {
+      console.error('[Shutdown] Error while closing HTTP server:', err)
+      process.exit(1)
+    }
+    console.log('[Shutdown] HTTP server closed and in-flight requests drained. Exiting cleanly.')
+    process.exit(0)
+  })
+
+  // Hard deadline to ensure process does not hang indefinitely (15 seconds)
+  const shutdownTimer = setTimeout(() => {
+    console.error('[Shutdown] Graceful shutdown timeout (15s) exceeded. Forcing termination.')
+    process.exit(1)
+  }, 15000)
+  shutdownTimer.unref()
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+process.on('SIGINT', () => gracefulShutdown('SIGINT'))
 
 // Prevent unhandled promise rejections from crashing the process
 process.on("unhandledRejection", (reason) => {

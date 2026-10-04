@@ -23,8 +23,9 @@ vi.mock('../../db/supabase', () => ({
     },
     from: vi.fn().mockReturnThis(),
     select: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockReturnThis(),
+    insert: vi.fn().mockResolvedValue({ error: null }),
     eq: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
     single: vi.fn().mockResolvedValue({ data: { id: 'test-uuid', email: 'test@test.com', username: 'testuser', role: 'production' }, error: null }),
   },
 }))

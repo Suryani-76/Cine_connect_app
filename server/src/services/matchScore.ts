@@ -1,5 +1,5 @@
 import { JobForScoring, TalentForScoring, MatchWeights } from '../types'
-import { normalizeString } from '../utils/normalize'
+import { normalizeString, areStringsEqualNormalized } from '../utils/normalize'
 import { canonicalizeSkill } from './vocabService'
 import { DEFAULT_WEIGHTS } from './matchConfigService'
 
@@ -63,25 +63,56 @@ function skillsMatchSignal(jobSkills: string[], talentSkills: string[]): SignalR
   return { score, reason, matching, missing }
 }
 
-/** 100 if talent's primary role appears in job's role list, else 0 (50 for neutral) */
-function roleMatchSignal(jobRoles: string[], talentRole: string | null): SignalResult {
+/**
+ * 100 if talent's primary role OR any secondary role appears in job's role list,
+ * else 0 (50 for neutral when no role specified).
+ */
+function roleMatchSignal(jobRoles: string[], talentRole: string | null, talentRoles?: string[]): SignalResult {
   if (!jobRoles.length) {
     return { score: 50, reason: 'No specific role required (neutral score)' }
   }
-  if (!talentRole) {
-    return { score: 50, reason: 'Talent has no primary role specified (neutral score)' }
+
+  const candidateRoles: string[] = []
+  if (talentRole?.trim()) candidateRoles.push(talentRole.trim())
+  if (Array.isArray(talentRoles)) {
+    for (const r of talentRoles) {
+      if (r?.trim() && !candidateRoles.some(cr => areStringsEqualNormalized(cr, r.trim()))) {
+        candidateRoles.push(r.trim())
+      }
+    }
   }
 
-  const talentCanon = normalizeString(canonicalizeSkill(talentRole))
-  const isMatch = jobRoles.some(r => {
-    const rCanon = normalizeString(canonicalizeSkill(r))
-    return rCanon === talentCanon || rCanon.includes(talentCanon) || talentCanon.includes(rCanon)
+  if (!candidateRoles.length) {
+    return { score: 50, reason: 'Talent has no role specified (neutral score)' }
+  }
+
+  let matchedRole: string | null = null
+  const isMatch = candidateRoles.some(cRole => {
+    const cCanon = normalizeString(canonicalizeSkill(cRole))
+    const found = jobRoles.some(r => {
+      const rCanon = normalizeString(canonicalizeSkill(r))
+      return rCanon === cCanon || rCanon.includes(cCanon) || cCanon.includes(rCanon)
+    })
+    if (found) {
+      matchedRole = cRole
+      return true
+    }
+    return false
   })
 
-  if (isMatch) {
-    return { score: 100, reason: `Primary role matches requirement: ${talentRole}` }
+  if (isMatch && matchedRole) {
+    const isPrimary = Boolean(talentRole && areStringsEqualNormalized(matchedRole, talentRole))
+    return {
+      score: 100,
+      reason: isPrimary
+        ? `Primary role matches requirement: ${matchedRole}`
+        : `Secondary role matches requirement: ${matchedRole}`,
+    }
   }
-  return { score: 0, reason: `Role (${talentRole}) does not match required roles: ${jobRoles.join(', ')}` }
+  return {
+    score: 0,
+    reason: `Roles (${candidateRoles.join(', ')}) do not match required roles: ${jobRoles.join(', ')}`,
+  }
 }
 
 /**
@@ -158,24 +189,38 @@ function locationProximitySignal(jobLocation: string | null, talentLocation: str
   return { score: 0, reason: `Location (${talentLocation}) differs from job location (${jobLocation})` }
 }
 
-/** How complete the talent profile is (8 fields) */
+/**
+ * Profile completeness (10 fields, 10% each = 100% total):
+ * 1. full_name        (10%)
+ * 2. bio              (10%)
+ * 3. role             (10%)
+ * 4. skills           (10%)
+ * 5. language         (10%)
+ * 6. location         (10%)
+ * 7. avatar_url       (10%)
+ * 8. portfolio_url    (10%)
+ * 9. showreel_url     (10%)
+ * 10. credits (>= 1)  (10%)
+ */
 function profileCompletenessSignal(talent: TalentForScoring): SignalResult {
   const fields = [
     { name: 'full_name', filled: Boolean(talent.full_name?.trim()) },
     { name: 'bio', filled: Boolean(talent.bio?.trim()) },
     { name: 'role', filled: Boolean(talent.role?.trim()) },
-    { name: 'skills', filled: talent.skills.length > 0 },
+    { name: 'skills', filled: Array.isArray(talent.skills) && talent.skills.length > 0 },
     { name: 'language', filled: Boolean(talent.language?.trim()) },
     { name: 'location', filled: Boolean(talent.location?.trim()) },
     { name: 'avatar_url', filled: Boolean(talent.avatar_url?.trim()) },
     { name: 'portfolio_url', filled: Boolean(talent.portfolio_url?.trim()) },
+    { name: 'showreel_url', filled: Boolean(talent.showreel_url?.trim()) },
+    { name: 'credits', filled: typeof talent.credits_count === 'number' ? talent.credits_count > 0 : false },
   ]
 
   const filledCount = fields.filter(f => f.filled).length
   const missing = fields.filter(f => !f.filled).map(f => f.name)
-  const score = Math.round((filledCount / fields.length) * 100)
+  const score = filledCount * 10 // each field is exactly 10%
 
-  let reason = `Profile is ${score}% complete (${filledCount}/8 fields filled)`
+  let reason = `Profile is ${score}% complete (${filledCount}/10 fields filled)`
   if (missing.length > 0 && missing.length <= 3) {
     reason += ` (missing: ${missing.join(', ')})`
   }
@@ -258,7 +303,7 @@ export function calculateMatchScore(
 
   // Calculate each individual signal
   const skillsRes     = skillsMatchSignal(job.skills, talent.skills)
-  const roleRes       = roleMatchSignal(job.roles, talent.role)
+  const roleRes       = roleMatchSignal(job.roles, talent.role, talent.roles)
   const expRes        = experienceMatchSignal(job.experience_level, talent.experience_years)
   const langRes       = languageMatchSignal(job.language, talent.language)
   const locRes        = locationProximitySignal(job.location, talent.location)

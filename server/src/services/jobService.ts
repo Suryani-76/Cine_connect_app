@@ -275,14 +275,32 @@ export async function publishJob(jobId: string): Promise<DbJob> {
 export interface ListJobsFilter {
   production_id?: string
   status?: JobStatus
+  q?: string
+  job_type?: JobType
+  location?: string
+  experience_level?: string
+  skills?: string[]
+  pay_min?: number
+  pay_max?: number
+  sort?: 'newest' | 'best_match'
+  talentProfileId?: string
+  limit?: number
+  offset?: number
+}
+
+export interface ListJobsResult {
+  jobs: DbJobWithRequirements[]
+  total: number
+  page: number
+  limit: number
 }
 
 export async function listJobs(
-  filter: ListJobsFilter
-): Promise<DbJobWithRequirements[]> {
+  filter: ListJobsFilter = {}
+): Promise<ListJobsResult> {
   let query = supabase
     .from('jobs')
-    .select('id, production_id, title, description, status, job_type, pay_min, pay_max, pay_currency, pay_period, start_date, end_date, openings, deadline, created_at, updated_at, job_requirements(id, job_id, skills, roles, experience_level, language, location)')
+    .select('id, production_id, title, description, status, job_type, pay_min, pay_max, pay_currency, pay_period, start_date, end_date, openings, deadline, created_at, updated_at, job_requirements(id, job_id, skills, roles, experience_level, language, location), production_profiles(id, company_name, logo_url, verified)')
     .order('created_at', { ascending: false })
 
   if (filter.production_id) {
@@ -293,13 +311,98 @@ export async function listJobs(
     query = query.eq('status', filter.status)
   }
 
+  if (filter.job_type) {
+    query = query.eq('job_type', filter.job_type)
+  }
+
+  if (filter.pay_min !== undefined && !isNaN(filter.pay_min)) {
+    query = query.gte('pay_max', filter.pay_min)
+  }
+
+  if (filter.pay_max !== undefined && !isNaN(filter.pay_max)) {
+    query = query.lte('pay_min', filter.pay_max)
+  }
+
+  if (filter.q) {
+    const qClean = filter.q.trim()
+    if (qClean) {
+      query = query.or(`title.ilike.%${qClean}%,description.ilike.%${qClean}%`)
+    }
+  }
+
   const { data, error } = await query
 
   if (error) {
     throw Object.assign(new Error(error.message), { statusCode: 500 })
   }
 
-  return (data ?? []) as unknown as DbJobWithRequirements[]
+  let jobs = (data ?? []) as unknown as DbJobWithRequirements[]
+
+  // In-memory filter on joined requirements (location, experience_level, skills)
+  if (filter.location) {
+    const locLower = filter.location.toLowerCase()
+    jobs = jobs.filter((j) =>
+      j.job_requirements?.location?.toLowerCase().includes(locLower)
+    )
+  }
+
+  if (filter.experience_level) {
+    const expLower = filter.experience_level.toLowerCase()
+    jobs = jobs.filter((j) =>
+      j.job_requirements?.experience_level?.toLowerCase() === expLower
+    )
+  }
+
+  if (filter.skills && filter.skills.length > 0) {
+    const reqSkillsLower = filter.skills.map((s) => s.toLowerCase())
+    jobs = jobs.filter((j) => {
+      const jSkills = (j.job_requirements?.skills ?? []).map((s) => s.toLowerCase())
+      return reqSkillsLower.some((reqS) => jSkills.includes(reqS))
+    })
+  }
+
+  // Best match scoring for talent
+  if (filter.sort === 'best_match' && filter.talentProfileId) {
+    try {
+      const { data: talent } = await supabase
+        .from('talent_profiles')
+        .select('*')
+        .eq('id', filter.talentProfileId)
+        .maybeSingle()
+
+      if (talent) {
+        const weights = await getActiveMatchWeights()
+        for (const job of jobs) {
+          const req = job.job_requirements
+          const jobForScoring: JobForScoring = {
+            skills: req?.skills ?? [],
+            roles: req?.roles ?? [],
+            experience_level: req?.experience_level ?? null,
+            language: req?.language ?? null,
+            location: req?.location ?? null,
+          }
+          const breakdown = calculateMatchScore(jobForScoring, talent as any, weights)
+          job.match_score = breakdown.total
+        }
+        jobs.sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0))
+      }
+    } catch {
+      // Graceful fallback to default sorting
+    }
+  }
+
+  const total = jobs.length
+  const limit = Math.max(1, filter.limit ?? 20)
+  const offset = Math.max(0, filter.offset ?? 0)
+  const page = Math.floor(offset / limit) + 1
+  const paginated = jobs.slice(offset, offset + limit)
+
+  return {
+    jobs: paginated,
+    total,
+    page,
+    limit,
+  }
 }
 
 // ── Applications for a job ────────────────────────────────────
@@ -545,6 +648,7 @@ export interface DbJobWithProductionProfile extends DbJobWithRequirements {
     company_name: string
     bio: string | null
     logo_url: string | null
+    verified?: boolean
   }
 }
 
@@ -554,7 +658,7 @@ export async function getJobById(jobId: string): Promise<DbJobWithProductionProf
     .select(`
       id, production_id, title, description, status, job_type, pay_min, pay_max, pay_currency, pay_period, start_date, end_date, openings, deadline, created_at, updated_at,
       job_requirements(id, job_id, skills, roles, experience_level, language, location),
-      production_profiles(id, company_name, bio, logo_url)
+      production_profiles(id, company_name, bio, logo_url, verified)
     `)
     .eq('id', jobId)
     .single()

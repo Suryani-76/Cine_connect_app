@@ -34,6 +34,24 @@ const SERVER_RULES: EnvRule[] = [
     key: 'ALLOWED_ORIGINS',
     description: 'Comma-separated list of allowed CORS origins',
   },
+  {
+    key: 'RESEND_API_KEY',
+    description: 'Resend API key',
+    validate: (v) => v.startsWith('re_'),
+    validationMessage: 'Must be a valid Resend API key starting with "re_"',
+  },
+  {
+    key: 'EMAIL_FROM',
+    description: 'Default sender address for outgoing emails',
+    validate: (v) => v.includes('@'),
+    validationMessage: 'Must contain a valid email address (e.g. "CineConnect <noreply@cineconnect.app>")',
+  },
+  {
+    key: 'APP_URL',
+    description: 'Frontend application base URL for links in emails',
+    validate: (v) => /^https?:\/\//.test(v),
+    validationMessage: 'Must be a valid HTTP/HTTPS URL',
+  },
 ]
 
 const CLIENT_RULES: EnvRule[] = [
@@ -136,8 +154,13 @@ const serverOk = check(SERVER_RULES, 'server/.env', serverEnv)
 const clientOk = check(CLIENT_RULES, 'client/.env', clientEnv)
 
 console.log('\n' + '─'.repeat(40))
-if (serverOk && clientOk) {
-  console.log(`${GREEN}${BOLD}All environment variables are valid ✓${RESET}`)
+console.log(`${BOLD}Validating Database Table References...${RESET}`)
+const { checkTableRefs } = require('./check-table-refs')
+const tableRefResult = checkTableRefs()
+
+console.log('\n' + '─'.repeat(40))
+if (serverOk && clientOk && tableRefResult.valid) {
+  console.log(`${GREEN}${BOLD}All environment variables and table references are valid ✓${RESET}`)
   process.exit(0)
 } else {
   console.log(`${RED}${BOLD}Fix the above issues before starting the app ✗${RESET}`)

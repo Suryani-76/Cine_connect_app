@@ -14,8 +14,24 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction
 ): void => {
-  const statusCode = err.statusCode ?? 500
-  const message = err.message ?? 'Internal Server Error'
+  let statusCode = err.statusCode ?? 500
+  let message = err.message ?? 'Internal Server Error'
+
+  if (err.name === 'ZodError') {
+    statusCode = 400
+    try {
+      const parsed = JSON.parse(err.message)
+      if (Array.isArray(parsed) && parsed[0]?.message) {
+        message = parsed[0].message
+      }
+    } catch {
+      // keep message
+    }
+  }
+
+  if (err.name === 'MulterError') {
+    statusCode = 400
+  }
 
   console.error(`[Error] ${statusCode} - ${message}`)
 

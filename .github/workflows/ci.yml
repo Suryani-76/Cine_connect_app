@@ -33,12 +33,26 @@ jobs:
       - name: TypeScript type-check
         run: npx tsc --noEmit
 
+      - name: Check database table references
+        run: npx tsx ../scripts/check-table-refs.ts
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Local Supabase
+        run: supabase start
+        working-directory: .
+        continue-on-error: true
+
       - name: Run tests
         run: npm test
         env:
-          # Tests use mocked Supabase — these are placeholders
+          # Tests use mocked Supabase when offline, or live PostgREST when supabase start is active
           SUPABASE_URL: https://placeholder.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: placeholder-key
+          LOCAL_SUPABASE_URL: http://127.0.0.1:54321
 
       - name: Build
         run: npm run build

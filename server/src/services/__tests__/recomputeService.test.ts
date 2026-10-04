@@ -71,6 +71,16 @@ describe('recomputeService', () => {
               update: mockUpdate,
             } as any
           }
+          if (table === 'match_config') {
+            return {
+              select: vi.fn().mockReturnThis(),
+              eq: vi.fn().mockReturnThis(),
+              order: vi.fn().mockReturnThis(),
+              limit: vi.fn().mockReturnThis(),
+              maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+              single: vi.fn().mockResolvedValue({ data: null, error: null }),
+            } as any
+          }
           return {} as any
         })
 
@@ -100,6 +110,7 @@ describe('recomputeService', () => {
             bio: 'Bio',
             avatar_url: 'https://example.com/avatar.jpg',
             portfolio_url: 'https://example.com',
+            showreel_url: 'https://vimeo.com/123',
             last_active_at: new Date().toISOString(),
           },
           jobs: {
@@ -127,7 +138,17 @@ describe('recomputeService', () => {
           return {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            limit: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
             single: vi.fn().mockResolvedValue({ data: null, error: null }),
+          } as any
+        }
+        if (table === 'talent_credits') {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ count: 1, error: null }),
+            }),
           } as any
         }
         return {} as any

@@ -49,12 +49,13 @@ export async function exportUserData(userId: string): Promise<ExportedData> {
     profile = tp ?? null
 
     if (tp?.id) {
-      // Credits / work history
-      const { data: c } = await supabase
-        .from("credits")
+      // Credits / work history (Milestone M3: talent_credits table)
+      const { data: creds } = await supabase
+        .from("talent_credits")
         .select("*")
         .eq("talent_profile_id", tp.id)
-      credits = c ?? []
+        .order("created_at", { ascending: false })
+      credits = (creds as unknown as Record<string, unknown>[]) ?? []
 
       // Applications submitted by this talent
       const { data: apps } = await supabase
@@ -169,7 +170,7 @@ export async function deleteUserAccount(userId: string): Promise<void> {
     console.warn(`[deleteUserAccount] Storage resume cleanup warning for user ${userId}:`, err)
   }
 
-  // 3. Delete from public.users (Cascades to profiles, applications, credits, notifications, consents)
+  // 3. Delete from public.users (Cascades to profiles, applications, notifications, consents. TODO: milestone 4C-3 for credits)
   const { error: dbError } = await supabase
     .from("users")
     .delete()

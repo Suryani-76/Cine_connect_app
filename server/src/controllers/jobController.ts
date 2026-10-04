@@ -6,7 +6,7 @@ import {
   getJobAnalytics, recordJobView, rankTalentForJob,
   updateJob, deleteJob, getMyJobMatch,
 } from '../services/jobService'
-import { JobStatus } from '../types'
+import { JobStatus, JobType } from '../types'
 import { sanitizeObject } from '../utils/sanitize'
 
 function firstZodError(err: z.ZodError): string {
@@ -117,12 +117,38 @@ export const listJobsHandler = async (
     const effectiveStatus: JobStatus | undefined =
       isOwner ? status : (status === 'published' || !status ? 'published' : undefined)
 
-    if (!isOwner && status && status !== 'published') {
-      res.status(403).json({ error: 'Only published jobs are visible to non-owners' }); return
-    }
+    const q                = (req.query.q || req.query.search) as string | undefined
+    const job_type         = req.query.job_type as JobType | undefined
+    const location         = req.query.location as string | undefined
+    const experience_level = req.query.experience_level as string | undefined
+    const skills           = typeof req.query.skills === 'string'
+      ? req.query.skills.split(',').map((s) => s.trim()).filter(Boolean)
+      : Array.isArray(req.query.skills)
+        ? (req.query.skills as string[])
+        : undefined
+    const pay_min          = req.query.pay_min ? Number(req.query.pay_min) : undefined
+    const pay_max          = req.query.pay_max ? Number(req.query.pay_max) : undefined
+    const sort             = req.query.sort as 'newest' | 'best_match' | undefined
+    const limit            = req.query.limit ? Number(req.query.limit) : undefined
+    const offset           = req.query.offset ? Number(req.query.offset) : undefined
+    const talentProfileId  = caller?.talentProfileId ?? undefined
 
-    const jobs = await listJobs({ production_id, status: effectiveStatus })
-    res.status(200).json({ jobs })
+    const result = await listJobs({
+      production_id,
+      status: effectiveStatus,
+      q,
+      job_type,
+      location,
+      experience_level,
+      skills,
+      pay_min,
+      pay_max,
+      sort,
+      talentProfileId,
+      limit,
+      offset,
+    })
+    res.status(200).json(result)
   } catch (err) { next(err) }
 }
 

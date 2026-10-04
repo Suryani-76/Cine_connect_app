@@ -12,7 +12,7 @@ This document outlines the exact DNS records, email authentication standards (SP
 - **Mail Sending Subdomain:** `mail.cineconnect.in` (recommended to isolate transactional reputation from corporate email)
 - **From Address:** `CineConnect <noreply@cineconnect.in>` or `CineConnect <noreply@mail.cineconnect.in>`
 - **Grievance / Support Inbound:** `support@cineconnect.in` / `grievance@cineconnect.in`
-- **Sending Infrastructure:** Resend (backed by AWS SES Mumbai `ap-south-1`)
+- **Sending Infrastructure:** Resend
 
 ---
 
@@ -22,11 +22,9 @@ Add the following DNS records in your domain registrar (e.g. Cloudflare / Route 
 
 | Type | Name / Host | Target / Value | TTL | Purpose |
 | :--- | :--- | :--- | :--- | :--- |
-| **TXT** | `cineconnect.in` | `v=spf1 include:resend.com include:amazonses.com ~all` | 300 | SPF Authorisation |
+| **TXT** | `cineconnect.in` | `v=spf1 include:resend.com ~all` | 300 | SPF Authorisation |
 | **CNAME** | `resend._domainkey.cineconnect.in` | `dkim.resend.com.` | 300 | Primary DKIM Key |
-| **CNAME** | `k1._domainkey.cineconnect.in` | `dkim1.amazonses.com.` | 300 | Backup DKIM Key 1 |
-| **CNAME** | `k2._domainkey.cineconnect.in` | `dkim2.amazonses.com.` | 300 | Backup DKIM Key 2 |
-| **MX** | `mail.cineconnect.in` | `10 feedback-smtp.ap-south-1.amazonses.com` | 300 | Bounce & Inbound handling |
+| **MX** | `mail.cineconnect.in` | `10 feedback.resend.com` | 300 | Bounce & Inbound handling |
 | **TXT** | `mail.cineconnect.in` | `v=spf1 include:resend.com ~all` | 300 | Subdomain SPF |
 | **TXT** | `_dmarc.cineconnect.in` | *(See Staged Policy below)* | 300 | DMARC Policy |
 

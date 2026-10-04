@@ -14,10 +14,14 @@ const createAlertSchema = z.object({
   language: z.string().max(60).optional(),
 })
 
-// All identity from req.caller.userId — never from query/body
+const patchAlertSchema = z.object({
+  active:   z.boolean().optional(),
+  label:    z.string().min(1).max(100).optional(),
+})
 
+// All identity from req.caller.userId — role restricted to production
 talentAlertsRouter.get('/',
-  requireAuth, loadCallerContext,
+  requireAuth, loadCallerContext, requireRole('production'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { data, error } = await supabase
@@ -30,7 +34,7 @@ talentAlertsRouter.get('/',
   })
 
 talentAlertsRouter.post('/',
-  requireAuth, loadCallerContext,
+  requireAuth, loadCallerContext, requireRole('production'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const parsed = createAlertSchema.safeParse(req.body)
@@ -45,6 +49,7 @@ talentAlertsRouter.post('/',
           role:     parsed.data.role     ?? null,
           location: parsed.data.location ?? null,
           language: parsed.data.language ?? null,
+          active:   true,
         })
         .select().single()
       if (error) throw Object.assign(new Error(error.message), { statusCode: 500 })
@@ -52,8 +57,44 @@ talentAlertsRouter.post('/',
     } catch (err) { next(err) }
   })
 
+talentAlertsRouter.patch('/:id',
+  requireAuth, loadCallerContext, requireRole('production'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params
+      const parsed = patchAlertSchema.safeParse(req.body)
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues[0]?.message })
+        return
+      }
+
+      // Ownership check — only update own alerts
+      const { data: existing } = await supabase
+        .from('talent_alerts').select('user_id').eq('id', id).single()
+
+      if (!existing || existing.user_id !== req.caller!.userId) {
+        res.status(404).json({ error: 'Alert not found' })
+        return
+      }
+
+      const updateData: Record<string, unknown> = {}
+      if (parsed.data.active !== undefined) updateData.active = parsed.data.active
+      if (parsed.data.label !== undefined) updateData.label = parsed.data.label
+
+      const { data, error } = await supabase
+        .from('talent_alerts')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single()
+
+      if (error) throw Object.assign(new Error(error.message), { statusCode: 500 })
+      res.json({ alert: data })
+    } catch (err) { next(err) }
+  })
+
 talentAlertsRouter.delete('/:id',
-  requireAuth, loadCallerContext,
+  requireAuth, loadCallerContext, requireRole('production'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params

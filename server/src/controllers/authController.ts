@@ -215,3 +215,40 @@ export const postConsent = async (
     next(err)
   }
 }
+
+/**
+ * GET /auth/me
+ * Returns caller's real-time identity and administrative status.
+ * Never trust client storage: is_admin is verified from admins table on the server.
+ */
+export const getMe = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const caller = req.caller
+    if (!caller) {
+      res.status(401).json({ error: "Unauthorized" })
+      return
+    }
+
+    res.status(200).json({
+      user: {
+        id: caller.userId,
+        email: caller.email,
+        username: caller.username,
+        role: caller.role,
+        is_admin: caller.isAdmin,
+        is_suspended: !!caller.suspendedAt,
+        suspended_at: caller.suspendedAt,
+        profile_id: caller.profileId,
+        production_profile_id: caller.productionProfileId,
+        talent_profile_id: caller.talentProfileId,
+      },
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
