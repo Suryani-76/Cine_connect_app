@@ -37,7 +37,7 @@ savedJobsRouter.delete('/:id',
   requireAuth, loadCallerContext, requireRole('talent'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const jobId = req.params.id
+      const jobId = req.params.id as string
       if (!jobId || !/^[0-9a-f-]{36}$/i.test(jobId)) {
         res.status(400).json({ error: 'job_id must be a valid UUID' }); return
       }

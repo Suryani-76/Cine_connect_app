@@ -43,7 +43,7 @@ const registerSchema = z.object({
   age_confirmed: z.boolean().optional(),
 }).refine(
   (data) => {
-    if (data.age_confirmed === false || data.consent?.age_confirmed === false) {
+    if (data.age_confirmed === false || (data.consent?.age_confirmed as boolean | undefined) === false) {
       return false
     }
     return true

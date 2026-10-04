@@ -4,73 +4,89 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  darkMode: ['class', '[data-theme="dark"]'],
   theme: {
     extend: {
       // ── Typography ──────────────────────────────────────────
       fontFamily: {
-        sans:  ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        serif: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'], // headings use heavy Inter
-        mono:  ['IBM Plex Mono', 'ui-monospace', 'monospace'],
+        sans: ['"Archivo Variable"', 'Archivo', 'system-ui', 'sans-serif'],
+        serif: ['"Source Serif 4 Variable"', '"Source Serif 4"', 'Georgia', 'serif'],
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
       },
 
-      // ── Colour palette ──────────────────────────────────────
+      // ── CineConnect Film-Set Token Palette ──────────────────
       colors: {
-        brand: {
-          DEFAULT: '#1F6FEB',   // bright blue — primary CTA
-          light:   '#4D8FF0',   // lighter blue — hover
-          dark:    '#1558C0',   // darker blue — active
-          navy:    '#0B2545',   // deep navy — headings / logo
-          'navy-2':'#14294F',   // alternate navy
-          teal:    '#0EA5E9',   // teal-blue — accent
+        ink: 'var(--color-ink)',
+        paper: 'var(--color-paper)',
+        surface: 'var(--color-surface)',
+        tungsten: 'var(--color-tungsten)',
+        line: 'var(--color-line)',
+        muted: 'var(--color-muted)',
+        gel: {
+          camera: 'var(--color-gel-camera)',
+          sound: 'var(--color-gel-sound)',
+          editing: 'var(--color-gel-editing)',
+          art: 'var(--color-gel-art)',
+          cast: 'var(--color-gel-cast)',
+          production: 'var(--color-gel-production)',
         },
-        surface: {
-          base:    '#FFFFFF',   // white — page background
-          section: '#F5F7FA',   // light gray — section backgrounds
-          raised:  '#FFFFFF',   // white — card background
-          overlay: '#F5F7FA',   // light gray — inputs, elevated
-          border:  '#E2E8F0',   // cool gray — default border
-          subtle:  '#CBD5E1',   // slightly darker border
-        },
-        content: {
-          primary:   '#1A1A2E',  // dark slate — body text
-          heading:   '#0B2545',  // deep navy — headings
-          secondary: '#475569',  // slate-600 — secondary text
-          tertiary:  '#94A3B8',  // slate-400 — muted / placeholders
-          muted:     '#CBD5E1',  // slate-300 — disabled / very muted
-          inverse:   '#FFFFFF',  // white — text on dark backgrounds
+        status: {
+          success: 'var(--color-status-success)',
+          warning: 'var(--color-status-warning)',
+          error: 'var(--color-status-error)',
         },
       },
 
-      // ── Type scale ──────────────────────────────────────────
+      // ── Type Scale (Brief: 12, 14, 16, 18, 22, 28, 40, 56 px) ──
       fontSize: {
-        '2xs': ['0.625rem', { lineHeight: '0.875rem' }],
-        xs:    ['0.75rem',  { lineHeight: '1rem'     }],
-        sm:    ['0.875rem', { lineHeight: '1.25rem'  }],
-        base:  ['1rem',     { lineHeight: '1.5rem'   }],
-        lg:    ['1.125rem', { lineHeight: '1.75rem'  }],
-        xl:    ['1.25rem',  { lineHeight: '1.75rem'  }],
-        '2xl': ['1.5rem',   { lineHeight: '2rem'     }],
-        '3xl': ['1.875rem', { lineHeight: '2.25rem'  }],
-        '4xl': ['2.25rem',  { lineHeight: '2.5rem'   }],
-        '5xl': ['3rem',     { lineHeight: '1'        }],
+        '12': ['12px', { lineHeight: '16px' }],
+        '14': ['14px', { lineHeight: '20px' }],
+        '16': ['16px', { lineHeight: '24px' }],
+        '18': ['18px', { lineHeight: '26px' }],
+        '22': ['22px', { lineHeight: '28px' }],
+        '28': ['28px', { lineHeight: '34px' }],
+        '40': ['40px', { lineHeight: '46px' }],
+        '56': ['56px', { lineHeight: '62px' }],
+
+        // Semantic aliases aligned strictly to the 8-step scale:
+        '2xs': ['12px', { lineHeight: '16px' }],
+        xs:    ['12px', { lineHeight: '16px' }],
+        sm:    ['14px', { lineHeight: '20px' }],
+        base:  ['16px', { lineHeight: '24px' }],
+        lg:    ['18px', { lineHeight: '26px' }],
+        xl:    ['22px', { lineHeight: '28px' }],
+        '2xl': ['28px', { lineHeight: '34px' }],
+        '3xl': ['40px', { lineHeight: '46px' }],
+        '4xl': ['56px', { lineHeight: '62px' }],
+        '5xl': ['56px', { lineHeight: '62px' }],
       },
 
-      // ── Border radius ───────────────────────────────────────
+      // ── Border Radius (Strict 3px data / 10px floating) ────
       borderRadius: {
-        btn:   '7px',    // 6–8px for buttons/inputs per spec
-        card:  '12px',
-        lg:    '8px',
-        xl:    '12px',
-        '2xl': '16px',
+        none: '0px',
+        sm: '3px',
+        DEFAULT: '3px',
+        md: '3px',
+        btn: '3px',
+        input: '3px',
+        row: '3px',
+        card: '3px',
+        lg: '10px',
+        xl: '10px',
+        '2xl': '10px',
+        modal: '10px',
+        sheet: '10px',
+        full: '9999px',
       },
 
-      // ── Shadows ─────────────────────────────────────────────
+      // ── Single Soft Shadow for Floating Menus/Modals ────────
       boxShadow: {
-        card:       '0 1px 3px rgba(11,37,69,0.08), 0 1px 2px rgba(11,37,69,0.06)',
-        'card-md':  '0 4px 16px rgba(11,37,69,0.10)',
-        'card-hover':'0 8px 24px rgba(11,37,69,0.12)',
-        'btn-glow': '0 0 0 3px rgba(31,111,235,0.25)',
-        nav:        '0 1px 0 0 #E2E8F0',
+        none: 'none',
+        floating: 'var(--shadow-floating)',
+        DEFAULT: 'var(--shadow-floating)',
+        card: 'none',
+        'card-md': 'var(--shadow-floating)',
+        'card-hover': 'none',
       },
     },
   },

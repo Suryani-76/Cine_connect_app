@@ -35,6 +35,8 @@ const SavedJobs     = lazy(() => import('./pages/SavedJobs'))
 const Alerts        = lazy(() => import('./pages/Alerts'))
 const EditJob       = lazy(() => import('./pages/EditJob'))
 const CompanyDetail = lazy(() => import('./pages/CompanyDetail'))
+const AuditComponents = lazy(() => import('./pages/AuditComponents'))
+const DesignShowcase = lazy(() => import('./pages/DesignShowcase'))
 
 function PageLoader() {
   return (
@@ -126,7 +128,13 @@ function App() {
               <ProtectedRoute><Profile /></ProtectedRoute>
             } />
 
+            {/* ── Design System (DEV only) ── */}
+            {import.meta.env.DEV && (
+              <Route path="/design" element={<DesignShowcase />} />
+            )}
+
             {/* ── Defaults ── */}
+            <Route path="/audit-components" element={<AuditComponents />} />
             <Route path="/"   element={<Landing />} />
             <Route path="*"   element={<NotFound />} />
           </Routes>

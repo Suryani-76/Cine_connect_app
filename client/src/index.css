@@ -1,180 +1,399 @@
-/* ── Google Fonts ───────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ── Design Tokens (BRIEF.md Source of Truth) ─────────────────── */
+:root {
+  --color-ink: #0E1B2E;
+  --color-paper: #EEF1F4;
+  --color-surface: #FFFFFF;
+  --color-tungsten: #F2A33A;
+  --color-line: #D5DBE3;
+  --color-muted: #5A6A7E;
+
+  /* Department Gels */
+  --color-gel-camera: #2F6FDE;
+  --color-gel-sound: #7A4FD1;
+  --color-gel-editing: #12968A;
+  --color-gel-art: #D14B6F;
+  --color-gel-cast: #D98A1F;
+  --color-gel-production: #5B6B7F;
+
+  /* Status Colors */
+  --color-status-success: #0E8A5E;
+  --color-status-warning: #D97706;
+  --color-status-error: #D32F2F;
+
+  --shadow-floating: 0 8px 30px rgba(14, 27, 46, 0.12);
+}
+
+.dark, [data-theme="dark"] {
+  --color-ink: #EEF1F4;
+  --color-paper: #0A1424;
+  --color-surface: #16263D;
+  --color-tungsten: #F2A33A;
+  --color-line: #22354E;
+  --color-muted: #8B9BB0;
+
+  --color-gel-camera: #3B82F6;
+  --color-gel-sound: #8B5CF6;
+  --color-gel-editing: #14B8A6;
+  --color-gel-art: #F43F5E;
+  --color-gel-cast: #F59E0B;
+  --color-gel-production: #94A3B8;
+
+  --color-status-success: #10B981;
+  --color-status-warning: #F59E0B;
+  --color-status-error: #EF4444;
+
+  --shadow-floating: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+
 /* ── Base resets ────────────────────────────────────────────── */
 @layer base {
-  *, *::before, *::after { box-sizing: border-box; }
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
 
   html {
-    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-family: 'Archivo Variable', Archivo, ui-sans-serif, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    background-color: var(--color-paper);
+    color: var(--color-ink);
   }
 
   body {
-    @apply bg-surface-base text-content-primary;
+    background-color: var(--color-paper);
+    color: var(--color-ink);
     min-height: 100dvh;
+    font-size: 16px;
+    line-height: 24px;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply text-content-heading font-bold;
+    font-family: 'Archivo Variable', Archivo, ui-sans-serif, system-ui, sans-serif;
+    font-stretch: 85%;
+    font-weight: 700;
+    color: var(--color-ink);
+    letter-spacing: -0.01em;
+  }
+
+  /* Reading text serif style */
+  .reading-text, .prose-serif {
+    font-family: 'Source Serif 4 Variable', 'Source Serif 4', Georgia, serif;
+    line-height: 1.65;
+  }
+
+  /* Tabular figures for scores, dates, and pay */
+  .tnum, [data-tnum="true"] {
+    font-feature-settings: "tnum" 1;
+    font-variant-numeric: tabular-nums;
   }
 
   /* Scrollbar */
-  ::-webkit-scrollbar        { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track  { @apply bg-surface-section; }
-  ::-webkit-scrollbar-thumb  { @apply bg-surface-subtle rounded-full; }
-  ::-webkit-scrollbar-thumb:hover { @apply bg-content-tertiary; }
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background-color: var(--color-paper);
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-line);
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-muted);
+  }
 }
 
 /* ── Component layer ────────────────────────────────────────── */
 @layer components {
 
-  /* Brand wordmark — heavy Inter */
+  /* Film brand wordmark */
   .brand-text {
-    font-family: 'Inter', ui-sans-serif, sans-serif;
-    font-weight: 700;
+    font-family: 'Archivo Variable', Archivo, sans-serif;
+    font-stretch: 80%;
+    font-weight: 800;
     letter-spacing: -0.02em;
+    text-transform: uppercase;
   }
 
-  /* Monospace — scores, numbers, codes */
   .mono-text {
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-feature-settings: "tnum" 1;
+    font-variant-numeric: tabular-nums;
   }
 
-  /* ── Cards ───────────────────────────────────────────────── */
+  /* ── Cards & Surfaces ─────────────────────────────────────── */
   .card {
-    @apply bg-surface-raised border border-surface-border rounded-xl shadow-card;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 3px;
   }
 
   .card-hover {
-    @apply card transition-all duration-150
-           hover:shadow-card-hover hover:border-surface-subtle hover:-translate-y-px;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 3px;
+    transition: border-color 150ms ease, background-color 150ms ease;
+  }
+  .card-hover:hover {
+    border-color: var(--color-ink);
   }
 
   /* ── Inputs ──────────────────────────────────────────────── */
   .input {
-    @apply w-full rounded-btn bg-white border border-surface-border
-           px-4 py-2.5 text-sm text-content-primary placeholder-content-tertiary
-           focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand
-           transition duration-150;
+    width: 100%;
+    border-radius: 3px;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-line);
+    padding: 0.5rem 0.75rem;
+    font-size: 14px;
+    line-height: 20px;
+    color: var(--color-ink);
+    transition: border-color 150ms ease;
+  }
+  .input::placeholder {
+    color: var(--color-muted);
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--color-ink);
   }
 
   .input-error {
-    @apply input border-red-400 focus:ring-red-400/30 focus:border-red-400;
+    border-color: var(--color-status-error);
+  }
+  .input-error:focus {
+    border-color: var(--color-status-error);
   }
 
-  /* ── Buttons ─────────────────────────────────────────────── */
+  /* ── Buttons (Strict Film-Set styling) ─────────────────────── */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2
-           rounded-btn bg-brand hover:bg-brand-light active:bg-brand-dark
-           text-content-inverse font-semibold text-sm px-5 py-2.5
-           shadow-sm hover:shadow-btn-glow
-           disabled:opacity-50 disabled:cursor-not-allowed
-           transition-all duration-150;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 3px;
+    background-color: var(--color-tungsten);
+    color: #0E1B2E;
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 20px;
+    padding: 0.5rem 1rem;
+    border: 1px solid transparent;
+    transition: filter 150ms ease;
+  }
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(0.95);
+  }
+  .btn-primary:active:not(:disabled) {
+    filter: brightness(0.90);
+  }
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
-  .btn-navy {
-    @apply inline-flex items-center justify-center gap-2
-           rounded-btn bg-brand-navy hover:bg-brand-navy-2
-           text-content-inverse font-semibold text-sm px-5 py-2.5
-           shadow-sm
-           disabled:opacity-50 disabled:cursor-not-allowed
-           transition-all duration-150;
+  .btn-navy, .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 3px;
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+    border: 1px solid var(--color-line);
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 20px;
+    padding: 0.5rem 1rem;
+    transition: background-color 150ms ease, border-color 150ms ease;
+  }
+  .btn-navy:hover:not(:disabled), .btn-secondary:hover:not(:disabled) {
+    background-color: var(--color-paper);
+    border-color: var(--color-ink);
+  }
+  .btn-navy:disabled, .btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2
-           rounded-btn border border-surface-border
-           hover:border-brand hover:text-brand hover:bg-brand/5
-           text-content-secondary font-medium text-sm px-5 py-2.5
-           transition-all duration-150;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 3px;
+    background-color: transparent;
+    border: 1px solid transparent;
+    color: var(--color-muted);
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 20px;
+    padding: 0.5rem 1rem;
+    transition: color 150ms ease, background-color 150ms ease;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    color: var(--color-ink);
+    background-color: var(--color-paper);
+  }
+  .btn-ghost:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .btn-outline {
-    @apply inline-flex items-center justify-center gap-2
-           rounded-btn border border-brand text-brand
-           hover:bg-brand hover:text-white
-           font-semibold text-sm px-5 py-2.5
-           transition-all duration-150;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 3px;
+    background-color: transparent;
+    border: 1px solid var(--color-line);
+    color: var(--color-ink);
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 20px;
+    padding: 0.5rem 1rem;
+    transition: all 150ms ease;
+  }
+  .btn-outline:hover:not(:disabled) {
+    background-color: var(--color-paper);
+    border-color: var(--color-ink);
   }
 
-  /* ── Badge / pill ────────────────────────────────────────── */
+  /* ── Badge / Tag ─────────────────────────────────────────── */
   .badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full
-           text-xs font-medium border;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 3px;
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+    border: 1px solid var(--color-line);
+    background-color: var(--color-paper);
+    color: var(--color-ink);
   }
 
-  /* ── Navigation ──────────────────────────────────────────── */
+  /* ── Navigation Rail / Topbar ─────────────────────────────── */
   .nav {
-    @apply bg-surface-base border-b border-surface-border sticky top-0 z-20
-           shadow-nav;
+    background-color: var(--color-surface);
+    border-bottom: 1px solid var(--color-line);
+    position: sticky;
+    top: 0;
+    z-index: 20;
   }
 
   .nav-inner {
-    @apply max-w-6xl mx-auto px-6 h-16 flex items-center justify-between;
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+    height: 3.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
   }
 
   .nav-link {
-    @apply text-sm font-medium text-content-secondary
-           hover:text-brand px-3 py-1.5 rounded-lg
-           hover:bg-brand/5 transition-all duration-150;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-muted);
+    padding: 0.375rem 0.75rem;
+    border-radius: 3px;
+    transition: all 150ms ease;
+  }
+  .nav-link:hover {
+    color: var(--color-ink);
+    background-color: var(--color-paper);
   }
 
   .nav-link-active {
-    @apply text-sm font-medium text-brand px-3 py-1.5 rounded-lg bg-brand/8;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-ink);
+    padding: 0.375rem 0.75rem;
+    border-radius: 3px;
+    background-color: var(--color-paper);
   }
 
-  /* ── Page layout ─────────────────────────────────────────── */
+  /* ── Page Layout ─────────────────────────────────────────── */
   .page {
-    @apply min-h-screen bg-surface-base;
+    min-height: 100vh;
+    background-color: var(--color-paper);
+    color: var(--color-ink);
   }
 
   .page-content {
-    @apply max-w-5xl mx-auto px-6 py-10;
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
   }
 
   .page-section {
-    @apply bg-surface-section;
+    background-color: var(--color-surface);
+    border-top: 1px solid var(--color-line);
+    border-bottom: 1px solid var(--color-line);
   }
 
-  /* ── Section headings ────────────────────────────────────── */
   .section-title {
-    @apply text-xl font-bold text-content-heading;
+    font-size: 22px;
+    line-height: 28px;
+    font-weight: 700;
+    color: var(--color-ink);
   }
 
-  /* ── Divider ─────────────────────────────────────────────── */
   .divider {
-    @apply border-t border-surface-border;
+    border-top: 1px solid var(--color-line);
   }
 
-  /* ── Error banner ────────────────────────────────────────── */
+  /* ── Status Banners ──────────────────────────────────────── */
   .error-banner {
-    @apply rounded-xl bg-red-50 border border-red-200 px-4 py-3;
+    border-radius: 3px;
+    background-color: rgba(211, 47, 47, 0.08);
+    border: 1px solid rgba(211, 47, 47, 0.25);
+    color: var(--color-status-error);
+    padding: 0.75rem 1rem;
+    font-size: 14px;
   }
 
-  /* ── Success banner ──────────────────────────────────────── */
   .success-banner {
-    @apply rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3;
+    border-radius: 3px;
+    background-color: rgba(14, 138, 94, 0.08);
+    border: 1px solid rgba(14, 138, 94, 0.25);
+    color: var(--color-status-success);
+    padding: 0.75rem 1rem;
+    font-size: 14px;
   }
 
   /* ── Skeleton ────────────────────────────────────────────── */
   .skeleton {
-    @apply bg-surface-overlay rounded-lg animate-pulse;
+    background-color: var(--color-line);
+    opacity: 0.5;
+    border-radius: 3px;
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
-  /* ── Form label ──────────────────────────────────────────── */
+  /* ── Form Label ──────────────────────────────────────────── */
   .label {
-    @apply block text-sm font-semibold text-content-secondary mb-1.5;
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-ink);
+    margin-bottom: 0.375rem;
   }
 
-  /* ── Auth card wrapper ───────────────────────────────────── */
+  /* ── Auth Card Wrapper ───────────────────────────────────── */
   .auth-card {
-    @apply card p-8 shadow-card-md;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 10px;
+    box-shadow: var(--shadow-floating);
+    padding: 2rem;
   }
 }
