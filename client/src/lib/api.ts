@@ -4,32 +4,114 @@ const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
 // ── Generic fetch wrapper with 401-retry ──────────────────────
 
-async function request<T>(
+export interface RequestOptions extends RequestInit {
+  responseType?: 'json' | 'blob' | 'text'
+}
+
+export async function request<T>(
   path: string,
-  options: RequestInit = {},
+  options: RequestOptions = {},
   token?: string
 ): Promise<T> {
+  // If token is not explicitly provided, attempt to resolve from active Supabase session or storage
+  let effectiveToken = token
+  if (!effectiveToken) {
+    try {
+      const { data } = await supabase.auth.getSession()
+      effectiveToken = data.session?.access_token
+    } catch {
+      // ignore getSession failure
+    }
+    if (!effectiveToken) {
+      try {
+        effectiveToken =
+          localStorage.getItem('cc_access_token') ??
+          sessionStorage.getItem('cc_access_token') ??
+          localStorage.getItem('access_token') ??
+          sessionStorage.getItem('access_token') ??
+          undefined
+      } catch {
+        effectiveToken = undefined
+      }
+    }
+  }
+
   const doFetch = async (t: string | undefined) => {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string>),
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
+    const headers: Record<string, string> = {}
+    if (!isFormData) {
+      headers['Content-Type'] = 'application/json'
+    }
+    if (options.headers) {
+      if (typeof Headers !== 'undefined' && options.headers instanceof Headers) {
+        options.headers.forEach((val, key) => {
+          headers[key] = val
+        })
+      } else if (Array.isArray(options.headers)) {
+        for (const [k, v] of options.headers) {
+          headers[k] = v
+        }
+      } else {
+        Object.assign(headers, options.headers)
+      }
     }
     if (t) headers['Authorization'] = `Bearer ${t}`
     return fetch(`${BASE_URL}${path}`, { ...options, headers })
   }
 
-  let res = await doFetch(token)
+  let res = await doFetch(effectiveToken)
 
   // On 401 try refreshing the session once, then retry
-  if (res.status === 401 && token) {
-    const { data } = await supabase.auth.refreshSession()
-    if (data.session) {
-      res = await doFetch(data.session.access_token)
+  if (res.status === 401) {
+    try {
+      let storedRefreshToken: string | undefined
+      try {
+        storedRefreshToken =
+          localStorage.getItem('cc_refresh_token') ??
+          sessionStorage.getItem('cc_refresh_token') ??
+          undefined
+      } catch {
+        // ignore storage access errors
+      }
+      const { data } = await supabase.auth.refreshSession(
+        storedRefreshToken ? { refresh_token: storedRefreshToken } : undefined
+      )
+      if (data?.session) {
+        effectiveToken = data.session.access_token
+        try {
+          localStorage.setItem('cc_access_token', effectiveToken)
+          if (data.session.refresh_token) {
+            localStorage.setItem('cc_refresh_token', data.session.refresh_token)
+          }
+        } catch {
+          // ignore storage access errors
+        }
+        res = await doFetch(effectiveToken)
+      }
+    } catch {
+      // Refresh failed, proceed to error parsing
     }
   }
 
+  if (!res.ok) {
+    let errMsg = 'Request failed'
+    try {
+      const json = await res.json()
+      errMsg = json.error ?? errMsg
+    } catch {
+      errMsg = res.statusText || errMsg
+    }
+    throw new Error(errMsg)
+  }
+
+  if (options.responseType === 'blob') {
+    return (await res.blob()) as T
+  }
+  if (options.responseType === 'text') {
+    return (await res.text()) as T
+  }
+
   const json = await res.json()
-  if (!res.ok) throw new Error((json as { error?: string }).error ?? 'Request failed')
   return json as T
 }
 
@@ -472,34 +554,22 @@ export const talentApi = {
       body: JSON.stringify({ availability }),
     }, token),
 
-  uploadAvatar: async (file: File, token: string): Promise<{ avatar_url: string }> => {
+  uploadAvatar: async (file: File, token?: string): Promise<{ avatar_url: string }> => {
     const formData = new FormData()
     formData.append('avatar', file)
-    const res = await fetch(`${BASE_URL}/talent/avatar`, {
+    return request<{ avatar_url: string }>('/talent/avatar', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
       body: formData,
-    })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json.error ?? 'Avatar upload failed')
-    return json
+    }, token)
   },
 
-  uploadResume: async (file: File, token: string): Promise<{ resume_path: string; message: string }> => {
+  uploadResume: async (file: File, token?: string): Promise<{ resume_path: string; message: string }> => {
     const formData = new FormData()
     formData.append('resume', file)
-    const res = await fetch(`${BASE_URL}/talent/resume`, {
+    return request<{ resume_path: string; message: string }>('/talent/resume', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
       body: formData,
-    })
-    const json = await res.json()
-    if (!res.ok) throw new Error(json.error ?? 'Resume upload failed')
-    return json
+    }, token)
   },
 
   deleteResume: (token: string) =>
@@ -1007,17 +1077,11 @@ export interface ExportUserDataResponse {
 }
 
 export const accountApi = {
-  exportData: async (token: string): Promise<Blob> => {
-    const res = await fetch(`${BASE_URL}/account/export`, {
-      headers: {
-        "Authorization": `Bearer ${token}`,
-      },
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: "Export failed" }))
-      throw new Error((err as { error?: string }).error || "Failed to export account data")
-    }
-    return res.blob()
+  exportData: async (token?: string): Promise<Blob> => {
+    return request<Blob>('/account/export', {
+      method: 'GET',
+      responseType: 'blob',
+    }, token)
   },
 
   deleteAccount: (token: string) =>

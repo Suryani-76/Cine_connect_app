@@ -2,6 +2,7 @@ import { useState, FormEvent, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Search as SearchIcon, X, ExternalLink, ArrowRight } from 'lucide-react'
 import { talentApi, TalentProfile } from '../lib/api'
+import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 // ── Talent card ───────────────────────────────────────────────
@@ -186,6 +187,7 @@ const EMPTY: Filters = { skills: '', role: '', location: '', language: '', avail
 
 const Search = () => {
   usePageTitle('Find Talent')
+  const { token } = useAuth()
   const [filters, setFilters]     = useState<Filters>(EMPTY)
   const [results, setResults]     = useState<TalentProfile[]>([])
   const [searched, setSearched]   = useState(false)
@@ -203,7 +205,7 @@ const Search = () => {
         location:     f.location.trim()     || undefined,
         language:     f.language.trim()     || undefined,
         availability: f.availability.trim() || undefined,
-      })
+      }, token ?? undefined)
       setResults(res.talent); setSearched(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Search failed')
@@ -212,7 +214,7 @@ const Search = () => {
     }
   }
 
-  useEffect(() => { runSearch(EMPTY) }, [])
+  useEffect(() => { runSearch(EMPTY) }, [token])
 
   const handleSubmit = (e: FormEvent) => { e.preventDefault(); runSearch(filters) }
   const handleClear  = () => { setFilters(EMPTY); runSearch(EMPTY) }
