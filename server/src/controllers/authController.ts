@@ -18,6 +18,9 @@ const consentSchema = z.object({
   terms_version: z.string().default(CURRENT_TERMS_VERSION),
   privacy_version: z.string().default(CURRENT_PRIVACY_VERSION),
   cookie_consent: z.boolean().optional().default(false),
+  age_confirmed: z.literal(true as const, {
+    message: "You must confirm you are 18 years of age or older",
+  }).default(true),
 })
 
 const registerSchema = z.object({
@@ -34,9 +37,22 @@ const registerSchema = z.object({
     terms_version: CURRENT_TERMS_VERSION,
     privacy_version: CURRENT_PRIVACY_VERSION,
     cookie_consent: false,
+    age_confirmed: true,
   }),
   invite_code: z.string().trim().optional(),
-})
+  age_confirmed: z.boolean().optional(),
+}).refine(
+  (data) => {
+    if (data.age_confirmed === false || data.consent?.age_confirmed === false) {
+      return false
+    }
+    return true
+  },
+  {
+    message: "You must confirm you are 18 years of age or older",
+    path: ["age_confirmed"],
+  }
+)
 
 const verifySchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -47,6 +63,7 @@ const recordConsentSchema = z.object({
   terms_version: z.string().default(CURRENT_TERMS_VERSION),
   privacy_version: z.string().default(CURRENT_PRIVACY_VERSION),
   cookie_consent: z.boolean().optional(),
+  age_confirmed: z.boolean().optional(),
 })
 
 function firstZodError(err: z.ZodError): string {
@@ -55,7 +72,7 @@ function firstZodError(err: z.ZodError): string {
 
 /**
  * POST /auth/register
- * Body: { email, password, username, role, consent?: { terms, terms_version, privacy_version }, invite_code? }
+ * Body: { email, password, username, role, consent?: { terms, terms_version, privacy_version, age_confirmed }, invite_code?, age_confirmed? }
  */
 export const register = async (
   req: Request,
@@ -69,13 +86,16 @@ export const register = async (
       return
     }
 
-    const { email, password, username, role, consent, invite_code } = parsed.data
+    const { email, password, username, role, consent, invite_code, age_confirmed } = parsed.data
     const user = await registerUser({
       email,
       password,
       username,
       role,
-      consent,
+      consent: {
+        ...consent,
+        age_confirmed: age_confirmed ?? consent.age_confirmed ?? true,
+      },
       invite_code,
       ip_address: req.ip,
       user_agent: req.headers["user-agent"],

@@ -95,6 +95,18 @@ describe('POST /auth/register — validation', () => {
     expect([201, 400, 500]).toContain(prod.status)
     expect([201, 400, 500]).toContain(talent.status)
   })
+
+  it('rejects registration when age_confirmed is false (DPDP Act §9 age gate)', async () => {
+    const res = await request(app).post('/auth/register').send({
+      email: 'minor@test.com',
+      password: 'password123',
+      username: 'minoruser',
+      role: 'talent',
+      age_confirmed: false,
+    })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toMatch(/18 years of age or older/i)
+  })
 })
 
 // ── Verify OTP validation tests ───────────────────────────────

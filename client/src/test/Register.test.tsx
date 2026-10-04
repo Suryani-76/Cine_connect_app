@@ -109,6 +109,19 @@ describe('Register page', () => {
     })
   })
 
+  it('shows age confirmation error if not checked', async () => {
+    renderRegister()
+    await userEvent.type(screen.getByLabelText(/email/i), 'test@test.com')
+    await userEvent.type(screen.getByLabelText(/username/i), 'testuser')
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123')
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123')
+    await userEvent.click(screen.getByLabelText(/terms of service/i))
+    fireEvent.click(screen.getByRole('button', { name: /create account/i }))
+    await waitFor(() => {
+      expect(screen.getByText(/you must confirm you are 18 years of age or older/i)).toBeInTheDocument()
+    })
+  })
+
   it('renders links to terms and privacy policies', () => {
     renderRegister()
     const termsLink = screen.getAllByRole('link', { name: /terms of service/i })[0]
@@ -123,7 +136,8 @@ describe('Register page', () => {
     await userEvent.type(screen.getByLabelText(/username/i), 'testuser')
     await userEvent.type(screen.getByLabelText(/^password$/i), 'password123')
     await userEvent.type(screen.getByLabelText(/confirm password/i), 'password123')
-    await userEvent.click(screen.getByRole('checkbox'))
+    await userEvent.click(screen.getByLabelText(/terms of service/i))
+    await userEvent.click(screen.getByLabelText(/18 years of age or older/i))
     fireEvent.click(screen.getByRole('button', { name: /create account/i }))
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/verify', expect.objectContaining({

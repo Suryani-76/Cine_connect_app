@@ -61,7 +61,7 @@ export default function Privacy() {
               <li><strong>Talent Professional Profile:</strong> Full name, professional bio, primary craft/role (e.g. Director of Photography, Sound Designer, Actor), verified skills, years of industry experience, primary spoken/working languages, base location/city, profile avatar image, portfolio/IMDb links, and credit history.</li>
               <li><strong>Production House Profile:</strong> Company name, verified bio, company logo, and production details/slate description.</li>
               <li><strong>Marketplace Activities:</strong> Job listings created, applications submitted, cover notes, pipeline status changes (shortlist, interview, hire, reject), bookmarked/saved jobs, customized job alerts, and direct messages sent and received on the platform.</li>
-              <li><strong>Technical & Consent Logs:</strong> IP address, browser user-agent, session tokens, consent version timestamp, and device metadata strictly used for account security and rate-limiting enforcement.</li>
+              <li><strong>Technical & Consent Logs:</strong> IP address, browser user-agent string, session tokens, consent version timestamps, and statutory age confirmation (18+ verification). IP address and user-agent are recorded at the moment of registration to establish verifiable proof of affirmative consent as required under India&apos;s DPDP Act 2023.</li>
             </ul>
           </section>
 
@@ -104,6 +104,7 @@ export default function Privacy() {
             <ul className="list-disc pl-5 space-y-2">
               <li><strong>Read Notifications:</strong> Automatically purged from database storage after <strong>90 days</strong>.</li>
               <li><strong>Email Outbox Logs:</strong> Transient email delivery logs are permanently purged after <strong>30 days</strong>.</li>
+              <li><strong>Consent Network Identifiers (IP & User-Agent):</strong> IP addresses and browser user-agent strings captured at consent time are retained for exactly <strong>180 days (6 months)</strong> for evidentiary audit proof, after which an automated retention worker permanently purges and nulls these network fields while retaining non-identifying consent records.</li>
               <li><strong>Account Deletion:</strong> When an account is deleted via the Settings page, our cascading deletion pipeline immediately and permanently purges your profile, job listings, application history, message threads, uploaded avatar, and resumes from all databases and storage buckets.</li>
             </ul>
           </section>

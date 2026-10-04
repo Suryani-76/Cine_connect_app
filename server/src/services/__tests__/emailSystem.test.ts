@@ -700,12 +700,23 @@ describe('Email & Preferences Subsystem (Milestone M5)', () => {
       const mockOutboxLt = vi.fn().mockReturnValue({ select: mockOutboxSelect })
       const mockOutboxDelete = vi.fn().mockReturnValue({ lt: mockOutboxLt })
 
+      const mockConsentSelect = vi.fn().mockResolvedValue({
+        data: [{ id: 'consent-old-1' }],
+        error: null,
+      })
+      const mockConsentNot = vi.fn().mockReturnValue({ select: mockConsentSelect })
+      const mockConsentLt = vi.fn().mockReturnValue({ not: mockConsentNot })
+      const mockConsentUpdate = vi.fn().mockReturnValue({ lt: mockConsentLt })
+
       vi.mocked(supabase.from).mockImplementation((table: string) => {
         if (table === 'notifications') {
           return { delete: mockNotifDelete } as any
         }
         if (table === 'email_outbox') {
           return { delete: mockOutboxDelete } as any
+        }
+        if (table === 'user_consents') {
+          return { update: mockConsentUpdate } as any
         }
         return {} as any
       })
@@ -714,6 +725,7 @@ describe('Email & Preferences Subsystem (Milestone M5)', () => {
 
       expect(result.notificationsPurged).toBe(2)
       expect(result.outboxPurged).toBe(1)
+      expect(result.consentMetadataPurged).toBe(1)
       expect(mockNotifEq).toHaveBeenCalledWith('read', true)
       expect(mockNotifLt).toHaveBeenCalledWith('created_at', expect.any(String))
       expect(mockOutboxLt).toHaveBeenCalledWith('created_at', expect.any(String))

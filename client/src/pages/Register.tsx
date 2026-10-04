@@ -14,6 +14,7 @@ interface FormState {
   role: Role
   inviteCode: string
   consentAccepted: boolean
+  ageConfirmed: boolean
 }
 interface FieldErrors {
   email?: string
@@ -21,6 +22,7 @@ interface FieldErrors {
   confirmPassword?: string
   username?: string
   consentAccepted?: string
+  ageConfirmed?: string
 }
 
 function validate(form: FormState): FieldErrors {
@@ -35,6 +37,7 @@ function validate(form: FormState): FieldErrors {
   if (!form.confirmPassword) e.confirmPassword = "Please confirm your password"
   else if (form.password !== form.confirmPassword) e.confirmPassword = "Passwords do not match"
   if (!form.consentAccepted) e.consentAccepted = "You must agree to the Terms of Service and Privacy Policy"
+  if (!form.ageConfirmed) e.ageConfirmed = "You must confirm you are 18 years of age or older"
   return e
 }
 
@@ -50,6 +53,7 @@ const Register = () => {
     role: "production",
     inviteCode: "",
     consentAccepted: false,
+    ageConfirmed: false,
   })
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
   const [serverError, setServerError] = useState("")
@@ -74,10 +78,12 @@ const Register = () => {
         username: form.username,
         role: form.role,
         invite_code: form.inviteCode.trim() || undefined,
+        age_confirmed: true,
         consent: {
           terms: true,
           privacy: true,
           version: "1.0",
+          age_confirmed: true,
         },
       })
       navigate("/verify", { state: { email: form.email, role: form.role } })
@@ -197,6 +203,26 @@ const Register = () => {
                 </div>
                 {fieldErrors.consentAccepted && (
                   <p className="mt-1.5 text-xs text-red-500">{fieldErrors.consentAccepted}</p>
+                )}
+              </div>
+
+              {/* DPDP 2023 Statutory Age Gate */}
+              <div className="pt-1">
+                <div className="flex items-start gap-3">
+                  <input
+                    id="ageConfirmed"
+                    name="ageConfirmed"
+                    type="checkbox"
+                    checked={form.ageConfirmed}
+                    onChange={set}
+                    className="mt-1 h-4 w-4 rounded border-surface-border text-brand focus:ring-brand"
+                  />
+                  <label htmlFor="ageConfirmed" className="text-xs text-content-secondary leading-relaxed">
+                    I confirm that I am <strong>18 years of age or older</strong>.
+                  </label>
+                </div>
+                {fieldErrors.ageConfirmed && (
+                  <p className="mt-1.5 text-xs text-red-500">{fieldErrors.ageConfirmed}</p>
                 )}
               </div>
 

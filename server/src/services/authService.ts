@@ -9,6 +9,7 @@ export interface ConsentInput {
   terms_version?: string
   privacy_version?: string
   cookie_consent?: boolean
+  age_confirmed?: boolean
   ip_address?: string
   user_agent?: string
 }
@@ -127,6 +128,7 @@ export async function registerUser(input: RegisterInput): Promise<DbUser> {
       terms_version: consent?.terms_version ?? CURRENT_TERMS_VERSION,
       privacy_version: consent?.privacy_version ?? CURRENT_PRIVACY_VERSION,
       cookie_consent: consent?.cookie_consent ?? false,
+      age_confirmed: consent?.age_confirmed ?? true,
       ip_address: ip_address ?? consent?.ip_address ?? null,
       user_agent: user_agent ?? consent?.user_agent ?? null,
     })

@@ -41,10 +41,12 @@ export interface RegisterPayload {
   username: string
   role: 'production' | 'talent'
   invite_code?: string
+  age_confirmed?: boolean
   consent?: {
     terms: boolean
     privacy: boolean
     version: string
+    age_confirmed?: boolean
   }
 }
 

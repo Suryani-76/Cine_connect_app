@@ -10,7 +10,8 @@ export async function executeRetentionPurge(): Promise<void> {
     const result = await runRetentionPurge()
     console.log(
       `[RetentionWorker] Purge complete at ${result.executedAt}: ` +
-      `${result.notificationsPurged} notifications purged, ${result.outboxPurged} outbox records purged.`
+      `${result.notificationsPurged} notifications purged, ${result.outboxPurged} outbox records purged, ` +
+      `${result.consentMetadataPurged} consent network metadata records anonymized.`
     )
   } catch (err) {
     console.error('[RetentionWorker] Error running retention purge:', err)
