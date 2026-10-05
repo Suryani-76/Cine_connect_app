@@ -1,25 +1,199 @@
+import { useState, useEffect, useMemo } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import {
-  Sparkles,
-  Clapperboard,
-  Users,
-  CheckCircle2,
-  Shield,
-  MessageSquare,
-  TrendingUp,
-  Briefcase,
-  Star,
-  Film,
+  Check,
+  ShieldCheck,
+  MapPin,
+  Calendar,
+  IndianRupee,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { usePageTitle } from '../hooks/usePageTitle'
+import { useLandingMeta } from '../hooks/useLandingMeta'
+import { LightMeter, Signal } from '../components/ui/LightMeter'
+import { DepartmentMark, DepartmentKey } from '../components/ui/DepartmentMark'
+import { VerifiedBadge } from '../components/VerifiedBadge'
 import { PublicFooter } from '../components/PublicFooter'
+import { vocabApi, VocabItem } from '../lib/api'
 
-const Landing = () => {
-  usePageTitle(
-    'Where Indian Cinema Finds Its Cast & Crew',
-    'CineConnect connects verified film talent with leading studios and production houses using AI-powered matching, verified credits, and real-time chat.'
-  )
+// ── Static Sample Data for Hero Live Miniature ───────────────
+
+interface CandidateSample {
+  id: string
+  label: string
+  experience: string
+  city: string
+  skills: string
+  settledScore: number
+  initialScore: number
+}
+
+const SAMPLE_CANDIDATES: CandidateSample[] = [
+  {
+    id: 'c1',
+    label: 'Candidate #4108',
+    experience: '8 yrs',
+    city: 'Mumbai',
+    skills: 'Focus Pulling, ARRI Alexa, Gaffer',
+    settledScore: 94,
+    initialScore: 52,
+  },
+  {
+    id: 'c2',
+    label: 'Candidate #2915',
+    experience: '6 yrs',
+    city: 'Mumbai',
+    skills: 'Steadicam, Lighting Design',
+    settledScore: 86,
+    initialScore: 68,
+  },
+  {
+    id: 'c3',
+    label: 'Candidate #7032',
+    experience: '4 yrs',
+    city: 'Pune',
+    skills: 'Camera Operator, DIT',
+    settledScore: 72,
+    initialScore: 81,
+  },
+]
+
+// ── Seven Matching Signals (Real Product Evaluation Content) ──
+
+const SEVEN_SIGNALS: Signal[] = [
+  {
+    name: 'Skills match',
+    weight: 30,
+    score: 28,
+    reason: 'Evaluates required technical competencies and equipment proficiencies directly against candidate experience.',
+  },
+  {
+    name: 'Role match',
+    weight: 20,
+    score: 20,
+    reason: 'Validates credited history in this specific department hierarchy and role position.',
+  },
+  {
+    name: 'Experience match',
+    weight: 15,
+    score: 13,
+    reason: 'Assesses total years on active film sets against the production scale.',
+  },
+  {
+    name: 'Language fluency',
+    weight: 10,
+    score: 10,
+    reason: 'Confirms working language proficiency required for direction and department heads on set.',
+  },
+  {
+    name: 'Location proximity',
+    weight: 10,
+    score: 10,
+    reason: 'Measures proximity to the shooting location to minimize travel time and lodging requirements.',
+  },
+  {
+    name: 'Profile completeness',
+    weight: 10,
+    score: 9,
+    reason: 'Reflects verified credits, showreel links, union memberships, and contact readiness.',
+  },
+  {
+    name: 'Activity recency',
+    weight: 5,
+    score: 4,
+    reason: 'Prioritizes talent actively available, responsive, and seeking film productions.',
+  },
+]
+
+// ── Roles and Skills by Department ───────────────────────────
+
+interface DepartmentGroup {
+  key: DepartmentKey
+  name: string
+  roles: string[]
+  skills: string[]
+}
+
+const STATIC_DEPARTMENTS: DepartmentGroup[] = [
+  {
+    key: 'camera',
+    name: 'Camera',
+    roles: [
+      'Cinematographer',
+      'Camera Operator',
+      'First Assistant Camera (1st AC)',
+      'Second Assistant Camera (2nd AC)',
+      'Steadicam Operator',
+      'Drone Operator',
+      'Digital Imaging Technician (DIT)',
+    ],
+    skills: ['ARRI Alexa', 'Cooke Anamorphic', 'Focus Pulling', 'Lighting Design'],
+  },
+  {
+    key: 'sound',
+    name: 'Sound',
+    roles: [
+      'Sound Designer',
+      'Production Sound Mixer',
+      'Boom Operator',
+      'Sync Sound Recordist',
+      'Foley Artist',
+      'Re-recording Mixer',
+    ],
+    skills: ['Dolby Atmos', 'Pro Tools', 'Location Sound', 'Lavalier Rigging'],
+  },
+  {
+    key: 'editing',
+    name: 'Editing',
+    roles: [
+      'Editor',
+      'Colorist',
+      'Assistant Editor',
+      'Post-Production Supervisor',
+      'Visual Effects (VFX) Supervisor',
+    ],
+    skills: ['DaVinci Resolve', 'Avid Media Composer', 'ACES Workflow', 'Premiere Pro'],
+  },
+  {
+    key: 'art and costume',
+    name: 'Art & Costume',
+    roles: [
+      'Production Designer',
+      'Art Director',
+      'Costume Designer',
+      'Set Dresser',
+      'Key Makeup Artist',
+    ],
+    skills: ['Set Drafting', 'Period Research', 'SFX Makeup', 'Wardrobe Breakdown'],
+  },
+  {
+    key: 'cast',
+    name: 'Cast',
+    roles: [
+      'Lead Actor',
+      'Supporting Actor',
+      'Voice Artist',
+      'Stunt Coordinator',
+      'Background Artist',
+    ],
+    skills: ['Method Acting', 'Action Wirework', 'Dialogue Delivery', 'ADR Sync'],
+  },
+  {
+    key: 'production',
+    name: 'Production',
+    roles: [
+      'Producer',
+      'Line Producer',
+      'Executive Producer',
+      'First Assistant Director (1st AD)',
+      'Second Assistant Director (2nd AD)',
+      'Production Manager',
+    ],
+    skills: ['Shooting Schedule', 'Call Sheets', 'Location Permits', 'Budget Management'],
+  },
+]
+
+export default function Landing() {
+  useLandingMeta()
   const { user } = useAuth()
 
   // Authenticated users redirect straight to /home
@@ -27,233 +201,579 @@ const Landing = () => {
     return <Navigate to="/home" replace />
   }
 
+  // Check prefers-reduced-motion
+  const prefersReducedMotion = useMemo(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  }, [])
+
+  // ── Hero Miniature State ─────────────────────────────────────
+  // If reduced motion is preferred: immediately sorted and settled with 0 delay
+  const [candidates, setCandidates] = useState<CandidateSample[]>(() => {
+    if (prefersReducedMotion) {
+      return [...SAMPLE_CANDIDATES].sort((a, b) => b.settledScore - a.settledScore)
+    }
+    // Start in initial unranked order
+    return [SAMPLE_CANDIDATES[2], SAMPLE_CANDIDATES[1], SAMPLE_CANDIDATES[0]]
+  })
+
+  const [currentScores, setCurrentScores] = useState<Record<string, number>>(() => {
+    if (prefersReducedMotion) {
+      return {
+        c1: SAMPLE_CANDIDATES[0].settledScore,
+        c2: SAMPLE_CANDIDATES[1].settledScore,
+        c3: SAMPLE_CANDIDATES[2].settledScore,
+      }
+    }
+    return {
+      c1: SAMPLE_CANDIDATES[0].initialScore,
+      c2: SAMPLE_CANDIDATES[1].initialScore,
+      c3: SAMPLE_CANDIDATES[2].initialScore,
+    }
+  })
+
+  const [isRanked, setIsRanked] = useState<boolean>(prefersReducedMotion)
+
+  useEffect(() => {
+    if (prefersReducedMotion) return
+
+    // Settle needle scores after 350ms
+    const settleTimer = setTimeout(() => {
+      setCurrentScores({
+        c1: SAMPLE_CANDIDATES[0].settledScore,
+        c2: SAMPLE_CANDIDATES[1].settledScore,
+        c3: SAMPLE_CANDIDATES[2].settledScore,
+      })
+    }, 350)
+
+    // Reorder into rank order after 850ms, then stay still
+    const reorderTimer = setTimeout(() => {
+      setCandidates([...SAMPLE_CANDIDATES].sort((a, b) => b.settledScore - a.settledScore))
+      setIsRanked(true)
+    }, 850)
+
+    return () => {
+      clearTimeout(settleTimer)
+      clearTimeout(reorderTimer)
+    }
+  }, [prefersReducedMotion])
+
+  // ── Controlled Vocabulary fetch (falls back to static) ────────
+  const [departments, setDepartments] = useState<DepartmentGroup[]>(STATIC_DEPARTMENTS)
+
+  useEffect(() => {
+    let isMounted = true
+    vocabApi
+      .roles()
+      .then((res) => {
+        if (!isMounted || !res?.roles?.length) return
+        // Optional enrich: if backend roles exist, ensure canonical departments retain them
+        const roleList: VocabItem[] = res.roles
+        setDepartments((prev) =>
+          prev.map((group) => {
+            const apiRolesForGroup = roleList
+              .filter((r) => r.department?.toLowerCase().includes(group.key))
+              .map((r) => r.name)
+            if (!apiRolesForGroup.length) return group
+            const combined = Array.from(new Set([...group.roles, ...apiRolesForGroup]))
+            return { ...group, roles: combined }
+          })
+        )
+      })
+      .catch(() => {
+        // Fall back gracefully to static defaults (renders without API)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   return (
-    <div className="min-h-screen bg-surface-base flex flex-col justify-between selection:bg-brand/20">
+    <div className="min-h-screen bg-paper flex flex-col justify-between selection:bg-tungsten/30 text-ink">
+      {/* ── Section 1: Hero ─────────────────────────────────── */}
+      <section
+        aria-labelledby="hero-heading"
+        className="w-full border-b border-line bg-surface pt-12 pb-16 lg:pt-20 lg:pb-24"
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+            {/* Left: Headline & Actions */}
+            <div className="lg:col-span-6 flex flex-col items-start text-left">
+              <h1
+                id="hero-heading"
+                className="text-32 sm:text-40 lg:text-56 font-extrabold text-ink tracking-tight leading-[1.1]"
+              >
+                Hire film crew that fits the job, not just the title.
+              </h1>
 
-      {/* ── Hero Section ── */}
-      <section className="relative overflow-hidden pt-12 pb-20 lg:pt-20 lg:pb-28 border-b border-surface-border bg-gradient-to-b from-surface-section/60 to-surface-base">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand/10 border border-brand/20 text-brand-navy text-xs font-semibold uppercase tracking-wider mb-6">
-            <Sparkles size={14} className="text-brand" />
-            India&apos;s Verified Film Industry Network
-          </div>
+              <p className="mt-5 text-16 sm:text-18 text-muted leading-relaxed max-w-xl">
+                CineConnect scores cast and crew against every production requirement using seven
+                transparent signals, verified credits, and direct communication.
+              </p>
 
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-content-heading tracking-tight max-w-4xl mx-auto leading-tight">
-            Where Filmmakers and Artists <span className="text-brand">Collaborate & Create</span>
-          </h1>
+              <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                <Link
+                  to="/register?role=production"
+                  className="btn-primary text-16 font-semibold py-3 px-6 text-center rounded-[3px] bg-tungsten text-ink hover:opacity-95 transition-opacity"
+                >
+                  Post a job
+                </Link>
+                <Link
+                  to="/jobs"
+                  className="btn-secondary text-16 font-semibold py-3 px-6 text-center rounded-[3px] border border-line bg-surface text-ink hover:bg-paper transition-colors"
+                >
+                  Find film work
+                </Link>
+              </div>
 
-          <p className="mt-6 text-lg sm:text-xl text-content-secondary max-w-2xl mx-auto leading-relaxed">
-            Stop relying on scattered WhatsApp groups. CineConnect brings verified credits,
-            AI-powered match scoring, and direct communication to Indian cinema production.
-          </p>
+              <div className="mt-10 flex flex-wrap items-center gap-y-2 gap-x-6 text-12 text-muted">
+                <span className="inline-flex items-center gap-1.5">
+                  <Check size={14} className="text-tungsten" />
+                  Verified film credits
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Check size={14} className="text-tungsten" />
+                  7-signal objective scoring
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <Check size={14} className="text-tungsten" />
+                  DPDP Act 2023 compliant
+                </span>
+              </div>
+            </div>
 
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              to="/register?role=talent"
-              className="btn-primary w-full sm:w-auto text-base px-6 py-3.5 inline-flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-shadow"
-            >
-              <Users size={18} /> Join as Talent
-            </Link>
-            <Link
-              to="/register?role=production"
-              className="btn-secondary w-full sm:w-auto text-base px-6 py-3.5 inline-flex items-center justify-center gap-2 bg-white"
-            >
-              <Clapperboard size={18} /> Hire Crew & Cast
-            </Link>
-          </div>
+            {/* Right: Live Miniature of the Product */}
+            <div className="lg:col-span-6">
+              <div
+                className="bg-paper border border-line rounded-[3px] p-4 sm:p-5 shadow-xs"
+                data-testid="live-miniature"
+              >
+                {/* Miniature Header */}
+                <div className="flex items-center justify-between pb-3 mb-4 border-b border-line text-12 text-muted">
+                  <span className="font-semibold uppercase tracking-wider text-[11px] text-ink">
+                    Live match preview
+                  </span>
+                  <span className="tnum">3 applicants evaluated</span>
+                </div>
 
-          <div className="mt-12 flex flex-wrap items-center justify-center gap-8 text-xs text-content-tertiary">
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 size={16} className="text-green-600" /> 100% Verified Profiles
-            </span>
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 size={16} className="text-green-600" /> 7-Signal AI Match Engine
-            </span>
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 size={16} className="text-green-600" /> DPDP Act 2023 Compliant
-            </span>
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+                  {/* Job card on the left */}
+                  <div className="md:col-span-5 bg-surface border border-line rounded-[3px] p-3.5 flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between">
+                      <DepartmentMark department="camera" size="sm" />
+                      <span className="text-[11px] text-muted">Feature Film</span>
+                    </div>
+
+                    <div>
+                      <h2 className="text-14 font-bold text-ink leading-snug">
+                        Cinematographer
+                      </h2>
+                      <p className="text-12 text-muted mt-0.5">
+                        12-day feature shoot, Mumbai
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-1 text-[11px] text-muted pt-1 border-t border-line/60">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin size={11} className="shrink-0 text-muted" />
+                        <span>Mumbai, Maharashtra</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Calendar size={11} className="shrink-0 text-muted" />
+                        <span>12 shoot days</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <IndianRupee size={11} className="shrink-0 text-muted" />
+                        <span className="tnum">₹2,50,000 budget</span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      <span className="px-1.5 py-0.5 bg-paper text-[10px] text-ink rounded-[2px] border border-line">
+                        ARRI Alexa
+                      </span>
+                      <span className="px-1.5 py-0.5 bg-paper text-[10px] text-ink rounded-[2px] border border-line">
+                        Cooke Anamorphic
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Three candidate rows on the right */}
+                  <div className="md:col-span-7 flex flex-col gap-2.5">
+                    {candidates.map((cand, idx) => {
+                      const score = currentScores[cand.id] ?? cand.settledScore
+                      const rankNumber = idx + 1
+
+                      return (
+                        <div
+                          key={cand.id}
+                          className="bg-surface border border-line rounded-[3px] p-3 flex flex-col gap-2 transition-all duration-300"
+                          data-testid={`candidate-row-${cand.id}`}
+                        >
+                          <div className="flex items-center justify-between text-12">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded-[2px] tnum ${
+                                  isRanked && rankNumber === 1
+                                    ? 'bg-tungsten/20 text-ink border border-tungsten/40'
+                                    : 'bg-paper text-muted border border-line'
+                                }`}
+                              >
+                                {isRanked ? `#${rankNumber}` : 'Pending'}
+                              </span>
+                              <span className="font-semibold text-ink text-12">
+                                {cand.label}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-muted tnum">
+                              {cand.experience} • {cand.city}
+                            </span>
+                          </div>
+
+                          {/* Candidate LightMeter */}
+                          <LightMeter
+                            score={score}
+                            size="sm"
+                            showScoreLabel={true}
+                            expandable={false}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ── How It Works (Both Sides) ── */}
-      <section className="py-20 bg-surface-base">
+      {/* ── Section 2: How Matching Works ───────────────────── */}
+      <section
+        aria-labelledby="how-matching-works-heading"
+        className="py-16 lg:py-24 bg-surface border-b border-line"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-3xl font-bold text-content-heading">Engineered for Both Sides of the Camera</h2>
-            <p className="mt-3 text-content-secondary">
-              Whether you are casting an indie feature, hiring a Bollywood camera crew, or building your portfolio.
+          <div className="max-w-3xl">
+            <h2
+              id="how-matching-works-heading"
+              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight"
+            >
+              How matching works
+            </h2>
+            <p className="mt-3 text-16 text-muted leading-relaxed">
+              Every candidate score is calculated from seven objective signals. Production teams see
+              exactly why someone matches, and talent sees how their profile measures against the role.
+            </p>
+          </div>
+
+          {/* Single large LightMeter with expanded breakdown */}
+          <div className="mt-10 bg-paper border border-line rounded-[3px] p-6 lg:p-8 max-w-4xl">
+            <div className="mb-4">
+              <span className="text-12 font-semibold text-muted uppercase tracking-wider">
+                Sample match evaluation
+              </span>
+              <h3 className="text-18 font-bold text-ink mt-1">
+                Cinematographer candidate evaluation
+              </h3>
+            </div>
+
+            <LightMeter
+              score={94}
+              breakdown={SEVEN_SIGNALS}
+              size="lg"
+              defaultExpanded={true}
+              expandable={true}
+              label="Overall match score"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ── Section 3: For Production Houses and For Talent ── */}
+      <section
+        aria-labelledby="outcomes-heading"
+        className="py-16 lg:py-24 bg-paper border-b border-line"
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-2xl mb-12">
+            <h2
+              id="outcomes-heading"
+              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight"
+            >
+              Engineered for production offices and film sets
+            </h2>
+            <p className="mt-3 text-16 text-muted leading-relaxed">
+              CineConnect replaces unorganized social media groups with direct verified communication
+              and transparent qualification scoring.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-16">
+            {/* Column 1: For Production Houses */}
+            <div className="bg-surface border border-line rounded-[3px] p-6 sm:p-8 flex flex-col justify-between">
+              <div>
+                <h3 className="text-22 font-bold text-ink">
+                  For production houses
+                </h3>
+                <p className="text-14 text-muted mt-1">
+                  Producers, casting directors, and department heads staffing productions.
+                </p>
+
+                <ul className="mt-6 flex flex-col gap-4 text-14 text-ink">
+                  <li className="flex items-start gap-3">
+                    <span className="w-5 h-5 rounded-[2px] bg-paper border border-line flex items-center justify-center shrink-0 mt-0.5 text-12 font-bold text-ink tnum">
+                      1
+                    </span>
+                    <span>
+                      Filter crew by verified film credits rather than unverified resumes.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="w-5 h-5 rounded-[2px] bg-paper border border-line flex items-center justify-center shrink-0 mt-0.5 text-12 font-bold text-ink tnum">
+                      2
+                    </span>
+                    <span>
+                      Evaluate applicant fit instantly with 7-signal match scores before opening a message.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="w-5 h-5 rounded-[2px] bg-paper border border-line flex items-center justify-center shrink-0 mt-0.5 text-12 font-bold text-ink tnum">
+                      3
+                    </span>
+                    <span>
+                      Initiate secure direct contact and contract discussions without sharing private phone numbers.
+                    </span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="mt-8 pt-4 border-t border-line">
+                <Link
+                  to="/register?role=production"
+                  className="inline-flex items-center text-14 font-semibold text-ink hover:underline"
+                >
+                  Register as a production house &rarr;
+                </Link>
+              </div>
+            </div>
+
+            {/* Column 2: For Talent */}
+            <div className="bg-surface border border-line rounded-[3px] p-6 sm:p-8 flex flex-col justify-between">
+              <div>
+                <h3 className="text-22 font-bold text-ink">
+                  For talent
+                </h3>
+                <p className="text-14 text-muted mt-1">
+                  Actors, technicians, and crew members seeking film projects.
+                </p>
+
+                <ul className="mt-6 flex flex-col gap-4 text-14 text-ink">
+                  <li className="flex items-start gap-3">
+                    <span className="w-5 h-5 rounded-[2px] bg-paper border border-line flex items-center justify-center shrink-0 mt-0.5 text-12 font-bold text-ink tnum">
+                      1
+                    </span>
+                    <span>
+                      Showcase validated credits and showreels in one industry-recognized profile.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="w-5 h-5 rounded-[2px] bg-paper border border-line flex items-center justify-center shrink-0 mt-0.5 text-12 font-bold text-ink tnum">
+                      2
+                    </span>
+                    <span>
+                      See how closely your experience matches any job before you spend time applying.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="w-5 h-5 rounded-[2px] bg-paper border border-line flex items-center justify-center shrink-0 mt-0.5 text-12 font-bold text-ink tnum">
+                      3
+                    </span>
+                    <span>
+                      Receive direct interview and audition requests from verified studio productions.
+                    </span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="mt-8 pt-4 border-t border-line">
+                <Link
+                  to="/register?role=talent"
+                  className="inline-flex items-center text-14 font-semibold text-ink hover:underline"
+                >
+                  Register as talent &rarr;
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Section 4: Roles We Cover ────────────────────────── */}
+      <section
+        aria-labelledby="roles-heading"
+        className="py-16 lg:py-24 bg-surface border-b border-line"
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-2xl mb-12">
+            <h2
+              id="roles-heading"
+              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight"
+            >
+              Roles we cover
+            </h2>
+            <p className="mt-3 text-16 text-muted leading-relaxed">
+              Explore positions across all primary film departments. Every role links directly to
+              open listings in that specialization.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {departments.map((dept) => (
+              <div
+                key={dept.key}
+                className="bg-paper border border-line rounded-[3px] p-5 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between pb-3 border-b border-line mb-3">
+                    <DepartmentMark department={dept.key} label={dept.name} size="md" />
+                    <span className="text-12 text-muted tnum">{dept.roles.length} roles</span>
+                  </div>
+
+                  {/* Scannable role list */}
+                  <ul className="flex flex-col gap-1.5">
+                    {dept.roles.map((role) => (
+                      <li key={role}>
+                        <Link
+                          to={`/jobs?q=${encodeURIComponent(role)}`}
+                          className="text-14 text-ink hover:text-ink font-medium hover:underline inline-block transition-colors"
+                        >
+                          {role}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Sample Skills */}
+                {dept.skills.length > 0 && (
+                  <div className="mt-4 pt-3 border-t border-line/60">
+                    <span className="text-[11px] text-muted block mb-1.5">Key skills & gear</span>
+                    <div className="flex flex-wrap gap-1">
+                      {dept.skills.map((skill) => (
+                        <span
+                          key={skill}
+                          className="px-1.5 py-0.5 bg-surface text-[11px] text-muted border border-line rounded-[2px]"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Section 5: Trust and Verification ────────────────── */}
+      <section
+        aria-labelledby="trust-heading"
+        className="py-16 lg:py-24 bg-paper border-b border-line"
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-2xl mb-12">
+            <h2
+              id="trust-heading"
+              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight"
+            >
+              Trust and verification
+            </h2>
+            <p className="mt-3 text-16 text-muted leading-relaxed">
+              Film productions require authentic identities, safe communications, and strict privacy
+              safeguards.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
-            {/* For Production */}
-            <div className="card p-8 border-surface-border bg-white shadow-sm space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-brand-navy text-white rounded-xl">
-                  <Clapperboard size={24} />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-content-heading">For Production Houses & Studios</h3>
-                  <p className="text-xs text-brand font-semibold uppercase tracking-wider">Casting Directors • Producers • Department Heads</p>
-                </div>
+            {/* Privacy and consent */}
+            <div className="bg-surface border border-line rounded-[3px] p-6 sm:p-8 flex flex-col gap-3">
+              <div className="flex items-center gap-2 text-ink">
+                <ShieldCheck size={20} className="text-ink" />
+                <h3 className="text-18 font-bold text-ink">
+                  Privacy and consent
+                </h3>
               </div>
 
-              <ul className="space-y-4 text-sm text-content-secondary">
-                <li className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-brand/10 text-brand flex items-center justify-center font-bold text-xs mt-0.5">1</div>
-                  <div>
-                    <strong className="text-content-heading">Post Detailed Roles with Requirements:</strong> Set specific skills, departments, locations, and compensation terms.
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-brand/10 text-brand flex items-center justify-center font-bold text-xs mt-0.5">2</div>
-                  <div>
-                    <strong className="text-content-heading">Automated Match Scoring:</strong> Our transparent engine scores applicants across skills, experience, location, and verified credits.
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-brand/10 text-brand flex items-center justify-center font-bold text-xs mt-0.5">3</div>
-                  <div>
-                    <strong className="text-content-heading">Direct & Safe Communication:</strong> Initiate in-app chats and schedule auditions without exposing personal numbers.
-                  </div>
-                </li>
-              </ul>
-
-              <div className="pt-2">
-                <Link to="/register?role=production" className="btn-secondary text-sm w-full text-center py-2.5 inline-block">
-                  Create Studio Account &rarr;
+              <p className="text-14 text-muted leading-relaxed">
+                We collect only the professional credits, media showreels, and contact details you choose to share, never selling or sharing your data with third parties. Under India&apos;s Digital Personal Data Protection (DPDP) Act 2023, you retain complete rights to access, export, or permanently delete your account data at any time via our{' '}
+                <Link to="/privacy" className="text-ink font-semibold underline hover:opacity-80">
+                  Privacy Policy
                 </Link>
-              </div>
+                .
+              </p>
             </div>
 
-            {/* For Talent */}
-            <div className="card p-8 border-surface-border bg-white shadow-sm space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-brand text-white rounded-xl">
-                  <Film size={24} />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-content-heading">For Actors, Technicians & Crew</h3>
-                  <p className="text-xs text-brand font-semibold uppercase tracking-wider">Actors • Cinematographers • Editors • Sound Designers</p>
-                </div>
+            {/* Verified studio badge explanation */}
+            <div className="bg-surface border border-line rounded-[3px] p-6 sm:p-8 flex flex-col gap-3">
+              <div className="flex items-center gap-2.5">
+                <VerifiedBadge size={14} showText={true} />
+                <h3 className="text-18 font-bold text-ink">
+                  Verified studio badge
+                </h3>
               </div>
 
-              <ul className="space-y-4 text-sm text-content-secondary">
-                <li className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-brand/10 text-brand flex items-center justify-center font-bold text-xs mt-0.5">1</div>
-                  <div>
-                    <strong className="text-content-heading">Build Your Verified Film Credit Profile:</strong> Showcase project credits, showreels, availability, and PDF resumes.
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-brand/10 text-brand flex items-center justify-center font-bold text-xs mt-0.5">2</div>
-                  <div>
-                    <strong className="text-content-heading">Match Transparency:</strong> Inspect why you match a posting before you apply, with detailed score breakdowns.
-                  </div>
-                </li>
-                <li className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-brand/10 text-brand flex items-center justify-center font-bold text-xs mt-0.5">3</div>
-                  <div>
-                    <strong className="text-content-heading">1-Click Applications:</strong> Apply with your verified profile and get instant email alerts when your status advances.
-                  </div>
-                </li>
-              </ul>
-
-              <div className="pt-2">
-                <Link to="/register?role=talent" className="btn-primary text-sm w-full text-center py-2.5 inline-block">
-                  Build Talent Profile &rarr;
-                </Link>
-              </div>
+              <p className="text-14 text-muted leading-relaxed">
+                The verified studio badge indicates an authenticated production house with verified
+                corporate credentials and active industry standing. Every role, contract offer, and
+                audition from a verified studio is backed by an authenticated production entity,
+                protecting cast and crew from spoofed listings and unauthorized contacts.
+              </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── Feature Highlights ── */}
-      <section className="py-20 bg-surface-section border-y border-surface-border">
+      {/* ── Section 6: Final Call to Action ──────────────────── */}
+      <section
+        aria-labelledby="cta-heading"
+        className="py-16 lg:py-24 bg-surface text-ink border-b border-line"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <h2 className="text-3xl font-bold text-content-heading">Why Leading Productions Rely on CineConnect</h2>
-            <p className="mt-3 text-content-secondary">
-              A high-trust ecosystem designed specifically for the dynamics of Indian film production.
+          <div className="max-w-3xl flex flex-col items-start text-left">
+            <h2
+              id="cta-heading"
+              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight"
+            >
+              Ready to assemble your crew or book your next film production?
+            </h2>
+
+            <p className="mt-4 text-16 text-muted leading-relaxed max-w-xl">
+              Join verified studios, directors, technicians, and cast collaborating across Indian cinema.
             </p>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="card p-6 bg-white space-y-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-                <TrendingUp size={20} />
-              </div>
-              <h3 className="font-bold text-content-heading text-base">7-Signal Match Engine</h3>
-              <p className="text-xs text-content-secondary leading-relaxed">
-                Objective scoring evaluates skills overlap, role history, location proximity, experience, and activity recency.
-              </p>
-            </div>
-
-            <div className="card p-6 bg-white space-y-3">
-              <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-                <Star size={20} />
-              </div>
-              <h3 className="font-bold text-content-heading text-base">Verified Film Credits</h3>
-              <p className="text-xs text-content-secondary leading-relaxed">
-                Verified badges for studios and structured credit history for cast and crew ensure authentic qualifications.
-              </p>
-            </div>
-
-            <div className="card p-6 bg-white space-y-3">
-              <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                <MessageSquare size={20} />
-              </div>
-              <h3 className="font-bold text-content-heading text-base">Protected Chat & Safety</h3>
-              <p className="text-xs text-content-secondary leading-relaxed">
-                Production-gated messaging, block triggers, and audit logging keep creative conversations safe and professional.
-              </p>
-            </div>
-
-            <div className="card p-6 bg-white space-y-3">
-              <div className="w-10 h-10 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
-                <Shield size={20} />
-              </div>
-              <h3 className="font-bold text-content-heading text-base">Privacy by Design</h3>
-              <p className="text-xs text-content-secondary leading-relaxed">
-                Full compliance with India&apos;s DPDP Act 2023 and GDPR: right to access, 1-hour data export, and complete erasure.
-              </p>
+            <div className="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+              <Link
+                to="/register?role=production"
+                className="btn-primary text-16 font-semibold py-3 px-6 text-center rounded-[3px] bg-tungsten text-ink hover:opacity-95 transition-opacity"
+              >
+                Post a job
+              </Link>
+              <Link
+                to="/jobs"
+                className="btn-secondary text-16 font-semibold py-3 px-6 text-center rounded-[3px] border border-line bg-surface text-ink hover:bg-paper transition-colors"
+              >
+                Find film work
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── Browse CTA Banner ── */}
-      <section className="py-16 bg-brand-navy text-white text-center">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-          <h2 className="text-3xl font-extrabold tracking-tight">
-            Ready to cast or get hired on your next production?
-          </h2>
-          <p className="text-blue-100 max-w-xl mx-auto text-sm sm:text-base">
-            Browse hundreds of active listings across directing, cinematography, editing, acting, and technical departments.
-          </p>
-          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              to="/jobs"
-              className="btn-primary bg-brand text-brand-navy font-bold px-6 py-3 text-sm inline-flex items-center gap-2 hover:bg-brand/90"
-            >
-              <Briefcase size={16} /> Browse Open Positions
-            </Link>
-            <Link
-              to="/register"
-              className="btn-secondary bg-transparent border-white/40 text-white hover:bg-white/10 px-6 py-3 text-sm"
-            >
-              Create Free Account
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Public Footer with Legal Links ── */}
+      {/* ── Public Footer with Legal Links ──────────────────── */}
       <PublicFooter />
     </div>
   )
 }
-
-export default Landing

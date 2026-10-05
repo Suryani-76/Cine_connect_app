@@ -17,6 +17,7 @@ export interface LightMeterProps {
   label?: string
   showScoreLabel?: boolean
   expandable?: boolean
+  defaultExpanded?: boolean
 }
 
 export function LightMeter({
@@ -27,9 +28,10 @@ export function LightMeter({
   label,
   showScoreLabel = true,
   expandable = true,
+  defaultExpanded = false,
 }: LightMeterProps) {
   const clampedScore = Math.max(0, Math.min(100, Math.round(score)))
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(defaultExpanded)
 
   // Needle settles with transition only when value changes AFTER mount
   const hasMounted = useRef(false)

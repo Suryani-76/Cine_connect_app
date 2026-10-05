@@ -429,7 +429,7 @@ function PublicShell({ children }: { children?: ReactNode }) {
           <nav aria-label="Public Links" className="flex items-center gap-3 sm:gap-4">
             <Link
               to="/jobs"
-              className="text-14 font-medium text-muted hover:text-ink transition-colors"
+              className="hidden sm:inline-block text-14 font-medium text-muted hover:text-ink transition-colors"
             >
               Browse jobs
             </Link>
