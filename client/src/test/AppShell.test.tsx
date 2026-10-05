@@ -53,6 +53,7 @@ function renderWithAuth(
         email: `${role}@cineconnect.test`,
         role,
         profileId: `profile-${role}`,
+        ...(role === 'production' ? { company_name: 'Studio North' } : {}),
       }
     : null
 
@@ -74,6 +75,7 @@ function renderWithAuth(
           <Route path="/jobs" element={<div data-testid="page-jobs">Jobs Content</div>} />
           <Route path="/applications" element={<div data-testid="page-applications">Applications Content</div>} />
           <Route path="/search" element={<div data-testid="page-search">Search Content</div>} />
+          <Route path="/alerts" element={<div data-testid="page-alerts">Alerts Content</div>} />
           <Route path="/saved-jobs" element={<div data-testid="page-saved">Saved Content</div>} />
           <Route path="/chat" element={<div data-testid="page-chat">Messages Content</div>} />
           <Route path="/settings" element={<div data-testid="page-settings">Settings Content</div>} />
@@ -96,7 +98,7 @@ describe('AppShell Component Suite', () => {
   })
 
   describe('1. Role-Aware Link Visibility (Desktop Rail)', () => {
-    it('renders production links correctly: Home, Jobs, Applicants, Talent search, Messages, Settings', () => {
+    it('renders production links correctly: Home, Jobs, Applicants, Talent search, Alerts, Messages, Settings', () => {
       renderWithAuth('production')
 
       const railNav = screen.getByRole('navigation', { name: /Rail Links/i })
@@ -107,6 +109,7 @@ describe('AppShell Component Suite', () => {
       expect(within(railNav).getByRole('link', { name: /^Jobs$/i })).toBeInTheDocument()
       expect(within(railNav).getByRole('link', { name: /^Applicants$/i })).toBeInTheDocument()
       expect(within(railNav).getByRole('link', { name: /^Talent search$/i })).toBeInTheDocument()
+      expect(within(railNav).getByRole('link', { name: /^Alerts$/i })).toBeInTheDocument()
       expect(within(railNav).getByRole('link', { name: /^Messages$/i })).toBeInTheDocument()
       expect(within(railNav).getByRole('link', { name: /^Settings$/i })).toBeInTheDocument()
 
@@ -134,6 +137,7 @@ describe('AppShell Component Suite', () => {
       // Production-specific or admin links should NOT be in the rail for talent
       expect(within(railNav).queryByRole('link', { name: /^Applicants$/i })).not.toBeInTheDocument()
       expect(within(railNav).queryByRole('link', { name: /^Talent search$/i })).not.toBeInTheDocument()
+      expect(within(railNav).queryByRole('link', { name: /^Alerts$/i })).not.toBeInTheDocument()
       expect(within(railNav).queryByRole('link', { name: /^Admin$/i })).not.toBeInTheDocument()
     })
 
@@ -157,16 +161,25 @@ describe('AppShell Component Suite', () => {
       })
     })
 
-    it('displays profile trigger menu at the bottom of the rail', async () => {
+    it('displays profile trigger menu at the bottom of the rail with studio name and role', async () => {
       renderWithAuth('production')
 
       const profileBtn = screen.getByRole('button', { name: /Open profile menu/i })
       expect(profileBtn).toBeInTheDocument()
-      expect(screen.getByText('production@cineconnect.test')).toBeInTheDocument()
+
+      // Studio name as main line, role as second line
+      expect(screen.getByText('Studio North')).toBeInTheDocument()
+      expect(screen.getByText('production')).toBeInTheDocument()
+
+      // Email is NOT in the button trigger
+      expect(within(profileBtn).queryByText('production@cineconnect.test')).not.toBeInTheDocument()
 
       // Open profile menu
       fireEvent.click(profileBtn)
       expect(screen.getByRole('menu', { name: /User Profile Menu/i })).toBeInTheDocument()
+
+      // Email is visible only in the menu that opens from it
+      expect(screen.getByText('production@cineconnect.test')).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: /Sign out/i })).toBeInTheDocument()
     })
   })

@@ -6,6 +6,7 @@ import {
   Briefcase,
   FileText,
   Search,
+  Bell,
   MessageCircle,
   Bookmark,
   Settings,
@@ -17,6 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import { productionApi } from '../lib/api'
 import { Avatar } from './ui/Avatar'
 import { Sheet, SheetTrigger, SheetContent } from './ui/Sheet'
 import { NotificationBell } from './NotificationBell'
@@ -83,8 +85,41 @@ function SignedInShell({ children }: { children?: ReactNode }) {
   const role = user?.role || 'talent'
   const isAdmin = role === 'admin'
 
+  // Studio name for production users (or fallback to company name / email)
+  const [companyName, setCompanyName] = useState<string>(() => {
+    return user?.company_name || localStorage.getItem('cc_company_name') || ''
+  })
+
+  useEffect(() => {
+    if (user?.company_name) {
+      setCompanyName(user.company_name)
+      return
+    }
+    const cached = localStorage.getItem('cc_company_name')
+    if (cached) {
+      setCompanyName(cached)
+      return
+    }
+    if (role === 'production' && token) {
+      productionApi
+        .getMyProfile(token)
+        .then((res) => {
+          if (res?.profile?.company_name) {
+            setCompanyName(res.profile.company_name)
+            localStorage.setItem('cc_company_name', res.profile.company_name)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [role, token, user?.company_name])
+
+  const studioName =
+    user?.company_name ||
+    companyName ||
+    (role === 'production' ? 'Production Studio' : user?.email || 'User')
+
   // ── Role-aware links ──────────────────────────────────────────
-  // Production: Home, Jobs, Applicants, Talent search, Messages
+  // Production: Home, Jobs, Applicants, Talent search, Alerts, Messages
   // Talent: Home, Browse jobs, My applications, Saved, Messages
   // Both: Settings. Admin only for admins.
   const desktopLinks: NavItem[] =
@@ -94,6 +129,7 @@ function SignedInShell({ children }: { children?: ReactNode }) {
           { label: 'Jobs',          href: '/jobs',         icon: Briefcase },
           { label: 'Applicants',    href: '/applications', icon: FileText },
           { label: 'Talent search', href: '/search',       icon: Search },
+          { label: 'Alerts',        href: '/alerts',       icon: Bell },
           { label: 'Messages',      href: '/chat',         icon: MessageCircle },
           { label: 'Settings',      href: '/settings',     icon: Settings },
           ...(isAdmin ? [{ label: 'Admin', href: '/admin', icon: Shield }] : []),
@@ -202,6 +238,12 @@ function SignedInShell({ children }: { children?: ReactNode }) {
               aria-label="User Profile Menu"
               className="absolute bottom-full left-3 right-3 mb-2 bg-surface border border-line rounded-modal shadow-floating py-1.5 z-50 animate-in fade-in-50 duration-150"
             >
+              {user?.email && (
+                <div className="px-3 py-1.5 border-b border-line mb-1">
+                  <p className="text-11 text-muted font-normal">Signed in as</p>
+                  <p className="text-12 font-medium text-ink truncate">{user.email}</p>
+                </div>
+              )}
               <Link
                 to="/profile"
                 role="menuitem"
@@ -241,10 +283,10 @@ function SignedInShell({ children }: { children?: ReactNode }) {
             aria-label="Open profile menu"
             className="w-full flex items-center gap-2.5 p-2 rounded-sm hover:bg-paper/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
           >
-            <Avatar fallback={user?.email || 'User'} size="sm" />
+            <Avatar fallback={studioName || user?.email || 'User'} size="sm" />
             <div className="flex-1 text-left min-w-0">
               <p className="text-14 font-medium text-ink truncate leading-tight">
-                {user?.email}
+                {studioName}
               </p>
               <p className="text-12 text-muted capitalize leading-none mt-0.5">
                 {role}
@@ -318,24 +360,37 @@ function SignedInShell({ children }: { children?: ReactNode }) {
             <div className="py-2 space-y-4">
               {/* User Identity card */}
               <div className="flex items-center gap-3 p-3 bg-paper rounded-sm border border-line">
-                <Avatar fallback={user?.email || 'User'} size="md" />
+                <Avatar fallback={studioName || user?.email || 'User'} size="md" />
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-14 text-ink truncate">{user?.email}</p>
-                  <p className="text-12 text-muted capitalize">{role} Account</p>
+                  <p className="font-semibold text-14 text-ink truncate">{studioName}</p>
+                  <p className="text-12 text-muted capitalize">{role}</p>
+                  {user?.email && (
+                    <p className="text-12 text-muted/80 truncate mt-0.5">{user.email}</p>
+                  )}
                 </div>
               </div>
 
               {/* Secondary navigation items */}
               <div className="divide-y divide-line border border-line rounded-sm bg-surface overflow-hidden">
                 {role === 'production' && (
-                  <Link
-                    to="/search"
-                    onClick={() => setMoreSheetOpen(false)}
-                    className="flex items-center gap-3 px-4 py-3 text-14 text-ink hover:bg-paper transition-colors"
-                  >
-                    <Search size={18} className="text-muted" />
-                    <span>Talent search</span>
-                  </Link>
+                  <>
+                    <Link
+                      to="/search"
+                      onClick={() => setMoreSheetOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 text-14 text-ink hover:bg-paper transition-colors"
+                    >
+                      <Search size={18} className="text-muted" />
+                      <span>Talent search</span>
+                    </Link>
+                    <Link
+                      to="/alerts"
+                      onClick={() => setMoreSheetOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 text-14 text-ink hover:bg-paper transition-colors"
+                    >
+                      <Bell size={18} className="text-muted" />
+                      <span>Alerts</span>
+                    </Link>
+                  </>
                 )}
                 {role === 'talent' && (
                   <Link

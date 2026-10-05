@@ -11,6 +11,7 @@ export interface AuthUser {
   email:     string
   role:      UserRole
   profileId: string | null
+  company_name?: string | null
 }
 
 interface AuthState {
@@ -29,12 +30,13 @@ interface AuthContextValue extends AuthState {
 // ── localStorage helpers ──────────────────────────────────────
 
 const KEYS = {
-  token:     'cc_access_token',
-  refresh:   'cc_refresh_token',
-  userId:    'cc_user_id',
-  userEmail: 'cc_user_email',
-  userRole:  'cc_user_role',
-  profileId: 'cc_profile_id',
+  token:       'cc_access_token',
+  refresh:     'cc_refresh_token',
+  userId:      'cc_user_id',
+  userEmail:   'cc_user_email',
+  userRole:    'cc_user_role',
+  profileId:   'cc_profile_id',
+  companyName: 'cc_company_name',
 } as const
 
 const store = localStorage
@@ -46,13 +48,14 @@ function persist(user: AuthUser, token: string, refreshToken: string) {
   store.setItem(KEYS.userEmail, user.email)
   store.setItem(KEYS.userRole,  user.role)
   if (user.profileId) store.setItem(KEYS.profileId, user.profileId)
+  if (user.company_name) store.setItem(KEYS.companyName, user.company_name)
 }
 
 function clearStorage() {
   Object.values(KEYS).forEach(k => store.removeItem(k))
   ;['access_token','refresh_token','user_id','production_id',
     'cc_access_token','cc_refresh_token','cc_user_id',
-    'cc_user_email','cc_user_role','cc_profile_id',
+    'cc_user_email','cc_user_role','cc_profile_id','cc_company_name',
   ].forEach(k => sessionStorage.removeItem(k))
 }
 
@@ -62,21 +65,23 @@ function loadFromStorage(): { user: AuthUser | null; token: string | null } {
   const token     = get(KEYS.token)     ?? get('access_token')
   const id        = get(KEYS.userId)    ?? get('user_id')
   const email     = get(KEYS.userEmail)
-  const role      = get(KEYS.userRole)  as UserRole | null
-  const profileId = get(KEYS.profileId) ?? get('production_id')
+  const role        = get(KEYS.userRole)  as UserRole | null
+  const profileId   = get(KEYS.profileId) ?? get('production_id')
+  const companyName = get(KEYS.companyName)
 
   if (!token || !id || !email || !role) return { user: null, token: null }
 
   // Migrate legacy sessionStorage keys to localStorage
   if (!store.getItem(KEYS.token) && token) {
-    store.setItem(KEYS.token,     token)
-    if (id)        store.setItem(KEYS.userId,    id)
-    if (email)     store.setItem(KEYS.userEmail, email)
-    if (role)      store.setItem(KEYS.userRole,  role)
-    if (profileId) store.setItem(KEYS.profileId, profileId)
+    store.setItem(KEYS.token,       token)
+    if (id)          store.setItem(KEYS.userId,      id)
+    if (email)       store.setItem(KEYS.userEmail,   email)
+    if (role)        store.setItem(KEYS.userRole,    role)
+    if (profileId)   store.setItem(KEYS.profileId,   profileId)
+    if (companyName) store.setItem(KEYS.companyName, companyName)
   }
 
-  return { token, user: { id, email, role, profileId: profileId ?? null } }
+  return { token, user: { id, email, role, profileId: profileId ?? null, company_name: companyName ?? null } }
 }
 
 // ── Context ───────────────────────────────────────────────────
