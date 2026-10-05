@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { AuthProvider } from './context/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { AppShell } from './components/AppShell'
+import { ScrollToTop } from './components/ScrollToTop'
 
 // ── Lazy-loaded pages ─────────────────────────────────────────
 const Login         = lazy(() => import('./pages/Login'))
@@ -54,89 +56,93 @@ function App() {
         toastOptions={{
           style: {
             background: '#FFFFFF',
-            border: '1px solid #E2E8F0',
-            color: '#1A1A2E',
-            fontFamily: 'Inter, sans-serif',
+            border: '1px solid #D5DBE3',
+            color: '#0E1B2E',
+            fontFamily: 'Archivo, sans-serif',
             fontSize: '14px',
-            boxShadow: '0 4px 16px rgba(11,37,69,0.10)',
+            boxShadow: '0 4px 16px rgba(14,27,46,0.10)',
           },
         }}
       />
       <BrowserRouter>
+        <ScrollToTop />
         <Suspense fallback={<PageLoader />}>
           <Routes>
-            {/* ── Public Auth ── */}
-            <Route path="/login"          element={<Login />} />
-            <Route path="/register"       element={<Register />} />
-            <Route path="/verify"         element={<Verify />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
+            {/* ── App Shell Layout (Signed In Rail or Public Topbar/Footer) ── */}
+            <Route element={<AppShell />}>
+              {/* ── Public Auth ── */}
+              <Route path="/login"          element={<Login />} />
+              <Route path="/register"       element={<Register />} />
+              <Route path="/verify"         element={<Verify />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
 
-            {/* ── Legal & Contact (Public) ── */}
-            <Route path="/privacy"        element={<Privacy />} />
-            <Route path="/terms"          element={<Terms />} />
-            <Route path="/cookies"        element={<Cookies />} />
-            <Route path="/contact"        element={<Contact />} />
-            <Route path="/unsubscribe/:token" element={<Unsubscribe />} />
+              {/* ── Legal & Contact (Public) ── */}
+              <Route path="/privacy"        element={<Privacy />} />
+              <Route path="/terms"          element={<Terms />} />
+              <Route path="/cookies"        element={<Cookies />} />
+              <Route path="/contact"        element={<Contact />} />
+              <Route path="/unsubscribe/:token" element={<Unsubscribe />} />
 
-            {/* ── Onboarding ── */}
-            <Route path="/create-profile" element={
-              <ProtectedRoute><CreateProfile /></ProtectedRoute>
-            } />
+              {/* ── Onboarding ── */}
+              <Route path="/create-profile" element={
+                <ProtectedRoute><CreateProfile /></ProtectedRoute>
+              } />
 
-            {/* ── Public Marketplace & Directory ── */}
-            <Route path="/jobs" element={<BrowseJobs />} />
-            <Route path="/company/:id" element={<CompanyDetail />} />
+              {/* ── Public Marketplace & Directory ── */}
+              <Route path="/jobs" element={<BrowseJobs />} />
+              <Route path="/company/:id" element={<CompanyDetail />} />
 
-            {/* ── App (authenticated) ── */}
-            <Route path="/home" element={
-              <ProtectedRoute><Home /></ProtectedRoute>
-            } />
-            <Route path="/search" element={
-              <ProtectedRoute><Search /></ProtectedRoute>
-            } />
-            <Route path="/jobs/create" element={
-              <ProtectedRoute allowedRoles={['production']}><CreateJob /></ProtectedRoute>
-            } />
-            <Route path="/jobs/:id/edit" element={
-              <ProtectedRoute allowedRoles={['production']}><EditJob /></ProtectedRoute>
-            } />
-            <Route path="/jobs/:id" element={
-              <ProtectedRoute><JobDetail /></ProtectedRoute>
-            } />
-            <Route path="/saved-jobs" element={
-              <ProtectedRoute allowedRoles={['talent']}><SavedJobs /></ProtectedRoute>
-            } />
-            <Route path="/alerts" element={
-              <ProtectedRoute allowedRoles={['production']}><Alerts /></ProtectedRoute>
-            } />
-            <Route path="/applications" element={
-              <ProtectedRoute><Applications /></ProtectedRoute>
-            } />
-            <Route path="/chat" element={
-              <ProtectedRoute><Chat /></ProtectedRoute>
-            } />
-            <Route path="/profile" element={
-              <ProtectedRoute><Profile /></ProtectedRoute>
-            } />
-            <Route path="/settings" element={
-              <ProtectedRoute><Settings /></ProtectedRoute>
-            } />
-            <Route path="/admin" element={
-              <ProtectedRoute><Admin /></ProtectedRoute>
-            } />
-            <Route path="/profile/:id" element={
-              <ProtectedRoute><Profile /></ProtectedRoute>
-            } />
+              {/* ── App (authenticated) ── */}
+              <Route path="/home" element={
+                <ProtectedRoute><Home /></ProtectedRoute>
+              } />
+              <Route path="/search" element={
+                <ProtectedRoute><Search /></ProtectedRoute>
+              } />
+              <Route path="/jobs/create" element={
+                <ProtectedRoute allowedRoles={['production']}><CreateJob /></ProtectedRoute>
+              } />
+              <Route path="/jobs/:id/edit" element={
+                <ProtectedRoute allowedRoles={['production']}><EditJob /></ProtectedRoute>
+              } />
+              <Route path="/jobs/:id" element={
+                <ProtectedRoute><JobDetail /></ProtectedRoute>
+              } />
+              <Route path="/saved-jobs" element={
+                <ProtectedRoute allowedRoles={['talent']}><SavedJobs /></ProtectedRoute>
+              } />
+              <Route path="/alerts" element={
+                <ProtectedRoute allowedRoles={['production']}><Alerts /></ProtectedRoute>
+              } />
+              <Route path="/applications" element={
+                <ProtectedRoute><Applications /></ProtectedRoute>
+              } />
+              <Route path="/chat" element={
+                <ProtectedRoute><Chat /></ProtectedRoute>
+              } />
+              <Route path="/profile" element={
+                <ProtectedRoute><Profile /></ProtectedRoute>
+              } />
+              <Route path="/settings" element={
+                <ProtectedRoute><Settings /></ProtectedRoute>
+              } />
+              <Route path="/admin" element={
+                <ProtectedRoute><Admin /></ProtectedRoute>
+              } />
+              <Route path="/profile/:id" element={
+                <ProtectedRoute><Profile /></ProtectedRoute>
+              } />
 
-            {/* ── Design System (DEV only) ── */}
+              {/* ── Defaults ── */}
+              <Route path="/audit-components" element={<AuditComponents />} />
+              <Route path="/"   element={<Landing />} />
+              <Route path="*"   element={<NotFound />} />
+            </Route>
+
+            {/* ── Design System (DEV only, standalone without AppShell) ── */}
             {import.meta.env.DEV && (
               <Route path="/design" element={<DesignShowcase />} />
             )}
-
-            {/* ── Defaults ── */}
-            <Route path="/audit-components" element={<AuditComponents />} />
-            <Route path="/"   element={<Landing />} />
-            <Route path="*"   element={<NotFound />} />
           </Routes>
         </Suspense>
       </BrowserRouter>

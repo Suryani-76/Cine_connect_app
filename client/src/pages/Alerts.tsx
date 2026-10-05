@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, FormEvent } from 'react'
-import { Link } from 'react-router-dom'
 import {
   Bell, Plus, Trash2, CheckCircle2, PauseCircle, MapPin,
-  Globe, Film, Sparkles, AlertCircle, X, Loader2, ArrowLeft, RefreshCw
+  Globe, Film, Sparkles, AlertCircle, X, Loader2, RefreshCw
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { talentAlertsApi, TalentAlert } from '../lib/api'
+import { PageHeader } from '../components/PageHeader'
 
 export default function Alerts() {
   usePageTitle('Talent Alerts')
@@ -132,38 +132,23 @@ export default function Alerts() {
     <div className="min-h-screen bg-surface-section py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Navigation & Header */}
-        <div>
-          <Link
-            to="/home"
-            className="inline-flex items-center gap-1.5 text-xs text-content-secondary hover:text-brand transition-colors mb-4"
+      <PageHeader
+        title="Talent Alerts"
+        description="Get automated notifications when candidates matching your production criteria register."
+        breadcrumbs={[
+          { label: 'Home', href: '/home' },
+          { label: 'Talent Alerts' },
+        ]}
+        action={
+          <button
+            onClick={() => { setCreateError(null); setIsModalOpen(true) }}
+            className="btn-primary inline-flex items-center gap-2 self-start sm:self-auto shrink-0 shadow-sm"
+            id="create-alert-btn"
           >
-            <ArrowLeft size={14} /> Back to dashboard
-          </Link>
-
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center text-brand">
-                  <Bell size={20} />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-content-heading">Talent Alerts</h1>
-                  <p className="text-sm text-content-secondary">
-                    Get automated notifications when candidates matching your production criteria register.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={() => { setCreateError(null); setIsModalOpen(true) }}
-              className="btn-primary inline-flex items-center gap-2 self-start sm:self-auto shrink-0 shadow-sm"
-              id="create-alert-btn"
-            >
-              <Plus size={16} /> Create Alert
-            </button>
-          </div>
-        </div>
+            <Plus size={16} /> Create Alert
+          </button>
+        }
+      />
 
         {/* Error State */}
         {error && (

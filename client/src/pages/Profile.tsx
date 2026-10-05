@@ -25,7 +25,6 @@ import {
 } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { PublicFooter } from '../components/PublicFooter'
 import { VerifiedBadge } from '../components/VerifiedBadge'
 
 // ── Types ─────────────────────────────────────────────────────
@@ -197,7 +196,7 @@ function EditableField({
 // ── Profile Component ─────────────────────────────────────────
 
 export function Profile() {
-  const { user, token, logout } = useAuth()
+  const { user, token } = useAuth()
   const navigate        = useNavigate()
   const { id: paramId } = useParams<{ id: string }>()
 
@@ -506,13 +505,10 @@ export function Profile() {
 
   if (loading) {
     return (
-      <div className="page">
-        <header className="nav"><div className="nav-inner"><Link to="/home" className="brand-text text-xl font-semibold text-content-primary">Cine<span className="text-brand">Connect</span></Link></div></header>
-        <main className="page-content">
-          <div className="card p-8 space-y-4 max-w-2xl">
-            {[1,2,3].map(i => <div key={i} className="skeleton h-6 rounded" />)}
-          </div>
-        </main>
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <div className="card p-8 space-y-4">
+          {[1,2,3].map(i => <div key={i} className="skeleton h-6 rounded" />)}
+        </div>
       </div>
     )
   }
@@ -533,28 +529,8 @@ export function Profile() {
   const showreelEmbed = profile?.type === 'talent' && profile.showreel_url ? getShowreelEmbedUrl(profile.showreel_url) : null
 
   return (
-    <div className="page">
-      <header className="nav">
-        <div className="nav-inner">
-          <Link to="/home" className="brand-text text-xl font-semibold text-content-primary tracking-tight">
-            Cine<span className="text-brand">Connect</span>
-          </Link>
-          <nav className="flex items-center gap-2">
-            <Link to="/home"         className="nav-link">Home</Link>
-            <Link to="/applications" className="nav-link">Applications</Link>
-            {isOwn && (
-              <Link to="/settings" className="nav-link">Settings</Link>
-            )}
-            {isOwn && (
-              <button onClick={logout}
-                className="nav-link text-red-400 hover:text-red-300">Sign out</button>
-            )}
-          </nav>
-        </div>
-      </header>
-
-      <main className="page-content">
-        <div className="max-w-2xl">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <div className="max-w-2xl">
 
           {/* ── Header ────────────────────────────────────────── */}
           <div className="card p-6 mb-6">
@@ -916,7 +892,6 @@ export function Profile() {
             )}
           </div>
         </div>
-      </main>
 
       {/* ── Credit Modal ─────────────────────────────────────── */}
       {showCreditModal && (
@@ -1034,8 +1009,6 @@ export function Profile() {
           </div>
         </div>
       )}
-
-      <PublicFooter />
     </div>
   )
 }

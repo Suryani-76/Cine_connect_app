@@ -8,6 +8,7 @@ import {
 } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { PageHeader } from '../components/PageHeader'
 
 // ── Pipeline config ───────────────────────────────────────────
 
@@ -588,27 +589,11 @@ const Applications = () => {
   const displayed = filterStatus === 'all' ? applications : applications.filter(a => a.status === filterStatus)
 
   return (
-    <div className="page">
-      {/* Nav */}
-      <header className="nav">
-        <div className="nav-inner">
-          <Link to="/home" className="brand-text text-xl text-brand-navy">
-            Cine<span className="text-brand">Connect</span>
-          </Link>
-          <nav className="flex items-center gap-1">
-            <Link to="/home"   className="nav-link">Home</Link>
-            <Link to="/search" className="nav-link">Find Talent</Link>
-          </nav>
-        </div>
-      </header>
-
-      <main className="page-content">
-        <div className="mb-8">
-          <h1 className="section-title">Applications</h1>
-          <p className="text-sm text-content-tertiary mt-1">
-            Ranked by match score · click a score badge to see the full breakdown
-          </p>
-        </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <PageHeader
+        title="Applications"
+        description="Ranked by match score · click a score badge to see the full breakdown"
+      />
 
         {/* Job selector */}
         {!loadingJobs && jobs.length > 0 && (
@@ -753,7 +738,6 @@ const Applications = () => {
             onClose={() => setShowCompare(false)}
           />
         )}
-      </main>
     </div>
   )
 }

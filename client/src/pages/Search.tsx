@@ -4,6 +4,7 @@ import { Search as SearchIcon, X, ExternalLink, ArrowRight } from 'lucide-react'
 import { talentApi, TalentProfile } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { PageHeader } from '../components/PageHeader'
 
 // ── Talent card ───────────────────────────────────────────────
 
@@ -223,35 +224,23 @@ const Search = () => {
   const hasFilters      = Object.values(filters).some(v => v.trim())
 
   return (
-    <div className="page">
-      {/* Nav */}
-      <header className="nav">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/home" className="brand-text text-xl text-brand-navy">
-            Cine<span className="text-brand">Connect</span>
-          </Link>
-          <nav className="flex items-center gap-1">
-            <Link to="/home"         className="nav-link">Home</Link>
-            <Link to="/applications" className="nav-link">Applications</Link>
-          </nav>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-6 py-10">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="section-title">Find Talent</h1>
-            <p className="text-sm text-content-tertiary mt-1">
-              {searched
-                ? `${results.length} result${results.length !== 1 ? 's' : ''}${hasFilters ? ' matching your filters' : ''}`
-                : 'Search the talent pool'}
-            </p>
-          </div>
-          <button onClick={() => setSidebar(v => !v)}
-            className="sm:hidden btn-ghost text-sm px-3 py-2">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <PageHeader
+        title="Find Talent"
+        description={
+          searched
+            ? `${results.length} result${results.length !== 1 ? 's' : ''}${hasFilters ? ' matching your filters' : ''}`
+            : 'Search the talent pool'
+        }
+        action={
+          <button
+            onClick={() => setSidebar(v => !v)}
+            className="sm:hidden btn-secondary text-14 px-3 py-2"
+          >
             {sidebarOpen ? 'Hide filters' : 'Filters'}
           </button>
-        </div>
+        }
+      />
 
         <div className="flex gap-6">
           {/* Sidebar desktop */}
@@ -321,8 +310,7 @@ const Search = () => {
             )}
           </div>
         </div>
-      </main>
-    </div>
+      </div>
   )
 }
 

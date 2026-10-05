@@ -7,7 +7,6 @@ import {
   Shield,
   MessageSquare,
   TrendingUp,
-  ArrowRight,
   Briefcase,
   Star,
   Film,
@@ -30,29 +29,6 @@ const Landing = () => {
 
   return (
     <div className="min-h-screen bg-surface-base flex flex-col justify-between selection:bg-brand/20">
-      {/* ── Public Navigation ── */}
-      <header className="nav sticky top-0 z-40 backdrop-blur-md bg-white/90 border-b border-surface-border">
-        <div className="nav-inner max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="brand-text text-2xl font-bold tracking-tight text-brand-navy">
-            Cine<span className="text-brand">Connect</span>
-          </Link>
-
-          <div className="flex items-center gap-3">
-            <Link to="/jobs" className="nav-link text-sm font-medium">
-              Browse Jobs
-            </Link>
-            <Link to="/login" className="nav-link text-sm font-medium">
-              Sign In
-            </Link>
-            <Link
-              to="/register"
-              className="btn-primary text-sm px-4 py-2 inline-flex items-center gap-1.5 shadow-sm"
-            >
-              Get Started <ArrowRight size={14} />
-            </Link>
-          </div>
-        </div>
-      </header>
 
       {/* ── Hero Section ── */}
       <section className="relative overflow-hidden pt-12 pb-20 lg:pt-20 lg:pb-28 border-b border-surface-border bg-gradient-to-b from-surface-section/60 to-surface-base">

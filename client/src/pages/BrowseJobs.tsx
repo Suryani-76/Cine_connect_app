@@ -16,9 +16,8 @@ import { toast } from 'sonner'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { jobsApi, savedJobsApi, JobWithProduction, JobType } from '../lib/api'
-import { NotificationBell } from '../components/NotificationBell'
+import { PageHeader } from '../components/PageHeader'
 import { VerifiedBadge } from '../components/VerifiedBadge'
-import { PublicFooter } from '../components/PublicFooter'
 
 const JOB_TYPES: { label: string; value: JobType | '' }[] = [
   { label: 'All Types', value: '' },
@@ -179,69 +178,18 @@ const BrowseJobs = () => {
   const hasActiveFilters = Boolean(qParam || typeParam || locParam || expParam || sortParam !== 'newest')
 
   return (
-    <div className="min-h-screen bg-surface-base flex flex-col justify-between">
-      {/* Navigation Header */}
-      <header className="nav sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-surface-border">
-        <div className="nav-inner max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link to="/" className="brand-text text-xl font-bold text-brand-navy">
-            Cine<span className="text-brand">Connect</span>
-          </Link>
-          <nav className="flex items-center gap-1 sm:gap-2">
-            <Link to="/jobs" className="nav-link text-brand font-semibold">
-              Browse Jobs
-            </Link>
-            {user?.role === 'production' && (
-              <Link to="/alerts" className="nav-link">
-                Talent Alerts
-              </Link>
-            )}
-            {user?.role === 'talent' && (
-              <Link to="/saved-jobs" className="nav-link">
-                Saved Jobs
-              </Link>
-            )}
-            {user ? (
-              <>
-                <Link to="/applications" className="nav-link">
-                  Applications
-                </Link>
-                <Link to="/profile" className="nav-link">
-                  Profile
-                </Link>
-                {user.id && token && <NotificationBell userId={user.id} token={token} />}
-              </>
-            ) : (
-              <>
-                <Link to="/login" className="nav-link">
-                  Sign In
-                </Link>
-                <Link to="/register" className="btn-primary text-xs py-1.5 px-3">
-                  Sign Up
-                </Link>
-              </>
-            )}
-          </nav>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 space-y-6">
-        {/* Title Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-content-heading tracking-tight">
-              Explore Film Opportunities
-            </h1>
-            <p className="text-sm text-content-secondary mt-1">
-              Find verified postings from production houses and studios across India.
-            </p>
-          </div>
-          {user?.role === 'production' && (
-            <Link to="/jobs/create" className="btn-primary text-sm inline-flex items-center gap-2 self-start">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <PageHeader
+        title="Explore Film Opportunities"
+        description="Find verified postings from production houses and studios across India."
+        action={
+          user?.role === 'production' ? (
+            <Link to="/jobs/create" className="btn-primary text-sm inline-flex items-center gap-2">
               <Briefcase size={16} /> Post a New Role
             </Link>
-          )}
-        </div>
+          ) : undefined
+        }
+      />
 
         {/* Search & Filter Controls */}
         <div className="card p-5 space-y-4 border-surface-border bg-white shadow-sm">
@@ -510,9 +458,6 @@ const BrowseJobs = () => {
             </button>
           </div>
         )}
-      </main>
-
-      <PublicFooter />
     </div>
   )
 }

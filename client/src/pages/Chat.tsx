@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import {
   Send,
   CheckCheck,
@@ -308,19 +308,7 @@ export default function Chat() {
   if (!token) return null
 
   return (
-    <div className="page flex flex-col" style={{ height: '100dvh' }}>
-      {/* Header */}
-      <header className="nav shrink-0">
-        <div className="nav-inner">
-          <Link to="/home" className="brand-text text-xl font-semibold text-content-primary tracking-tight">
-            Cine<span className="text-brand">Connect</span>
-          </Link>
-          <nav className="flex items-center gap-2">
-            <Link to="/home" className="nav-link">Home</Link>
-            <Link to="/applications" className="nav-link">Applications</Link>
-          </nav>
-        </div>
-      </header>
+    <div className="flex flex-col h-[calc(100dvh-4rem)]">
 
       <div className="flex flex-1 overflow-hidden max-w-5xl mx-auto w-full px-6 py-6 gap-4">
         {/* ── Conversation Sidebar ──────────────────────────── */}

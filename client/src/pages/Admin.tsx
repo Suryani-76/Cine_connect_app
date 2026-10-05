@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Shield,
   Users,
   BadgeCheck,
   FileText,
@@ -18,6 +17,7 @@ import {
 import { toast } from 'sonner'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { PageHeader } from '../components/PageHeader'
 import {
   authApi,
   adminApi,
@@ -283,35 +283,19 @@ export default function Admin() {
 
   // ── 5. Main Admin Control Center ─────────────────────────────
   return (
-    <div className="min-h-screen bg-surface-base flex flex-col">
-      {/* Top Header */}
-      <header className="border-b border-surface-border bg-white dark:bg-surface-card sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-brand/10 text-brand flex items-center justify-center font-bold">
-              <Shield size={20} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-bold text-lg text-content-heading">Admin Trust Center</h1>
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-brand text-white">
-                  Verified Admin
-                </span>
-              </div>
-              <p className="text-xs text-content-muted">Milestone M6 Security & Trust Operations</p>
-            </div>
-          </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <PageHeader
+        title="Admin Trust Center"
+        description="Security, verification, and trust operations"
+        action={
+          <span className="px-2.5 py-1 rounded-sm text-xs font-semibold bg-ink text-surface">
+            Verified Admin
+          </span>
+        }
+      />
 
-          <Link
-            to="/home"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-content-muted hover:text-content-heading transition-colors"
-          >
-            <ArrowLeft size={16} /> Back to App
-          </Link>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-2 border-t border-surface-border/50">
+      {/* Tab Navigation */}
+      <div className="flex gap-2 border-b border-surface-border">
           <button
             onClick={() => setActiveTab('users')}
             className={`py-3 px-4 text-sm font-medium border-b-2 flex items-center gap-2 transition-colors ${
@@ -359,11 +343,10 @@ export default function Admin() {
             <FileText size={16} />
             <span>Audit Trail</span>
           </button>
-        </div>
-      </header>
+      </div>
 
       {/* Main Content Area */}
-      <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
+      <div className="w-full">
         {/* ── Tab 1: Users & Suspension ── */}
         {activeTab === 'users' && (
           <div className="space-y-6">
@@ -935,7 +918,7 @@ export default function Admin() {
             </div>
           </div>
         )}
-      </main>
+      </div>
     </div>
   )
 }

@@ -18,8 +18,7 @@ import { toast } from "sonner"
 import { useAuth } from "../context/AuthContext"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { accountApi, authApi, settingsApi, NotificationPreferences } from "../lib/api"
-import { NotificationBell } from "../components/NotificationBell"
-import { PublicFooter } from "../components/PublicFooter"
+import { PageHeader } from "../components/PageHeader"
 
 interface ConsentInfo {
   version: string
@@ -30,7 +29,7 @@ interface ConsentInfo {
 
 const Settings = () => {
   usePageTitle("Account Settings & Notifications")
-  const { token, user, logout } = useAuth()
+  const { token, logout } = useAuth()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -49,8 +48,6 @@ const Settings = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("")
   const [deleting, setDeleting] = useState(false)
-
-  const userId = user?.id
 
   // Synchronize tab query param
   const handleTabChange = (tab: "notifications" | "privacy") => {
@@ -174,34 +171,11 @@ const Settings = () => {
   }
 
   return (
-    <div className="min-h-screen bg-surface-base flex flex-col justify-between">
-      {/* App Header */}
-      <header className="nav">
-        <div className="nav-inner">
-          <Link to="/home" className="brand-text text-xl text-brand-navy">
-            Cine<span className="text-brand">Connect</span>
-          </Link>
-          <nav className="flex items-center gap-1">
-            <Link to="/search" className="nav-link">Find Talent</Link>
-            <Link to="/applications" className="nav-link">Applications</Link>
-            <Link to="/profile" className="nav-link">Profile</Link>
-            <Link to="/settings" className="nav-link text-brand font-semibold">Settings</Link>
-            {userId && token && <NotificationBell userId={userId} token={token} />}
-          </nav>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 flex-1 space-y-6">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Shield className="text-brand" size={24} />
-            <h1 className="text-2xl font-bold text-content-heading">Settings & Preferences</h1>
-          </div>
-          <p className="text-sm text-content-secondary">
-            Manage your email alerts, communication preferences, data portability, and privacy rights.
-          </p>
-        </div>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <PageHeader
+        title="Settings & Preferences"
+        description="Manage your email alerts, communication preferences, data portability, and privacy rights."
+      />
 
         {/* Tab Navigation */}
         <div className="flex border-b border-surface-border gap-6">
@@ -551,7 +525,6 @@ const Settings = () => {
             </div>
           </div>
         )}
-      </main>
 
       {/* Confirmation Modal */}
       {showDeleteModal && (
@@ -602,8 +575,6 @@ const Settings = () => {
           </div>
         </div>
       )}
-
-      <PublicFooter />
     </div>
   )
 }

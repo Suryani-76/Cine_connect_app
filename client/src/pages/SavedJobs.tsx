@@ -14,13 +14,12 @@ import { toast } from 'sonner'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { savedJobsApi, SavedJobItem } from '../lib/api'
-import { NotificationBell } from '../components/NotificationBell'
+import { PageHeader } from '../components/PageHeader'
 import { VerifiedBadge } from '../components/VerifiedBadge'
-import { PublicFooter } from '../components/PublicFooter'
 
 const SavedJobs = () => {
   usePageTitle('Saved Jobs')
-  const { user, token } = useAuth()
+  const { token } = useAuth()
   const [savedJobs, setSavedJobs] = useState<SavedJobItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -62,47 +61,16 @@ const SavedJobs = () => {
   }
 
   return (
-    <div className="min-h-screen bg-surface-base flex flex-col justify-between">
-      {/* App Header */}
-      <header className="nav sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-surface-border">
-        <div className="nav-inner max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link to="/home" className="brand-text text-xl font-bold text-brand-navy">
-            Cine<span className="text-brand">Connect</span>
-          </Link>
-          <nav className="flex items-center gap-1 sm:gap-2">
-            <Link to="/jobs" className="nav-link">
-              Browse Jobs
-            </Link>
-            <Link to="/saved-jobs" className="nav-link text-brand font-semibold">
-              Saved Jobs
-            </Link>
-            <Link to="/applications" className="nav-link">
-              Applications
-            </Link>
-            <Link to="/profile" className="nav-link">
-              Profile
-            </Link>
-            {user?.id && token && <NotificationBell userId={user.id} token={token} />}
-          </nav>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 flex-1 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-content-heading tracking-tight flex items-center gap-2.5">
-              <Bookmark className="text-brand" size={26} />
-              Saved Jobs
-            </h1>
-            <p className="text-sm text-content-secondary mt-1">
-              Keep track of roles you want to prepare for and apply to.
-            </p>
-          </div>
-          <Link to="/jobs" className="btn-secondary text-xs inline-flex items-center gap-1.5">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <PageHeader
+        title="Saved Jobs"
+        description="Keep track of roles you want to prepare for and apply to."
+        action={
+          <Link to="/jobs" className="btn-secondary text-14 inline-flex items-center gap-1.5 font-medium">
             Browse More <ArrowRight size={14} />
           </Link>
-        </div>
+        }
+      />
 
         {/* Loading Skeletons */}
         {loading && (
@@ -240,9 +208,6 @@ const SavedJobs = () => {
             })}
           </div>
         )}
-      </main>
-
-      <PublicFooter />
     </div>
   )
 }

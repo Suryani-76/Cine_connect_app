@@ -52,9 +52,24 @@ const COMPONENTS = [
 ]
 
 // Mock data generator for network requests
-function getMockResponse(url: string) {
-  if (url.includes('/api/jobs/job-1') || url.includes('/api/jobs/detail')) {
+function getMockResponse(rawUrl: string) {
+  const url = rawUrl.replace('/api', '')
+
+  if (url.includes('/dashboard/stats')) {
     return {
+      active_jobs: 3,
+      new_applications: 12,
+      recommended_talent: 8,
+      unread_notifications: 2,
+    }
+  }
+
+  if (url.includes('/notifications/unread-count')) {
+    return { count: 2 }
+  }
+
+  if (url.includes('/jobs/job-1') || url.includes('/jobs/detail')) {
+    const jobData = {
       id: 'job-1',
       title: 'Director of Photography',
       description: 'Looking for an experienced DP for a 20-day indie feature film shooting in Mumbai and Goa. Must have experience with ARRI Alexa Mini LF and Cooke anamorphic lenses.',
@@ -76,10 +91,33 @@ function getMockResponse(url: string) {
         verified: true,
         logo_url: null,
       },
+      production_profiles: {
+        id: 'comp-1',
+        company_name: 'Dharma Motion Pictures',
+        verified: true,
+        logo_url: null,
+      },
+    }
+    return { job: jobData, ...jobData }
+  }
+
+  if (url.includes('/saved-jobs')) {
+    return {
+      saved: [
+        {
+          id: 'job-1',
+          title: 'Director of Photography',
+          role: 'Cinematographer',
+          department: 'Camera',
+          location: 'Mumbai, MH',
+          status: 'published',
+          production_company: 'Dharma Motion Pictures',
+        },
+      ],
     }
   }
 
-  if (url.includes('/api/jobs') || url.includes('/api/saved-jobs')) {
+  if (url.includes('/jobs')) {
     return {
       jobs: [
         {
@@ -125,7 +163,7 @@ function getMockResponse(url: string) {
     }
   }
 
-  if (url.includes('/api/production/comp-1') || url.includes('/api/production/')) {
+  if (url.includes('/production/comp-1') || url.includes('/production/')) {
     return {
       profile: {
         id: 'comp-1',
@@ -353,22 +391,33 @@ async function run() {
       const page = await context.newPage()
 
       // Intercept network requests
-      await page.route('**/api/**', async (route) => {
-        const url = route.request().url()
-        const mock = getMockResponse(url)
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(mock),
-        })
+      await page.route('**/*', async (route) => {
+        const reqUrl = route.request().url()
+        if (reqUrl.includes(':3000') || reqUrl.includes('/api/')) {
+          const mock = getMockResponse(reqUrl)
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            headers: {
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+              'Access-Control-Allow-Headers': '*',
+            },
+            body: JSON.stringify(mock),
+          })
+        } else {
+          await route.continue()
+        }
       })
+
+      // Navigate to origin once to initialize localStorage context
+      await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' })
 
       // Capture all pages
       for (const p of PAGES) {
         console.log(`Capturing page: ${p.name} (${p.route}) @ ${vp.name}px`)
         
         // Initialize localStorage based on required role
-        await page.goto(`${BASE_URL}/privacy`, { waitUntil: 'domcontentloaded' })
         await page.evaluate((role) => {
           localStorage.clear()
           if (role) {
@@ -382,10 +431,9 @@ async function run() {
         }, p.role)
 
         try {
-          await page.goto(`${BASE_URL}${p.route}`, { waitUntil: 'networkidle', timeout: 8000 })
-          await page.waitForTimeout(500)
+          await page.goto(`${BASE_URL}${p.route}`, { waitUntil: 'domcontentloaded', timeout: 12000 })
+          await page.waitForTimeout(600)
         } catch {
-          // Fallback if networkidle times out
           await page.waitForTimeout(1000)
         }
 

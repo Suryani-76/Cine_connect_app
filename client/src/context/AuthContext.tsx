@@ -4,7 +4,7 @@ import {
 } from 'react'
 import { supabase } from '../lib/supabase'
 
-export type UserRole = 'production' | 'talent'
+export type UserRole = 'production' | 'talent' | 'admin'
 
 export interface AuthUser {
   id:        string

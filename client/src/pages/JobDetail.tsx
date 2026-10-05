@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, MapPin, Globe, Briefcase, Clock, Building2, ExternalLink, X, Bookmark, BookmarkCheck } from 'lucide-react'
+import { MapPin, Globe, Briefcase, Clock, Building2, ExternalLink, X, Bookmark, BookmarkCheck } from 'lucide-react'
 import { jobsApi, applicationsApi, savedJobsApi, jobAnalyticsApi, JobWithProduction, MatchBreakdown } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { VerifiedBadge } from '../components/VerifiedBadge'
+import { PageHeader } from '../components/PageHeader'
 
 // ── Apply modal ───────────────────────────────────────────────
 
@@ -199,17 +200,10 @@ const JobDetail = () => {
 
   if (loading) {
     return (
-      <div className="page">
-        <header className="nav">
-          <div className="nav-inner">
-            <Link to="/home" className="brand-text text-xl text-brand-navy">Cine<span className="text-brand">Connect</span></Link>
-          </div>
-        </header>
-        <main className="page-content max-w-3xl">
-          <div className="card p-8 space-y-4">
-            {[1,2,3,4].map(i => <div key={i} className="skeleton h-5 rounded w-full" />)}
-          </div>
-        </main>
+      <div className="max-w-3xl mx-auto px-6 py-10 space-y-4">
+        <div className="card p-8 space-y-4">
+          {[1,2,3,4].map(i => <div key={i} className="skeleton h-5 rounded w-full" />)}
+        </div>
       </div>
     )
   }
@@ -250,7 +244,7 @@ function getDeadlineStatus(deadline: string | null | undefined): { text: string;
 }
 
   const req  = job.job_requirements
-  const prod = job.production_profiles
+  const prod = job.production_profiles || (job as any).production || { company_name: 'Production House' }
   const isClosed    = job.status === 'closed'
   const isPublished = job.status === 'published'
   const deadlineInfo = getDeadlineStatus(job.deadline)
@@ -275,27 +269,16 @@ function getDeadlineStatus(deadline: string | null | undefined): { text: string;
   }
 
   return (
-    <div className="page">
-      {/* Nav */}
-      <header className="nav">
-        <div className="nav-inner">
-          <Link to="/home" className="brand-text text-xl text-brand-navy">
-            Cine<span className="text-brand">Connect</span>
-          </Link>
-          <nav className="flex items-center gap-1">
-            <Link to="/home"   className="nav-link">Home</Link>
-            <Link to="/search" className="nav-link">Find Talent</Link>
-          </nav>
-        </div>
-      </header>
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      <PageHeader
+        title={job.title}
+        breadcrumbs={[
+          { label: 'Jobs', href: '/jobs' },
+          { label: job.title },
+        ]}
+      />
 
-      <main className="max-w-3xl mx-auto px-6 py-10">
-        {/* Back */}
-        <button onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-1.5 text-sm text-content-secondary hover:text-brand transition-colors mb-6">
-          <ArrowLeft size={14} /> Back
-        </button>
-
+      <div className="space-y-6">
         {/* Applied success banner */}
         {applied && (
           <div className="mb-6">
@@ -308,7 +291,7 @@ function getDeadlineStatus(deadline: string | null | undefined): { text: string;
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="flex-1 min-w-[260px]">
               <div className="flex items-center gap-3 mb-2 flex-wrap">
-                <h1 className="text-2xl font-bold text-content-heading">{job.title}</h1>
+                <h2 className="text-2xl font-bold text-content-heading">{job.title}</h2>
                 <span className={`badge ${STATUS_STYLES[job.status]}`}>
                   {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
                 </span>
@@ -483,7 +466,7 @@ function getDeadlineStatus(deadline: string | null | undefined): { text: string;
             </button>
           </div>
         )}
-      </main>
+      </div>
 
       {/* Apply modal */}
       {showModal && token && (

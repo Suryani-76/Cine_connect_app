@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Plus, Film, Users, Star, Bell, ChevronRight } from 'lucide-react'
+import { Plus, Film, Users, Star, Bell, ChevronRight, Briefcase } from 'lucide-react'
 import { jobsApi, applicationsApi, dashboardApi, Job, DashboardStats, MyApplication, ApplicationStatus } from '../lib/api'
-import { NotificationBell } from '../components/NotificationBell'
+import { PageHeader } from '../components/PageHeader'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { VerifiedBadge } from '../components/VerifiedBadge'
@@ -190,25 +190,18 @@ const ProductionHome = () => {
   }
 
   return (
-    <div className="page">
-      {/* Nav */}
-      <header className="nav">
-        <div className="nav-inner">
-          <span className="brand-text text-xl text-brand-navy">
-            Cine<span className="text-brand">Connect</span>
-          </span>
-          <nav className="flex items-center gap-1">
-            <Link to="/jobs"         className="nav-link">Jobs</Link>
-            <Link to="/alerts"       className="nav-link">Alerts</Link>
-            <Link to="/search"       className="nav-link">Find Talent</Link>
-            <Link to="/applications" className="nav-link">Applications</Link>
-            <Link to="/profile"      className="nav-link">Profile</Link>
-            {userId && token && <NotificationBell userId={userId} token={token} />}
-          </nav>
-        </div>
-      </header>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <PageHeader
+        title="Production dashboard"
+        description="Manage your job postings, track applicant pipelines, and review recommended talent."
+        action={
+          <button onClick={() => navigate('/jobs/create')} className="btn-primary flex items-center gap-2">
+            <Plus size={16} /> New job
+          </button>
+        }
+      />
 
-      <main className="page-content space-y-8">
+      <div className="space-y-8">
         {/* Overview */}
         <section>
           <h2 className="section-title mb-4">Overview</h2>
@@ -269,7 +262,7 @@ const ProductionHome = () => {
             </div>
           )}
         </section>
-      </main>
+      </div>
     </div>
   )
 }
@@ -289,7 +282,6 @@ const APP_STATUS: Record<string, string> = {
 
 function TalentHome() {
   const { user, token } = useAuth()
-  const userId          = user?.id        ?? ''
   const profileId       = user?.profileId ?? ''
   const accessToken     = token           ?? ''
 
@@ -349,24 +341,18 @@ function TalentHome() {
   }, [profileId])
 
   return (
-    <div className="page">
-      <header className="nav">
-        <div className="nav-inner">
-          <span className="brand-text text-xl text-brand-navy">
-            Cine<span className="text-brand">Connect</span>
-          </span>
-          <nav className="flex items-center gap-1">
-            <Link to="/jobs"       className="nav-link">Jobs</Link>
-            <Link to="/saved-jobs" className="nav-link">Saved</Link>
-            <Link to="/search"     className="nav-link">Search</Link>
-            <Link to="/profile"    className="nav-link">Profile</Link>
-            {userId && token && <NotificationBell userId={userId} token={token} />}
-          </nav>
-        </div>
-      </header>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <PageHeader
+        title="Talent dashboard"
+        description="Track your applications, saved opportunities, and matching film productions."
+        action={
+          <Link to="/jobs" className="btn-primary flex items-center gap-2">
+            <Briefcase size={16} /> Browse jobs
+          </Link>
+        }
+      />
 
-      <main className="page-content space-y-10">
-
+      <div className="space-y-10">
         {/* ── My Applications ─────────────────────────────────── */}
         <section>
           <div className="flex items-center justify-between mb-4">
@@ -506,7 +492,7 @@ function TalentHome() {
             </div>
           )}
         </section>
-      </main>
+      </div>
     </div>
   )
 }
