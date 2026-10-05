@@ -1,5 +1,5 @@
 import { useState, FormEvent } from "react"
-import { useNavigate, Link } from "react-router-dom"
+import { useNavigate, Link, useSearchParams } from "react-router-dom"
 import { Eye, EyeOff, Film } from "lucide-react"
 import { authApi } from "../lib/api"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -43,14 +43,16 @@ function validate(form: FormState): FieldErrors {
 
 const Register = () => {
   const navigate  = useNavigate()
+  const [searchParams] = useSearchParams()
   usePageTitle("Create Account")
   const [showPwd, setShowPwd] = useState(false)
+  const initialRole: Role = searchParams.get("role") === "talent" ? "talent" : "production"
   const [form, setForm] = useState<FormState>({
     email: "",
     password: "",
     confirmPassword: "",
     username: "",
-    role: "production",
+    role: initialRole,
     inviteCode: "",
     consentAccepted: false,
     ageConfirmed: false,

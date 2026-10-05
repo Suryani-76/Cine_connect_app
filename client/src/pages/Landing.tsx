@@ -293,16 +293,17 @@ export default function Landing() {
     <div className="min-h-screen bg-paper flex flex-col justify-between selection:bg-tungsten/30 text-ink">
       {/* ── Section 1: Hero ─────────────────────────────────── */}
       <section
+        id="hero"
         aria-labelledby="hero-heading"
-        className="w-full border-b border-line bg-surface pt-12 pb-16 lg:pt-20 lg:pb-24"
+        className="w-full border-b border-line bg-surface pt-12 pb-16 lg:pt-20 lg:pb-24 scroll-mt-16"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 xl:gap-10 items-center">
             {/* Left: Headline & Actions */}
             <div className="lg:col-span-6 flex flex-col items-start text-left">
               <h1
                 id="hero-heading"
-                className="text-32 sm:text-40 lg:text-56 font-extrabold text-ink tracking-tight leading-[1.1]"
+                className="text-32 sm:text-40 lg:text-56 font-extrabold text-ink tracking-tight leading-[1.1] scroll-mt-16 sm:scroll-mt-20"
               >
                 Hire film crew that fits the job, not just the title.
               </h1>
@@ -320,7 +321,7 @@ export default function Landing() {
                   Post a job
                 </Link>
                 <Link
-                  to="/jobs"
+                  to="/register?role=talent"
                   className="btn-secondary text-16 font-semibold py-3 px-6 text-center rounded-[3px] border border-line bg-surface text-ink hover:bg-paper transition-colors"
                 >
                   Find film work
@@ -334,62 +335,64 @@ export default function Landing() {
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <Check size={14} className="text-tungsten" />
-                  7-signal objective scoring
+                  7-signal match scoring
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <Check size={14} className="text-tungsten" />
-                  DPDP Act 2023 compliant
+                  Export or delete your data any time
                 </span>
               </div>
             </div>
 
             {/* Right: Live Miniature of the Product */}
-            <div className="lg:col-span-6">
+            <div className="lg:col-span-6 w-full">
               <div
                 className="bg-paper border border-line rounded-[3px] p-4 sm:p-5 shadow-xs"
                 data-testid="live-miniature"
               >
                 {/* Miniature Header */}
                 <div className="flex items-center justify-between pb-3 mb-4 border-b border-line text-12 text-muted">
-                  <span className="font-semibold uppercase tracking-wider text-[11px] text-ink">
+                  <span className="font-semibold text-12 text-ink">
                     Live match preview
                   </span>
                   <span className="tnum">3 applicants evaluated</span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
                   {/* Job card on the left */}
-                  <div className="md:col-span-5 bg-surface border border-line rounded-[3px] p-3.5 flex flex-col gap-2.5">
-                    <div className="flex items-center justify-between">
-                      <DepartmentMark department="camera" size="sm" />
-                      <span className="text-[11px] text-muted">Feature Film</span>
+                  <div className="md:col-span-5 bg-surface border border-line rounded-[3px] p-3.5 flex flex-col justify-between gap-3 h-full">
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between">
+                        <DepartmentMark department="camera" size="sm" />
+                        <span className="text-[11px] text-muted">Feature Film</span>
+                      </div>
+
+                      <div>
+                        <h2 className="text-14 font-bold text-ink leading-snug">
+                          Cinematographer
+                        </h2>
+                        <p className="text-12 text-muted mt-0.5">
+                          12-day feature shoot, Mumbai
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col gap-1 text-[11px] text-muted pt-1 border-t border-line/60">
+                        <div className="flex items-center gap-1.5">
+                          <MapPin size={11} className="shrink-0 text-muted" />
+                          <span>Mumbai, Maharashtra</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Calendar size={11} className="shrink-0 text-muted" />
+                          <span>12 shoot days</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <IndianRupee size={11} className="shrink-0 text-muted" />
+                          <span className="tnum">₹2,50,000 budget</span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div>
-                      <h2 className="text-14 font-bold text-ink leading-snug">
-                        Cinematographer
-                      </h2>
-                      <p className="text-12 text-muted mt-0.5">
-                        12-day feature shoot, Mumbai
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col gap-1 text-[11px] text-muted pt-1 border-t border-line/60">
-                      <div className="flex items-center gap-1.5">
-                        <MapPin size={11} className="shrink-0 text-muted" />
-                        <span>Mumbai, Maharashtra</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <Calendar size={11} className="shrink-0 text-muted" />
-                        <span>12 shoot days</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <IndianRupee size={11} className="shrink-0 text-muted" />
-                        <span className="tnum">₹2,50,000 budget</span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1 pt-1">
+                    <div className="flex flex-wrap gap-1 pt-1 border-t border-line/60">
                       <span className="px-1.5 py-0.5 bg-paper text-[10px] text-ink rounded-[2px] border border-line">
                         ARRI Alexa
                       </span>
@@ -400,7 +403,7 @@ export default function Landing() {
                   </div>
 
                   {/* Three candidate rows on the right */}
-                  <div className="md:col-span-7 flex flex-col gap-2.5">
+                  <div className="md:col-span-7 flex flex-col justify-between gap-2.5">
                     {candidates.map((cand, idx) => {
                       const score = currentScores[cand.id] ?? cand.settledScore
                       const rankNumber = idx + 1
@@ -451,27 +454,28 @@ export default function Landing() {
 
       {/* ── Section 2: How Matching Works ───────────────────── */}
       <section
+        id="how-matching-works"
         aria-labelledby="how-matching-works-heading"
-        className="py-16 lg:py-24 bg-surface border-b border-line"
+        className="py-16 lg:py-24 bg-surface border-b border-line scroll-mt-16 sm:scroll-mt-20"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl">
             <h2
               id="how-matching-works-heading"
-              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight"
+              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight scroll-mt-16 sm:scroll-mt-20"
             >
               How matching works
             </h2>
             <p className="mt-3 text-16 text-muted leading-relaxed">
-              Every candidate score is calculated from seven objective signals. Production teams see
-              exactly why someone matches, and talent sees how their profile measures against the role.
+              Every candidate score is calculated from seven signals. Production teams see
+              exactly why someone matches, and crew and cast see how their profile measures against the role.
             </p>
           </div>
 
           {/* Single large LightMeter with expanded breakdown */}
           <div className="mt-10 bg-paper border border-line rounded-[3px] p-6 lg:p-8 max-w-4xl">
             <div className="mb-4">
-              <span className="text-12 font-semibold text-muted uppercase tracking-wider">
+              <span className="text-12 font-medium text-muted">
                 Sample match evaluation
               </span>
               <h3 className="text-18 font-bold text-ink mt-1">
@@ -491,57 +495,42 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── Section 3: For Production Houses and For Talent ── */}
+      {/* ── Section 3: For Production Offices and For Crew and Cast ── */}
       <section
-        aria-labelledby="outcomes-heading"
-        className="py-16 lg:py-24 bg-paper border-b border-line"
+        id="audiences"
+        aria-label="For production offices and crew"
+        className="py-16 lg:py-24 bg-paper border-b border-line scroll-mt-16 sm:scroll-mt-20"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-2xl mb-12">
-            <h2
-              id="outcomes-heading"
-              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight"
-            >
-              Engineered for production offices and film sets
-            </h2>
-            <p className="mt-3 text-16 text-muted leading-relaxed">
-              CineConnect replaces unorganized social media groups with direct verified communication
-              and transparent qualification scoring.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-16">
-            {/* Column 1: For Production Houses */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
+            {/* Column 1: For Production Offices */}
             <div className="bg-surface border border-line rounded-[3px] p-6 sm:p-8 flex flex-col justify-between">
               <div>
-                <h3 className="text-22 font-bold text-ink">
-                  For production houses
-                </h3>
+                <h2
+                  id="production-heading"
+                  className="text-22 sm:text-28 font-bold text-ink scroll-mt-16 sm:scroll-mt-20"
+                >
+                  For production offices
+                </h2>
                 <p className="text-14 text-muted mt-1">
                   Producers, casting directors, and department heads staffing productions.
                 </p>
 
                 <ul className="mt-6 flex flex-col gap-4 text-14 text-ink">
                   <li className="flex items-start gap-3">
-                    <span className="w-5 h-5 rounded-[2px] bg-paper border border-line flex items-center justify-center shrink-0 mt-0.5 text-12 font-bold text-ink tnum">
-                      1
-                    </span>
+                    <Check size={14} className="text-ink shrink-0 mt-1" />
                     <span>
                       Filter crew by verified film credits rather than unverified resumes.
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
-                    <span className="w-5 h-5 rounded-[2px] bg-paper border border-line flex items-center justify-center shrink-0 mt-0.5 text-12 font-bold text-ink tnum">
-                      2
-                    </span>
+                    <Check size={14} className="text-ink shrink-0 mt-1" />
                     <span>
                       Evaluate applicant fit instantly with 7-signal match scores before opening a message.
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
-                    <span className="w-5 h-5 rounded-[2px] bg-paper border border-line flex items-center justify-center shrink-0 mt-0.5 text-12 font-bold text-ink tnum">
-                      3
-                    </span>
+                    <Check size={14} className="text-ink shrink-0 mt-1" />
                     <span>
                       Initiate secure direct contact and contract discussions without sharing private phone numbers.
                     </span>
@@ -554,42 +543,39 @@ export default function Landing() {
                   to="/register?role=production"
                   className="inline-flex items-center text-14 font-semibold text-ink hover:underline"
                 >
-                  Register as a production house &rarr;
+                  Register as a production office
                 </Link>
               </div>
             </div>
 
-            {/* Column 2: For Talent */}
+            {/* Column 2: For Crew and Cast */}
             <div className="bg-surface border border-line rounded-[3px] p-6 sm:p-8 flex flex-col justify-between">
               <div>
-                <h3 className="text-22 font-bold text-ink">
-                  For talent
-                </h3>
+                <h2
+                  id="crew-heading"
+                  className="text-22 sm:text-28 font-bold text-ink scroll-mt-16 sm:scroll-mt-20"
+                >
+                  For crew and cast
+                </h2>
                 <p className="text-14 text-muted mt-1">
                   Actors, technicians, and crew members seeking film projects.
                 </p>
 
                 <ul className="mt-6 flex flex-col gap-4 text-14 text-ink">
                   <li className="flex items-start gap-3">
-                    <span className="w-5 h-5 rounded-[2px] bg-paper border border-line flex items-center justify-center shrink-0 mt-0.5 text-12 font-bold text-ink tnum">
-                      1
-                    </span>
+                    <Check size={14} className="text-ink shrink-0 mt-1" />
                     <span>
-                      Showcase validated credits and showreels in one industry-recognized profile.
+                      Showcase validated credits and showreels in a single profile.
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
-                    <span className="w-5 h-5 rounded-[2px] bg-paper border border-line flex items-center justify-center shrink-0 mt-0.5 text-12 font-bold text-ink tnum">
-                      2
-                    </span>
+                    <Check size={14} className="text-ink shrink-0 mt-1" />
                     <span>
                       See how closely your experience matches any job before you spend time applying.
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
-                    <span className="w-5 h-5 rounded-[2px] bg-paper border border-line flex items-center justify-center shrink-0 mt-0.5 text-12 font-bold text-ink tnum">
-                      3
-                    </span>
+                    <Check size={14} className="text-ink shrink-0 mt-1" />
                     <span>
                       Receive direct interview and audition requests from verified studio productions.
                     </span>
@@ -602,7 +588,7 @@ export default function Landing() {
                   to="/register?role=talent"
                   className="inline-flex items-center text-14 font-semibold text-ink hover:underline"
                 >
-                  Register as talent &rarr;
+                  Register as crew or cast
                 </Link>
               </div>
             </div>
@@ -612,14 +598,15 @@ export default function Landing() {
 
       {/* ── Section 4: Roles We Cover ────────────────────────── */}
       <section
+        id="roles-we-cover"
         aria-labelledby="roles-heading"
-        className="py-16 lg:py-24 bg-surface border-b border-line"
+        className="py-16 lg:py-24 bg-surface border-b border-line scroll-mt-16 sm:scroll-mt-20"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-2xl mb-12">
+          <div className="max-w-2xl mb-10">
             <h2
               id="roles-heading"
-              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight"
+              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight scroll-mt-16 sm:scroll-mt-20"
             >
               Roles we cover
             </h2>
@@ -629,65 +616,58 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {departments.map((dept) => (
-              <div
-                key={dept.key}
-                className="bg-paper border border-line rounded-[3px] p-5 flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between pb-3 border-b border-line mb-3">
-                    <DepartmentMark department={dept.key} label={dept.name} size="md" />
-                    <span className="text-12 text-muted tnum">{dept.roles.length} roles</span>
-                  </div>
-
-                  {/* Scannable role list */}
-                  <ul className="flex flex-col gap-1.5">
-                    {dept.roles.map((role) => (
-                      <li key={role}>
-                        <Link
-                          to={`/jobs?q=${encodeURIComponent(role)}`}
-                          className="text-14 text-ink hover:text-ink font-medium hover:underline inline-block transition-colors"
-                        >
-                          {role}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* Sample Skills */}
-                {dept.skills.length > 0 && (
-                  <div className="mt-4 pt-3 border-t border-line/60">
-                    <span className="text-[11px] text-muted block mb-1.5">Key skills & gear</span>
-                    <div className="flex flex-wrap gap-1">
-                      {dept.skills.map((skill) => (
-                        <span
-                          key={skill}
-                          className="px-1.5 py-0.5 bg-surface text-[11px] text-muted border border-line rounded-[2px]"
-                        >
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+          {/* Ruled Table */}
+          <div className="w-full border-t border-b border-line">
+            <table className="w-full text-left border-collapse">
+              <caption className="sr-only">Film departments and covered roles</caption>
+              <thead>
+                <tr className="border-b border-line text-12 font-medium text-muted">
+                  <th scope="col" className="py-3 pr-4 sm:pr-6 font-medium w-36 sm:w-48">
+                    Department
+                  </th>
+                  <th scope="col" className="py-3 font-medium">
+                    Typical roles
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {departments.map((dept) => (
+                  <tr key={dept.key} className="hover:bg-paper/40 transition-colors">
+                    <td className="py-4 pr-4 sm:pr-6 align-top">
+                      <DepartmentMark department={dept.key} label={dept.name} size="md" />
+                    </td>
+                    <td className="py-4 align-top">
+                      <div className="flex flex-wrap gap-x-4 gap-y-2 text-14">
+                        {dept.roles.map((role) => (
+                          <Link
+                            key={role}
+                            to={`/jobs?q=${encodeURIComponent(role)}`}
+                            className="text-ink hover:underline font-medium transition-colors"
+                          >
+                            {role}
+                          </Link>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
 
       {/* ── Section 5: Trust and Verification ────────────────── */}
       <section
+        id="trust-and-verification"
         aria-labelledby="trust-heading"
-        className="py-16 lg:py-24 bg-paper border-b border-line"
+        className="py-16 lg:py-24 bg-paper border-b border-line scroll-mt-16 sm:scroll-mt-20"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-2xl mb-12">
             <h2
               id="trust-heading"
-              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight"
+              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight scroll-mt-16 sm:scroll-mt-20"
             >
               Trust and verification
             </h2>
@@ -708,7 +688,7 @@ export default function Landing() {
               </div>
 
               <p className="text-14 text-muted leading-relaxed">
-                We collect only the professional credits, media showreels, and contact details you choose to share, never selling or sharing your data with third parties. Under India&apos;s Digital Personal Data Protection (DPDP) Act 2023, you retain complete rights to access, export, or permanently delete your account data at any time via our{' '}
+                We collect only the professional credits, media showreels, and contact details you choose to share, never selling or sharing your data with third parties. You retain complete control to access, export, or permanently delete your account data at any time via your account settings or our{' '}
                 <Link to="/privacy" className="text-ink font-semibold underline hover:opacity-80">
                   Privacy Policy
                 </Link>
@@ -738,14 +718,15 @@ export default function Landing() {
 
       {/* ── Section 6: Final Call to Action ──────────────────── */}
       <section
+        id="get-started"
         aria-labelledby="cta-heading"
-        className="py-16 lg:py-24 bg-surface text-ink border-b border-line"
+        className="py-16 lg:py-24 bg-surface text-ink border-b border-line scroll-mt-16 sm:scroll-mt-20"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-3xl flex flex-col items-start text-left">
             <h2
               id="cta-heading"
-              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight"
+              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight scroll-mt-16 sm:scroll-mt-20"
             >
               Ready to assemble your crew or book your next film production?
             </h2>
@@ -762,7 +743,7 @@ export default function Landing() {
                 Post a job
               </Link>
               <Link
-                to="/jobs"
+                to="/register?role=talent"
                 className="btn-secondary text-16 font-semibold py-3 px-6 text-center rounded-[3px] border border-line bg-surface text-ink hover:bg-paper transition-colors"
               >
                 Find film work

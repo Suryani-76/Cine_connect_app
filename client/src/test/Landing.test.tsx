@@ -60,14 +60,14 @@ describe('Landing page', () => {
     expect(screen.getByText('Profile completeness')).toBeInTheDocument()
     expect(screen.getByText('Activity recency')).toBeInTheDocument()
 
-    // Section 3: For production houses and For talent
-    expect(screen.getByText('For production houses')).toBeInTheDocument()
+    // Section 3: For production offices and For crew and cast
+    expect(screen.getByRole('heading', { name: 'For production offices' })).toBeInTheDocument()
     expect(screen.getByText(/Filter crew by verified film credits rather than unverified resumes/i)).toBeInTheDocument()
     expect(screen.getByText(/Evaluate applicant fit instantly with 7-signal match scores/i)).toBeInTheDocument()
     expect(screen.getByText(/Initiate secure direct contact and contract discussions/i)).toBeInTheDocument()
 
-    expect(screen.getByText('For talent')).toBeInTheDocument()
-    expect(screen.getByText(/Showcase validated credits and showreels in one industry-recognized profile/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'For crew and cast' })).toBeInTheDocument()
+    expect(screen.getByText(/Showcase validated credits and showreels in a single profile/i)).toBeInTheDocument()
     expect(screen.getByText(/See how closely your experience matches any job before you spend time applying/i)).toBeInTheDocument()
     expect(screen.getByText(/Receive direct interview and audition requests from verified studio productions/i)).toBeInTheDocument()
 
@@ -79,7 +79,7 @@ describe('Landing page', () => {
 
     // Section 5: Trust and verification
     expect(screen.getByRole('heading', { name: /Trust and verification/i })).toBeInTheDocument()
-    expect(screen.getByText(/Digital Personal Data Protection \(DPDP\) Act 2023/i)).toBeInTheDocument()
+    expect(screen.getByText(/Export or delete your data any time/i)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Verified studio badge' })).toBeInTheDocument()
 
     // Section 6: Final CTA and Public Footer
@@ -158,14 +158,14 @@ describe('Landing page', () => {
     expect(postJobLinks[0]).toHaveAttribute('href', '/register?role=production')
 
     const findWorkLinks = screen.getAllByRole('link', { name: /Find film work/i })
-    expect(findWorkLinks[0]).toHaveAttribute('href', '/jobs')
+    expect(findWorkLinks[0]).toHaveAttribute('href', '/register?role=talent')
 
     // Section 3 registration text links
-    expect(screen.getByRole('link', { name: /Register as a production house/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /Register as a production office/i })).toHaveAttribute(
       'href',
       '/register?role=production'
     )
-    expect(screen.getByRole('link', { name: /Register as talent/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /Register as crew or cast/i })).toHaveAttribute(
       'href',
       '/register?role=talent'
     )
