@@ -372,11 +372,72 @@
   }
 
   /* ── Skeleton ────────────────────────────────────────────── */
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
   .skeleton {
     background-color: var(--color-line);
-    opacity: 0.5;
+    background-image: linear-gradient(
+      90deg,
+      var(--color-line) 0%,
+      rgba(255, 255, 255, 0.45) 50%,
+      var(--color-line) 100%
+    );
+    background-size: 200% 100%;
     border-radius: 3px;
-    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: shimmer 1.8s ease-in-out infinite;
+  }
+
+  .dark .skeleton,
+  [data-theme="dark"] .skeleton {
+    background-color: var(--color-line);
+    background-image: linear-gradient(
+      90deg,
+      var(--color-line) 0%,
+      rgba(255, 255, 255, 0.12) 50%,
+      var(--color-line) 100%
+    );
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton {
+      animation: none !important;
+      background-image: none !important;
+    }
+  }
+
+  /* ── LightMeter Track ────────────────────────────────────── */
+  .light-meter-track {
+    background-color: var(--color-paper);
+    border: 1px solid #B8C4D2;
+  }
+  .dark .light-meter-track,
+  [data-theme="dark"] .light-meter-track {
+    background-color: var(--color-paper);
+    border: 1px solid #334862;
+  }
+
+  /* ── Checkbox ────────────────────────────────────────────── */
+  .checkbox-box {
+    border-radius: 3px;
+    transition: all 150ms ease;
+  }
+  input[type="checkbox"]:focus-visible + .checkbox-box {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-ink);
+  }
+  input[type="checkbox"]:checked + .checkbox-box {
+    background-color: var(--color-ink);
+    border-color: var(--color-ink);
+  }
+  input[type="checkbox"]:checked + .checkbox-box svg {
+    opacity: 1 !important;
   }
 
   /* ── Form Label ──────────────────────────────────────────── */

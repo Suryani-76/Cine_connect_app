@@ -94,6 +94,13 @@ describe('UI Component Library', () => {
       fireEvent.click(cb)
       expect(onChange).toHaveBeenCalled()
     })
+
+    it('shows visible check mark when checked', () => {
+      const { container } = render(<Checkbox label="Verified" checked={true} readOnly />)
+      const svg = container.querySelector('svg')
+      expect(svg).toBeInTheDocument()
+      expect(svg).toHaveClass('opacity-100')
+    })
   })
 
   describe('Field', () => {
@@ -278,6 +285,20 @@ describe('UI Component Library', () => {
     it('renders fallback initials when no image is provided', () => {
       render(<Avatar fallback="Dharma Pictures" size="md" />)
       expect(screen.getByText('DP')).toBeInTheDocument()
+    })
+
+    it('uses rounded 3px square (rounded-sm) across all sizes', () => {
+      const { container, rerender } = render(<Avatar fallback="Test User" size="sm" />)
+      expect(container.firstChild).toHaveClass('rounded-sm')
+
+      rerender(<Avatar fallback="Test User" size="md" />)
+      expect(container.firstChild).toHaveClass('rounded-sm')
+
+      rerender(<Avatar fallback="Test User" size="lg" />)
+      expect(container.firstChild).toHaveClass('rounded-sm')
+
+      rerender(<Avatar fallback="Test User" size="xl" shape="circle" />)
+      expect(container.firstChild).toHaveClass('rounded-sm')
     })
   })
 

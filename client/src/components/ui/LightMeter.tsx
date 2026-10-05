@@ -51,9 +51,9 @@ export function LightMeter({
 
   // Size configurations
   const dimensions = {
-    sm: { trackHeight: 'h-4', needleHeight: 'h-5', tickHeight: 'h-1.5', majorTick: 'h-2.5', textSize: 'text-12' },
-    md: { trackHeight: 'h-6', needleHeight: 'h-7', tickHeight: 'h-2', majorTick: 'h-3.5', textSize: 'text-14' },
-    lg: { trackHeight: 'h-8', needleHeight: 'h-9', tickHeight: 'h-2.5', majorTick: 'h-4.5', textSize: 'text-16' },
+    sm: { trackHeight: 'h-4', needleHeight: 'h-5', tickHeight: 'h-2', majorTick: 'h-3', textSize: 'text-12' },
+    md: { trackHeight: 'h-6', needleHeight: 'h-7', tickHeight: 'h-2.5', majorTick: 'h-4.5', textSize: 'text-14' },
+    lg: { trackHeight: 'h-8', needleHeight: 'h-9', tickHeight: 'h-3', majorTick: 'h-6', textSize: 'text-16' },
   }[size]
 
   return (
@@ -97,7 +97,7 @@ export function LightMeter({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-label={`Match score ${clampedScore} out of 100`}
-        className={`relative w-full ${dimensions.trackHeight} bg-paper border border-line rounded-sm flex items-center px-2 overflow-visible`}
+        className={`relative w-full ${dimensions.trackHeight} light-meter-track rounded-sm flex items-center px-2 overflow-visible`}
       >
         <span className="sr-only">Match score {clampedScore} out of 100</span>
 
@@ -105,11 +105,18 @@ export function LightMeter({
         <div className="absolute inset-x-2 inset-y-0 flex items-center justify-between pointer-events-none">
           {Array.from({ length: 21 }).map((_, i) => {
             const isMajor = i % 5 === 0 // 0, 25, 50, 75, 100
-            const isMid = i % 2 === 0
+            const isMid = i % 2 === 0    // 10, 20, 30, 40, 60, 70, 80, 90
             return (
               <div
                 key={i}
-                className={`w-[1px] ${isMajor ? `${dimensions.majorTick} bg-ink/70` : isMid ? `${dimensions.tickHeight} bg-line` : 'h-1 bg-line/60'}`}
+                data-tick-score={i * 5}
+                className={`${
+                  isMajor
+                    ? `${dimensions.majorTick} w-[1.5px] bg-ink`
+                    : isMid
+                      ? `${dimensions.tickHeight} w-[1px] bg-muted opacity-80`
+                      : 'h-1.5 w-[1px] bg-muted opacity-50'
+                }`}
               />
             )
           })}
@@ -135,12 +142,12 @@ export function LightMeter({
         >
           {/* Triangular needle head */}
           <div
-            className="w-0 h-0 border-l-[3.5px] border-l-transparent border-r-[3.5px] border-r-transparent border-t-[5px] border-t-tungsten"
+            className="w-0 h-0 border-l-[4.5px] border-l-transparent border-r-[4.5px] border-r-transparent border-t-[6px] border-t-tungsten"
             aria-hidden="true"
           />
           {/* Vertical needle bar */}
           <div
-            className={`w-[2px] ${dimensions.needleHeight} bg-tungsten shadow-[0_0_2px_rgba(242,163,58,0.8)]`}
+            className={`w-[3px] ${dimensions.needleHeight} bg-tungsten shadow-[0_0_3px_rgba(242,163,58,0.7)]`}
             aria-hidden="true"
           />
         </div>

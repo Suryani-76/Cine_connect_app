@@ -35,8 +35,8 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(({
           className="peer sr-only"
           {...props}
         />
-        <div className={`w-4 h-4 rounded-sm border transition-colors flex items-center justify-center bg-surface peer-focus-visible:ring-2 peer-focus-visible:ring-ink peer-focus-visible:ring-offset-1 peer-checked:bg-ink peer-checked:border-ink ${error ? 'border-status-error' : 'border-line'}`}>
-          <Check size={12} className="text-surface opacity-0 peer-checked:opacity-100 transition-opacity stroke-[3]" />
+        <div className={`w-4 h-4 rounded-sm border transition-all flex items-center justify-center bg-surface checkbox-box peer-focus-visible:ring-2 peer-focus-visible:ring-ink peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-surface peer-checked:bg-ink peer-checked:border-ink ${error ? 'border-status-error' : 'border-line'}`}>
+          <Check size={12} className={`text-surface stroke-[3] transition-opacity ${checked ? 'opacity-100' : 'opacity-0'}`} />
         </div>
       </div>
       {(label || description) && (

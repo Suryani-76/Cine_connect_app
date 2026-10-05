@@ -532,7 +532,7 @@ export default function DesignShowcase() {
                 <Avatar fallback="Dharma Pictures" size="sm" />
                 <Avatar fallback="Yash Raj" size="md" />
                 <Avatar fallback="Excel" size="lg" />
-                <Avatar fallback="Rohit" size="xl" shape="circle" />
+                <Avatar fallback="Rohit" size="xl" />
               </div>
             </div>
 

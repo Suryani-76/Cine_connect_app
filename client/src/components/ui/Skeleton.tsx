@@ -17,7 +17,7 @@ export function Skeleton({
 
   return (
     <div
-      className={`animate-pulse bg-line/50 select-none ${variantClasses} ${className}`}
+      className={`skeleton select-none ${variantClasses} ${className}`}
       aria-hidden="true"
       {...props}
     />

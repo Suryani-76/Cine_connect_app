@@ -70,4 +70,20 @@ describe('LightMeter Signature Component', () => {
     rerender(<LightMeter score={50} size="lg" />)
     expect(container.querySelector('[role="meter"]')).toHaveClass('h-8')
   })
+
+  it('renders scale tick marks including the major tick at 50 with high contrast', () => {
+    const { container } = render(<LightMeter score={50} size="md" />)
+    const tick50 = container.querySelector('[data-tick-score="50"]')
+    expect(tick50).toBeInTheDocument()
+    expect(tick50).toHaveClass('bg-ink')
+    expect(tick50).toHaveClass('h-4.5')
+
+    // Major ticks at 0, 25, 50, 75, 100 should all have major tick height and bg-ink
+    const majorTicks = [0, 25, 50, 75, 100].map(s => container.querySelector(`[data-tick-score="${s}"]`))
+    majorTicks.forEach(tick => {
+      expect(tick).toBeInTheDocument()
+      expect(tick).toHaveClass('bg-ink')
+      expect(tick).toHaveClass('h-4.5')
+    })
+  })
 })

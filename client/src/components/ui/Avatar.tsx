@@ -14,7 +14,7 @@ export function Avatar({
   alt = 'Avatar',
   fallback,
   size = 'md',
-  shape = 'square',
+  shape: _shape = 'square',
   className = '',
 }: AvatarProps) {
   const [error, setError] = useState(false)
@@ -26,7 +26,8 @@ export function Avatar({
     xl: 'w-14 h-14 text-18',
   }[size]
 
-  const shapeClasses = shape === 'circle' ? 'rounded-full' : 'rounded-sm'
+  // Strict film-set token: 3px rounded square across all avatar sizes
+  const shapeClasses = 'rounded-sm'
 
   const initials = fallback
     ? fallback
