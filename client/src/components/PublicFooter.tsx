@@ -10,11 +10,11 @@ export function PublicFooter() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           {/* Brand */}
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-sm bg-ink flex items-center justify-center text-surface shrink-0">
+            <div className="w-6 h-6 rounded-sm bg-tungsten flex items-center justify-center text-ink shrink-0">
               <Film size={14} />
             </div>
             <span className="brand-text text-16 font-bold tracking-tight text-ink">
-              Cine<span className="text-tungsten">Connect</span>
+              CINECONNECT
             </span>
             <span className="text-12 text-muted ml-2">
               © {currentYear} CineConnect. All rights reserved.

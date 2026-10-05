@@ -172,11 +172,12 @@ describe('AppShell Component Suite', () => {
   })
 
   describe('2. Mobile Bottom Tab Bar & "More" Sheet', () => {
-    it('renders the mobile navigation bar with primary links', () => {
+    it('renders the mobile navigation bar with primary links and safe-area height', () => {
       renderWithAuth('production')
 
       const mobileNav = screen.getByRole('navigation', { name: /Mobile Navigation/i })
       expect(mobileNav).toBeInTheDocument()
+      expect(mobileNav.className).toContain('h-[calc(3.5rem+env(safe-area-inset-bottom,0px))]')
 
       // Primary links in mobile nav
       expect(within(mobileNav).getByRole('link', { name: /^Home$/i })).toBeInTheDocument()
@@ -186,6 +187,25 @@ describe('AppShell Component Suite', () => {
       // Mobile nav has the "More" options button
       const moreBtn = screen.getByRole('button', { name: /Open more options/i })
       expect(moreBtn).toBeInTheDocument()
+    })
+
+    it('adds bottom padding to main content equal to bar height plus safe-area inset', () => {
+      renderWithAuth('production')
+
+      const main = screen.getByRole('main')
+      expect(main.className).toContain('pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))]')
+    })
+
+    it('renders the full wordmark "CINECONNECT" in Ink with amber only in the icon square', () => {
+      renderWithAuth('production')
+
+      const wordmarks = screen.getAllByText('CINECONNECT')
+      expect(wordmarks.length).toBeGreaterThan(0)
+      for (const wordmark of wordmarks) {
+        expect(wordmark).toHaveClass('text-ink')
+        // Wordmark should not have amber/tungsten text
+        expect(wordmark).not.toHaveClass('text-tungsten')
+      }
     })
 
     it('opens the More sheet when clicking the More trigger button', async () => {

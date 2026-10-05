@@ -150,11 +150,11 @@ function SignedInShell({ children }: { children?: ReactNode }) {
             to="/home"
             className="flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink rounded-sm"
           >
-            <div className="w-6 h-6 rounded-sm bg-ink flex items-center justify-center text-surface shrink-0">
+            <div className="w-6 h-6 rounded-sm bg-tungsten flex items-center justify-center text-ink shrink-0">
               <Film size={14} />
             </div>
             <span className="brand-text text-18 font-bold tracking-tight text-ink">
-              Cine<span className="text-tungsten">Connect</span>
+              CINECONNECT
             </span>
           </Link>
         </div>
@@ -261,11 +261,11 @@ function SignedInShell({ children }: { children?: ReactNode }) {
       {/* ── Mobile Top Bar (Compact Branding & Notifications) ── */}
       <header className="flex md:hidden sticky top-0 z-30 h-14 bg-surface/95 backdrop-blur border-b border-line px-4 items-center justify-between">
         <Link to="/home" className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-sm bg-ink flex items-center justify-center text-surface shrink-0">
+          <div className="w-6 h-6 rounded-sm bg-tungsten flex items-center justify-center text-ink shrink-0">
             <Film size={14} />
           </div>
           <span className="brand-text text-18 font-bold tracking-tight text-ink">
-            Cine<span className="text-tungsten">Connect</span>
+            CINECONNECT
           </span>
         </Link>
         {user?.id && token && (
@@ -280,7 +280,7 @@ function SignedInShell({ children }: { children?: ReactNode }) {
       {/* ── Mobile Bottom Tab Bar with More Sheet ──────────── */}
       <nav
         aria-label="Mobile Navigation"
-        className="flex md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-line pb-[env(safe-area-inset-bottom)] h-14 items-center justify-around px-2 select-none"
+        className="flex md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-line h-[calc(3.5rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] items-center justify-around px-2 select-none"
       >
         {mobilePrimaryLinks.map((item) => {
           const active = isLinkActive(item.href)
@@ -393,7 +393,7 @@ function SignedInShell({ children }: { children?: ReactNode }) {
       <main
         id="main-content"
         tabIndex={-1}
-        className="flex-1 md:pl-60 min-h-screen pb-20 md:pb-8 bg-paper focus:outline-none"
+        className="flex-1 md:pl-60 min-h-screen pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] md:pb-8 bg-paper focus:outline-none"
       >
         <ErrorBoundary>
           {children || <Outlet />}
@@ -418,11 +418,11 @@ function PublicShell({ children }: { children?: ReactNode }) {
             to="/"
             className="flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink rounded-sm"
           >
-            <div className="w-6 h-6 rounded-sm bg-ink flex items-center justify-center text-surface shrink-0">
+            <div className="w-6 h-6 rounded-sm bg-tungsten flex items-center justify-center text-ink shrink-0">
               <Film size={14} />
             </div>
             <span className="brand-text text-18 font-bold tracking-tight text-ink">
-              Cine<span className="text-tungsten">Connect</span>
+              CINECONNECT
             </span>
           </Link>
 
