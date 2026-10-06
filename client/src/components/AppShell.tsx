@@ -18,7 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { productionApi } from '../lib/api'
+import { productionApi, talentApi } from '../lib/api'
 import { Avatar } from './ui/Avatar'
 import { Sheet, SheetTrigger, SheetContent } from './ui/Sheet'
 import { NotificationBell } from './NotificationBell'
@@ -85,19 +85,24 @@ function SignedInShell({ children }: { children?: ReactNode }) {
   const role = user?.role || 'talent'
   const isAdmin = role === 'admin'
 
-  // Studio name for production users (or fallback to company name / email)
-  const [companyName, setCompanyName] = useState<string>(() => {
-    return user?.company_name || localStorage.getItem('cc_company_name') || ''
+  // Studio name for production users, display name for talent users (or fallback to email)
+  const [accountName, setAccountName] = useState<string>(() => {
+    return (
+      user?.company_name ||
+      localStorage.getItem('cc_company_name') ||
+      localStorage.getItem('cc_full_name') ||
+      ''
+    )
   })
 
   useEffect(() => {
     if (user?.company_name) {
-      setCompanyName(user.company_name)
+      setAccountName(user.company_name)
       return
     }
-    const cached = localStorage.getItem('cc_company_name')
+    const cached = localStorage.getItem('cc_company_name') || localStorage.getItem('cc_full_name')
     if (cached) {
-      setCompanyName(cached)
+      setAccountName(cached)
       return
     }
     if (role === 'production' && token) {
@@ -105,18 +110,26 @@ function SignedInShell({ children }: { children?: ReactNode }) {
         .getMyProfile(token)
         .then((res) => {
           if (res?.profile?.company_name) {
-            setCompanyName(res.profile.company_name)
+            setAccountName(res.profile.company_name)
             localStorage.setItem('cc_company_name', res.profile.company_name)
+          }
+        })
+        .catch(() => {})
+    } else if (role === 'talent' && token) {
+      talentApi
+        .getMyProfile(token)
+        .then((res) => {
+          if (res?.profile?.full_name) {
+            setAccountName(res.profile.full_name)
+            localStorage.setItem('cc_full_name', res.profile.full_name)
           }
         })
         .catch(() => {})
     }
   }, [role, token, user?.company_name])
 
-  const studioName =
-    user?.company_name ||
-    companyName ||
-    (role === 'production' ? 'Production Studio' : user?.email || 'User')
+  // Studio name or display name; fallback to email if neither exists
+  const accountLabel = accountName.trim() || user?.email || 'User'
 
   // ── Role-aware links ──────────────────────────────────────────
   // Production: Home, Jobs, Applicants, Talent search, Alerts, Messages
@@ -163,7 +176,7 @@ function SignedInShell({ children }: { children?: ReactNode }) {
   const isLinkActive = (href: string) => {
     if (href === '/home') return location.pathname === '/home'
     if (href === '/jobs') return location.pathname === '/jobs' || location.pathname.startsWith('/jobs/')
-    return location.pathname.startsWith(href)
+    return location.pathname === href || location.pathname.startsWith(href + '/')
   }
 
   const handleSignOut = async () => {
@@ -281,12 +294,13 @@ function SignedInShell({ children }: { children?: ReactNode }) {
             aria-expanded={profileMenuOpen}
             aria-haspopup="menu"
             aria-label="Open profile menu"
+            title={user?.email || undefined}
             className="w-full flex items-center gap-2.5 p-2 rounded-sm hover:bg-paper/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
           >
-            <Avatar fallback={studioName || user?.email || 'User'} size="sm" />
+            <Avatar fallback={accountLabel} size="sm" />
             <div className="flex-1 text-left min-w-0">
               <p className="text-14 font-medium text-ink truncate leading-tight">
-                {studioName}
+                {accountLabel}
               </p>
               <p className="text-12 text-muted capitalize leading-none mt-0.5">
                 {role}
@@ -360,9 +374,9 @@ function SignedInShell({ children }: { children?: ReactNode }) {
             <div className="py-2 space-y-4">
               {/* User Identity card */}
               <div className="flex items-center gap-3 p-3 bg-paper rounded-sm border border-line">
-                <Avatar fallback={studioName || user?.email || 'User'} size="md" />
+                <Avatar fallback={accountLabel} size="md" />
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-14 text-ink truncate">{studioName}</p>
+                  <p className="font-semibold text-14 text-ink truncate">{accountLabel}</p>
                   <p className="text-12 text-muted capitalize">{role}</p>
                   {user?.email && (
                     <p className="text-12 text-muted/80 truncate mt-0.5">{user.email}</p>

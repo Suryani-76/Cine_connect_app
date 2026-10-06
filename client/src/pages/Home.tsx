@@ -224,16 +224,11 @@ const ProductionHome = () => {
 
         {/* My Jobs */}
         <section>
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 className="section-title">My Jobs</h2>
-              <p className="text-sm text-content-tertiary mt-0.5">
-                {counts.all === 0 ? 'No posts yet' : `${counts.all} total · ${counts.published} published · ${counts.draft} draft`}
-              </p>
-            </div>
-            <button onClick={() => navigate('/jobs/create')} className="btn-primary flex items-center gap-2">
-              <Plus size={16} /> New job
-            </button>
+          <div className="mb-5">
+            <h2 className="section-title">My Jobs</h2>
+            <p className="text-sm text-content-tertiary mt-0.5">
+              {counts.all === 0 ? 'No posts yet' : `${counts.all} total · ${counts.published} published · ${counts.draft} draft`}
+            </p>
           </div>
 
           {counts.all > 0 && <div className="mb-5"><FilterTabs active={filter} onChange={setFilter} /></div>}

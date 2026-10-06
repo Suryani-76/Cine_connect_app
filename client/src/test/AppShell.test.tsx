@@ -171,16 +171,48 @@ describe('AppShell Component Suite', () => {
       expect(screen.getByText('Studio North')).toBeInTheDocument()
       expect(screen.getByText('production')).toBeInTheDocument()
 
-      // Email is NOT in the button trigger
+      // Email is NOT in the button trigger label, but is present as a tooltip (title)
       expect(within(profileBtn).queryByText('production@cineconnect.test')).not.toBeInTheDocument()
+      expect(profileBtn).toHaveAttribute('title', 'production@cineconnect.test')
 
       // Open profile menu
       fireEvent.click(profileBtn)
       expect(screen.getByRole('menu', { name: /User Profile Menu/i })).toBeInTheDocument()
 
-      // Email is visible only in the menu that opens from it
+      // Email is visible in the menu that opens from it
       expect(screen.getByText('production@cineconnect.test')).toBeInTheDocument()
       expect(screen.getByRole('menuitem', { name: /Sign out/i })).toBeInTheDocument()
+    })
+
+    it('falls back to email in the account area if neither studio name nor display name exists', () => {
+      vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
+        user: {
+          id: 'user-anon',
+          email: 'solo-producer@cineconnect.test',
+          role: 'production',
+          profileId: 'prof-anon',
+        },
+        token: 'mock-token',
+        loading: false,
+        isAuthenticated: true,
+        setSession: vi.fn(),
+        setProfileId: vi.fn(),
+        logout: vi.fn(),
+      })
+
+      render(
+        <MemoryRouter initialEntries={['/home']}>
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route path="/home" element={<div>Home</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      )
+
+      const profileBtn = screen.getByRole('button', { name: /Open profile menu/i })
+      expect(within(profileBtn).getByText('solo-producer@cineconnect.test')).toBeInTheDocument()
+      expect(profileBtn).toHaveAttribute('title', 'solo-producer@cineconnect.test')
     })
   })
 
@@ -256,6 +288,17 @@ describe('AppShell Component Suite', () => {
 
       const jobsLink = within(railNav).getByRole('link', { name: /^Jobs$/i })
       expect(jobsLink).not.toHaveAttribute('aria-current')
+    })
+
+    it('marks Alerts link with aria-current="page" when on /alerts', () => {
+      renderWithAuth('production', '/alerts')
+
+      const railNav = screen.getByRole('navigation', { name: /Rail Links/i })
+      const alertsLink = within(railNav).getByRole('link', { name: /^Alerts$/i })
+      expect(alertsLink).toHaveAttribute('aria-current', 'page')
+
+      const homeLink = within(railNav).getByRole('link', { name: /^Home$/i })
+      expect(homeLink).not.toHaveAttribute('aria-current')
     })
 
     it('allows closing profile menu using Escape key', async () => {
