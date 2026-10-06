@@ -216,11 +216,11 @@ describe('Home Page (Dashboards)', () => {
       })
 
       const summary = screen.getByLabelText(/dashboard metrics summary/i)
-      // Contains active jobs, new applicants, talent matches, notifications
-      expect(within(summary).getByText(/active jobs/i)).toBeInTheDocument()
-      expect(within(summary).getByText(/new applicants/i)).toBeInTheDocument()
-      expect(within(summary).getByText(/talent matches/i)).toBeInTheDocument()
-      expect(within(summary).getByText(/notifications/i)).toBeInTheDocument()
+      // Contains active jobs, new applicants, talent matches, notifications as links when count > 0
+      expect(within(summary).getByRole('link', { name: /active jobs/i })).toHaveAttribute('href', '/jobs')
+      expect(within(summary).getByRole('link', { name: /new applicants/i })).toHaveAttribute('href', '/applications')
+      expect(within(summary).getByRole('link', { name: /talent matches/i })).toHaveAttribute('href', '/search')
+      expect(within(summary).getByRole('link', { name: /notifications/i })).toHaveAttribute('href', '/notifications')
 
       // Confirm no ALL-CAPS card labels
       expect(screen.queryByText('ACTIVE JOBS')).not.toBeInTheDocument()
@@ -627,6 +627,14 @@ describe('Home Page (Dashboards)', () => {
         expect(screen.getByText(/no jobs posted yet/i)).toBeInTheDocument()
       })
       expect(screen.getByRole('button', { name: /post your first job/i })).toBeInTheDocument()
+
+      // When counts are 0, numbers are plain text (not links)
+      const summary = screen.getByLabelText(/dashboard metrics summary/i)
+      expect(within(summary).queryByRole('link')).not.toBeInTheDocument()
+
+      // Needs attention empty state shows stacked message and link
+      expect(screen.getByText(/all caught up/i)).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /manage postings/i })).toBeInTheDocument()
     })
 
     it('renders talent empty state: "No applications yet" with "Browse open jobs" CTA', async () => {

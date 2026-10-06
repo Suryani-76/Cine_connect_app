@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import { AuthProvider } from './context/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -116,6 +116,7 @@ function App() {
               <Route path="/alerts" element={
                 <ProtectedRoute allowedRoles={['production']}><Alerts /></ProtectedRoute>
               } />
+              <Route path="/notifications" element={<Navigate to="/alerts" replace />} />
               <Route path="/applications" element={
                 <ProtectedRoute><Applications /></ProtectedRoute>
               } />

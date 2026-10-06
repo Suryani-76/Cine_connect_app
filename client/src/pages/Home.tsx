@@ -210,7 +210,7 @@ function StatusFilter({
     <div
       role="tablist"
       aria-label="Filter jobs by status"
-      className="flex flex-wrap gap-1 p-1 bg-paper rounded-sm border border-line w-fit"
+      className="flex items-center gap-1 p-1 bg-paper rounded-sm border border-line max-w-full overflow-x-auto scrollbar-none"
     >
       {options.map((opt) => {
         const isActive = active === opt.value
@@ -220,7 +220,7 @@ function StatusFilter({
             role="tab"
             aria-selected={isActive}
             onClick={() => onChange(opt.value)}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-sm text-12 font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ink ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-sm text-12 font-medium transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ink ${
               isActive
                 ? 'bg-surface text-ink shadow-xs font-semibold'
                 : 'text-muted hover:text-ink'
@@ -281,6 +281,35 @@ function calculateProfileCompleteness(profile: TalentProfile | null): Completene
 interface JobEnriched extends Job {
   applicantCount: number
   bestScore: number | null
+}
+
+function StatMetric({
+  count,
+  label,
+  href,
+}: {
+  count: number
+  label: string
+  href: string
+}) {
+  if (count === 0) {
+    return (
+      <span className="flex items-center gap-1.5 text-muted select-none">
+        <span className="text-18 font-bold text-muted tnum">{count}</span>
+        <span>{label}</span>
+      </span>
+    )
+  }
+
+  return (
+    <Link
+      to={href}
+      className="flex items-center gap-1.5 text-muted hover:text-ink transition-colors select-none group"
+    >
+      <span className="text-18 font-bold text-ink group-hover:underline tnum">{count}</span>
+      <span>{label}</span>
+    </Link>
+  )
 }
 
 export function ProductionHome() {
@@ -478,46 +507,30 @@ export function ProductionHome() {
         ) : statsError ? (
           <SectionError message={statsError} onRetry={fetchStats} />
         ) : (
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6 py-3 px-4 bg-surface border border-line rounded-sm text-14 text-muted">
-            <Link
-              to="/jobs"
-              className="flex items-center gap-1.5 hover:text-ink transition-colors font-medium select-none"
-            >
-              <span className="text-18 font-bold text-ink tnum">
-                {stats?.active_jobs ?? counts.published}
-              </span>
-              <span>active jobs</span>
-            </Link>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-6 py-3 px-4 bg-surface border border-line rounded-sm text-14 text-muted">
+            <StatMetric
+              count={stats?.active_jobs ?? counts.published}
+              label="active jobs"
+              href="/jobs"
+            />
             <span className="h-4 w-px bg-line shrink-0 hidden sm:inline-block" aria-hidden="true" />
-            <Link
-              to="/applications"
-              className="flex items-center gap-1.5 hover:text-ink transition-colors font-medium select-none"
-            >
-              <span className="text-18 font-bold text-ink tnum">
-                {stats?.new_applications ?? pendingApplicantsCount}
-              </span>
-              <span>new applicants</span>
-            </Link>
+            <StatMetric
+              count={stats?.new_applications ?? pendingApplicantsCount}
+              label="new applicants"
+              href="/applications"
+            />
             <span className="h-4 w-px bg-line shrink-0 hidden sm:inline-block" aria-hidden="true" />
-            <Link
-              to="/search"
-              className="flex items-center gap-1.5 hover:text-ink transition-colors font-medium select-none"
-            >
-              <span className="text-18 font-bold text-ink tnum">
-                {stats?.recommended_talent ?? 0}
-              </span>
-              <span>talent matches</span>
-            </Link>
+            <StatMetric
+              count={stats?.recommended_talent ?? 0}
+              label="talent matches"
+              href="/search"
+            />
             <span className="h-4 w-px bg-line shrink-0 hidden sm:inline-block" aria-hidden="true" />
-            <Link
-              to="/alerts"
-              className="flex items-center gap-1.5 hover:text-ink transition-colors font-medium select-none"
-            >
-              <span className="text-18 font-bold text-ink tnum">
-                {stats?.unread_notifications ?? 0}
-              </span>
-              <span>notifications</span>
-            </Link>
+            <StatMetric
+              count={stats?.unread_notifications ?? 0}
+              label="notifications"
+              href="/notifications"
+            />
           </div>
         )}
       </section>
@@ -528,9 +541,6 @@ export function ProductionHome() {
           <h2 id="needs-attention-heading" className="text-16 font-bold text-ink">
             Needs attention
           </h2>
-          <p className="text-12 text-muted mt-0.5">
-            Active items in your pipeline requiring immediate review or action
-          </p>
         </div>
 
         {loadingJobs && jobs.length === 0 ? (
@@ -541,11 +551,11 @@ export function ProductionHome() {
         ) : jobsError ? (
           <SectionError message="Unable to load attention items" onRetry={fetchJobs} />
         ) : pendingApplicantsCount === 0 && scheduledInterviewsCount === 0 && closingSoonJobs.length === 0 ? (
-          <div className="p-4 bg-surface border border-line rounded-sm flex items-center justify-between text-14 text-muted">
-            <p className="text-14 text-muted">
+          <div className="p-4 bg-surface border border-line rounded-sm flex flex-col items-start gap-2.5 text-14 text-muted">
+            <p className="text-14 text-muted leading-normal">
               All caught up. No pending applications or closing jobs require immediate review.
             </p>
-            <Link to="/jobs" className="text-12 font-semibold text-ink hover:underline shrink-0">
+            <Link to="/jobs" className="text-12 font-semibold text-ink hover:underline inline-block">
               Manage postings
             </Link>
           </div>
@@ -618,14 +628,13 @@ export function ProductionHome() {
             <h2 id="my-jobs-heading" className="text-16 font-bold text-ink">
               My jobs
             </h2>
-            <p className="text-12 text-muted mt-0.5">
-              Production roles, applicant counts, and top candidate match scores
-            </p>
           </div>
 
           {/* Status Filter with separate counts */}
           {counts.all > 0 && (
-            <StatusFilter active={filter} counts={counts} onChange={setFilter} />
+            <div className="w-full sm:w-auto overflow-x-auto">
+              <StatusFilter active={filter} counts={counts} onChange={setFilter} />
+            </div>
           )}
         </div>
 
