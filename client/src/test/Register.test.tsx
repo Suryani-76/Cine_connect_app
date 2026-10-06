@@ -43,8 +43,8 @@ describe('Register page', () => {
 
   it('renders role selector with Production and Talent options', () => {
     renderRegister()
-    expect(screen.getByRole('button', { name: /production house/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /talent/i })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /production house/i })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /talent/i })).toBeInTheDocument()
   })
 
   it('renders all form fields', () => {
@@ -152,16 +152,16 @@ describe('Register page', () => {
     expect(link).toHaveAttribute('href', '/login')
   })
 
-  it('Production House role button is selected by default', () => {
+  it('Production House role option is selected by default', () => {
     renderRegister()
-    const prodBtn = screen.getByRole('button', { name: /production house/i })
-    expect(prodBtn.className).toContain('border-brand')
+    const prodBtn = screen.getByRole('radio', { name: /production house/i })
+    expect(prodBtn).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('Talent role button becomes selected when clicked', async () => {
+  it('Talent role option becomes selected when clicked', async () => {
     renderRegister()
-    const talentBtn = screen.getByRole('button', { name: /talent/i })
+    const talentBtn = screen.getByRole('radio', { name: /talent/i })
     await userEvent.click(talentBtn)
-    expect(talentBtn.className).toContain('border-brand')
+    expect(talentBtn).toHaveAttribute('aria-checked', 'true')
   })
 })

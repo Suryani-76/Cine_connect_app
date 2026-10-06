@@ -34,6 +34,27 @@ interface NavItem {
 
 export function AppShell() {
   const { user } = useAuth()
+  const location = useLocation()
+  const isAuthRoute = [
+    '/login',
+    '/register',
+    '/verify',
+    '/reset-password',
+    '/create-profile',
+  ].includes(location.pathname)
+
+  if (isAuthRoute) {
+    return (
+      <div className="min-h-screen bg-paper text-ink flex flex-col font-sans">
+        <OfflineBanner />
+        <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col font-sans">

@@ -1,61 +1,123 @@
-import { useState, FormEvent, useRef, KeyboardEvent, ClipboardEvent } from 'react'
+import { useState, FormEvent, useRef, KeyboardEvent, ClipboardEvent, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
-import { Film, Mail } from 'lucide-react'
 import { authApi } from '../lib/api'
+import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { PublicFooter } from '../components/PublicFooter'
+import { AuthLayout } from '../components/AuthLayout'
+import { Field } from '../components/ui/Field'
+import { Input } from '../components/ui/Input'
 
 const OTP_LENGTH = 6
+const RESEND_COOLDOWN = 60
 
 const Verify = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { setSession } = useAuth()
-  const state   = location.state as { email?: string; role?: string } | null
+  const state = location.state as { email?: string; role?: string } | null
   const [email, setEmail] = useState(state?.email ?? '')
   const role = (state?.role ?? 'production') as 'production' | 'talent'
   usePageTitle('Verify Email')
 
-  const [digits, setDigits]   = useState<string[]>(Array(OTP_LENGTH).fill(''))
+  const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''))
   const [serverError, setErr] = useState('')
   const [loading, setLoading] = useState(false)
-  const inputRefs             = useRef<Array<HTMLInputElement | null>>([])
-  const otp                   = digits.join('')
+  const [countdown, setCountdown] = useState(RESEND_COOLDOWN)
+  const [resending, setResending] = useState(false)
+  const [resendStatus, setResendStatus] = useState('')
+  const inputRefs = useRef<Array<HTMLInputElement | null>>([])
+  const otp = digits.join('')
+
+  // Countdown timer for resend
+  useEffect(() => {
+    if (countdown <= 0) return
+    const timer = setInterval(() => {
+      setCountdown((c) => (c > 0 ? c - 1 : 0))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [countdown])
 
   const handleDigitChange = (index: number, value: string) => {
     const s = value.replace(/\D/g, '').slice(-1)
-    const next = [...digits]; next[index] = s; setDigits(next)
-    if (s && index < OTP_LENGTH - 1) inputRefs.current[index + 1]?.focus()
+    const next = [...digits]
+    next[index] = s
+    setDigits(next)
+    setErr('')
+    if (s && index < OTP_LENGTH - 1) {
+      inputRefs.current[index + 1]?.focus()
+    }
   }
+
   const handleKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !digits[index] && index > 0) inputRefs.current[index - 1]?.focus()
+    if (e.key === 'Backspace' && !digits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus()
+    }
   }
+
   const handlePaste = (e: ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault()
     const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, OTP_LENGTH)
     if (!pasted) return
     const next = Array(OTP_LENGTH).fill('')
-    pasted.split('').forEach((ch, i) => { next[i] = ch })
+    pasted.split('').forEach((ch, i) => {
+      next[i] = ch
+    })
     setDigits(next)
-    inputRefs.current[Math.min(pasted.length, OTP_LENGTH - 1)]?.focus()
+    setErr('')
+    const nextFocusIndex = Math.min(pasted.length, OTP_LENGTH - 1)
+    inputRefs.current[nextFocusIndex]?.focus()
+  }
+
+  const handleResend = async () => {
+    if (countdown > 0 || !email) return
+    setResending(true)
+    setResendStatus('')
+    setErr('')
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      })
+      if (error) {
+        setResendStatus('Could not resend code. Please try again.')
+      } else {
+        setResendStatus('New verification code sent.')
+        setCountdown(RESEND_COOLDOWN)
+      }
+    } catch {
+      setResendStatus('Could not resend code. Please try again.')
+    } finally {
+      setResending(false)
+    }
   }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setErr('')
-    if (!email) { setErr('Email address is required'); return }
-    if (otp.length < OTP_LENGTH) { setErr('Please enter the full 6-digit code'); return }
+    setResendStatus('')
+    if (!email) {
+      setErr('Email address is required')
+      return
+    }
+    if (otp.length < OTP_LENGTH) {
+      setErr('Please enter the full 6-digit code')
+      return
+    }
     setLoading(true)
     try {
       const res = await authApi.verify({ email, otp })
       const userRole = (res.user.role ?? role) as 'production' | 'talent'
       setSession(res.access_token, res.refresh_token, {
-        id: res.user.id, email: res.user.email ?? email, role: userRole, profileId: null,
+        id: res.user.id,
+        email: res.user.email ?? email,
+        role: userRole,
+        profileId: null,
       })
       navigate('/create-profile', { state: { user_id: res.user.id, role: userRole } })
-    } catch (err: unknown) {
-      setErr(err instanceof Error ? err.message : 'Verification failed')
+    } catch {
+      // Requirement 3: specific error text
+      setErr('That code is wrong or expired. Request a new one.')
       setDigits(Array(OTP_LENGTH).fill(''))
       inputRefs.current[0]?.focus()
     } finally {
@@ -64,82 +126,123 @@ const Verify = () => {
   }
 
   return (
-    <div className="min-h-screen bg-surface-section flex flex-col justify-between">
-      <div className="flex-1 flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-brand-navy mb-4">
-            <Film size={22} className="text-white" />
-          </div>
-          <h1 className="brand-text text-3xl text-brand-navy">
-            Cine<span className="text-brand">Connect</span>
-          </h1>
+    <AuthLayout
+      productContext="Protected email verification ensures genuine crew representation and secure messaging."
+      contextSubtitle="Identity and security verification"
+    >
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-28 font-extrabold text-ink tracking-tight">Verify your email</h1>
+          <p className="mt-1.5 text-14 text-muted">
+            Code sent to <span className="font-semibold text-ink">{email || 'your email'}</span>
+          </p>
         </div>
 
-        <div className="auth-card">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
-              <Mail size={18} className="text-brand" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-content-heading">Verify your email</h2>
-              <p className="text-sm text-content-secondary">
-                Code sent to <span className="font-semibold text-content-primary">{email || 'your email'}</span>
-              </p>
+        <form onSubmit={handleSubmit} noValidate className="space-y-6">
+          {!state?.email && (
+            <Field
+              label="Email address"
+              htmlFor="verify-email"
+            >
+              <Input
+                id="verify-email"
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+              />
+            </Field>
+          )}
+
+          <div>
+            <label className="text-14 font-medium text-ink block mb-2">
+              6-digit verification code
+            </label>
+            <div className="flex gap-2 sm:gap-3 justify-between">
+              {digits.map((digit, i) => (
+                <input
+                  key={i}
+                  ref={(el) => {
+                    inputRefs.current[i] = el
+                  }}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleDigitChange(i, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(i, e)}
+                  onPaste={i === 0 ? handlePaste : undefined}
+                  aria-label={`Digit ${i + 1}`}
+                  autoFocus={i === 0}
+                  className="w-11 h-14 sm:w-13 sm:h-16 text-center text-22 font-mono font-bold rounded-[3px] border border-line bg-surface text-ink focus:border-ink focus:outline-none transition-colors"
+                />
+              ))}
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} noValidate className="space-y-5">
-            {!state?.email && (
-              <div>
-                <label htmlFor="email" className="label">Email address</label>
-                <input id="email" type="email" autoComplete="email" value={email}
-                  onChange={e => setEmail(e.target.value)} placeholder="you@example.com"
-                  className="input" />
-              </div>
-            )}
-
-            <div>
-              <label className="label">Verification code</label>
-              <div className="flex gap-2 justify-between">
-                {digits.map((digit, i) => (
-                  <input key={i} ref={el => { inputRefs.current[i] = el }}
-                    type="text" inputMode="numeric" maxLength={1} value={digit}
-                    onChange={e => handleDigitChange(i, e.target.value)}
-                    onKeyDown={e => handleKeyDown(i, e)}
-                    onPaste={i === 0 ? handlePaste : undefined}
-                    aria-label={`Digit ${i + 1}`}
-                    autoFocus={i === 0}
-                    className="w-12 h-14 text-center mono-text text-xl font-bold rounded-lg
-                      bg-surface-section border-2 border-surface-border text-content-heading
-                      focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-all" />
-                ))}
-              </div>
+          {/* Specific error text */}
+          {serverError && (
+            <div
+              role="alert"
+              className="p-3 rounded-[3px] bg-status-error/10 border border-status-error/20 text-13 text-status-error font-medium"
+            >
+              {serverError}
             </div>
+          )}
 
-            {serverError && (
-              <div className="error-banner">
-                <p className="text-sm text-red-600">{serverError}</p>
-              </div>
+          {/* Resend success notice */}
+          {resendStatus && (
+            <div
+              role="status"
+              className="p-3 rounded-[3px] bg-status-success/10 border border-status-success/20 text-13 text-status-success font-medium"
+            >
+              {resendStatus}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading || otp.length < OTP_LENGTH}
+            className="w-full py-3 px-4 text-14 font-semibold rounded-[3px] bg-tungsten text-ink hover:opacity-95 transition-opacity disabled:opacity-50"
+          >
+            {loading ? 'Verifying…' : 'Verify email'}
+          </button>
+        </form>
+
+        {/* Clear resend with countdown */}
+        <div className="pt-2 text-center text-13 space-y-2">
+          <p className="text-muted">
+            Didn't receive the code?{' '}
+            {countdown > 0 ? (
+              <span className="font-mono text-muted">
+                Resend code in {countdown}s
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resending}
+                className="text-ink font-semibold hover:underline"
+              >
+                {resending ? 'Sending…' : 'Resend verification code'}
+              </button>
             )}
+          </p>
 
-            <button type="submit" disabled={loading || otp.length < OTP_LENGTH}
-              className="btn-primary w-full">
-              {loading ? 'Verifying…' : 'Verify email'}
-            </button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-content-tertiary">
-            Wrong email?{' '}
-            <Link to="/register" className="text-brand font-semibold hover:text-brand-dark transition-colors">
-              Go back
+          <p>
+            <Link
+              to="/register"
+              className="text-12 text-muted hover:text-ink transition-colors"
+            >
+              Wrong email address? Go back to register
             </Link>
           </p>
         </div>
       </div>
-      </div>
-      <PublicFooter />
-    </div>
+    </AuthLayout>
   )
 }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, KeyboardEvent } from 'react'
 import { Check, AlertCircle } from 'lucide-react'
 import { vocabApi, VocabItem } from '../lib/api'
+import { DepartmentMark } from './ui/DepartmentMark'
 
 interface AutocompleteInputProps {
   id?: string
@@ -184,11 +185,14 @@ export function AutocompleteInput({
                   isSelected ? 'bg-brand/10 text-brand' : 'hover:bg-surface-section text-content-primary'
                 }`}
               >
-                <div>
-                  <span className="font-medium text-content-heading">{item.name}</span>
+                <div className="flex items-center gap-2">
+                  {item.department && (
+                    <DepartmentMark department={item.department} showLabel={false} size="sm" />
+                  )}
+                  <span className="font-medium text-ink">{item.name}</span>
                   {(item.department || item.state) && (
-                    <span className="text-content-muted ml-1.5 text-[11px]">
-                      · {item.department ?? item.state}
+                    <span className="text-muted text-[11px]">
+                      {item.department ?? item.state}
                     </span>
                   )}
                 </div>

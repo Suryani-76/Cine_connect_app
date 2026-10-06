@@ -315,7 +315,7 @@ describe('AppShell Component Suite', () => {
 
   describe('4. Public Layout (Anonymous Users)', () => {
     it('renders simple top bar and public footer for anonymous users', () => {
-      renderWithAuth(null, '/login')
+      renderWithAuth(null, '/jobs')
 
       // Public nav bar links
       expect(screen.getByRole('link', { name: /Browse jobs/i })).toBeInTheDocument()

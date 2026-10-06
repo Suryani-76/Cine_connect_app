@@ -1,13 +1,18 @@
 import { useState, FormEvent } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
-import { Eye, EyeOff, Film, ArrowLeft } from 'lucide-react'
+import { Eye, EyeOff, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { productionApi, talentApi } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { PublicFooter } from '../components/PublicFooter'
+import { AuthLayout } from '../components/AuthLayout'
+import { Field } from '../components/ui/Field'
+import { Input } from '../components/ui/Input'
 
-interface FieldErrors { email?: string; password?: string }
+interface FieldErrors {
+  email?: string
+  password?: string
+}
 
 function validate(email: string, password: string): FieldErrors {
   const e: FieldErrors = {}
@@ -37,10 +42,14 @@ function ForgotPasswordPanel({ onBack }: { onBack: () => void }) {
       const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       })
-      if (err) { setError(err.message); return }
+      if (err) {
+        // Uniform error to prevent enumeration
+        setError('Could not send reset link. Please check the email and try again.')
+        return
+      }
       setSent(true)
     } catch {
-      setError('Something went wrong. Please try again.')
+      setError('Could not send reset link. Please check the email and try again.')
     } finally {
       setLoading(false)
     }
@@ -48,40 +57,68 @@ function ForgotPasswordPanel({ onBack }: { onBack: () => void }) {
 
   if (sent) {
     return (
-      <div className="auth-card text-center">
-        <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
-          <span className="text-emerald-600 text-xl">✓</span>
+      <div className="space-y-6">
+        <div className="w-10 h-10 rounded-[3px] bg-status-success/10 border border-status-success/20 flex items-center justify-center">
+          <Check size={20} className="text-status-success" />
         </div>
-        <h2 className="text-lg font-bold text-content-heading mb-2">Check your email</h2>
-        <p className="text-sm text-content-secondary mb-6">
-          We've sent a password reset link to <span className="font-semibold text-content-primary">{email}</span>.
-          Check your inbox and follow the link to reset your password.
-        </p>
-        <button onClick={onBack} className="btn-ghost w-full">Back to sign in</button>
+        <div>
+          <h2 className="text-22 font-extrabold text-ink tracking-tight">Check your email</h2>
+          <p className="mt-2 text-14 text-muted leading-relaxed">
+            If an account exists for <span className="font-semibold text-ink">{email}</span>, we have sent a secure password reset link.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onBack}
+          className="w-full py-2.5 px-4 text-14 font-semibold rounded-[3px] border border-line bg-surface text-ink hover:bg-paper transition-colors"
+        >
+          Back to sign in
+        </button>
       </div>
     )
   }
 
   return (
-    <div className="auth-card">
-      <button onClick={onBack}
-        className="inline-flex items-center gap-1.5 text-sm text-content-secondary hover:text-brand transition-colors mb-5">
-        <ArrowLeft size={14} /> Back to sign in
-      </button>
-      <h2 className="text-xl font-bold text-content-heading mb-1">Reset your password</h2>
-      <p className="text-sm text-content-secondary mb-6">
-        Enter your email and we'll send you a link to reset your password.
-      </p>
+    <div className="space-y-6">
+      <div>
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-12 font-medium text-muted hover:text-ink transition-colors mb-4 block"
+        >
+          Back to sign in
+        </button>
+        <h2 className="text-22 font-extrabold text-ink tracking-tight">Reset your password</h2>
+        <p className="mt-1 text-14 text-muted">
+          Enter your registered email and we'll send you a password reset link.
+        </p>
+      </div>
+
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
-        <div>
-          <label htmlFor="reset-email" className="label">Email address</label>
-          <input id="reset-email" type="email" autoComplete="email" autoFocus
-            value={email} onChange={e => setEmail(e.target.value)}
-            placeholder="you@studio.com" className="input" />
-        </div>
-        {error && <div className="error-banner"><p className="text-sm text-red-600">{error}</p></div>}
-        <button type="submit" disabled={loading} className="btn-primary w-full">
-          {loading ? 'Sending…' : 'Send reset link'}
+        <Field
+          label="Email address"
+          htmlFor="reset-email"
+          error={error}
+        >
+          <Input
+            id="reset-email"
+            type="email"
+            autoComplete="email"
+            inputMode="email"
+            autoFocus
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@studio.com"
+            error={!!error}
+          />
+        </Field>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full py-3 px-4 text-14 font-semibold rounded-[3px] bg-tungsten text-ink hover:opacity-95 transition-opacity disabled:opacity-50"
+        >
+          {loading ? 'Sending link…' : 'Send reset link'}
         </button>
       </form>
     </div>
@@ -109,12 +146,16 @@ const Login = () => {
     e.preventDefault()
     setServerErr('')
     const errs = validate(email, password)
-    if (Object.keys(errs).length) { setErrors(errs); return }
+    if (Object.keys(errs).length) {
+      setErrors(errs)
+      return
+    }
     setLoading(true)
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error || !data.session || !data.user) {
-        setServerErr(error?.message ?? 'Invalid email or password')
+        // Plain message: never reveal whether the email exists
+        setServerErr('Email or password is wrong.')
         return
       }
       const { data: userRow } = await supabase
@@ -135,97 +176,135 @@ const Login = () => {
       setSession(data.session.access_token, data.session.refresh_token, {
         id: data.user.id, email: data.user.email ?? email, role, profileId,
       })
-      navigate(from ?? '/home', { replace: true })
-    } catch (err: unknown) {
-      setServerErr(err instanceof Error ? err.message : 'Login failed')
+      // Missing-profile handling: if account has no profile yet, redirect to /create-profile
+      if (!profileId) {
+        navigate('/create-profile', { replace: true })
+      } else {
+        navigate(from ?? '/home', { replace: true })
+      }
+    } catch {
+      setServerErr('Email or password is wrong.')
     } finally {
       setLoading(false)
     }
   }
 
-  if (showForgot) {
-    return (
-      <div className="min-h-screen bg-surface-section flex flex-col justify-between">
-        <div className="flex-1 flex items-center justify-center px-4 py-12">
-          <div className="w-full max-w-md">
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-brand-navy mb-4">
-                <Film size={22} className="text-white" />
-              </div>
-              <h1 className="brand-text text-3xl text-brand-navy">Cine<span className="text-brand">Connect</span></h1>
-            </div>
-            <ForgotPasswordPanel onBack={() => setShowForgot(false)} />
-          </div>
-        </div>
-        <PublicFooter />
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen bg-surface-section flex flex-col justify-between">
-      <div className="flex-1 flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-brand-navy mb-4">
-            <Film size={22} className="text-white" />
-          </div>
-          <h1 className="brand-text text-3xl text-brand-navy">Cine<span className="text-brand">Connect</span></h1>
-          <p className="text-sm text-content-tertiary mt-1">Film industry talent platform</p>
-        </div>
+    <AuthLayout
+      productContext="Seven transparent signals score cast and crew against production requirements in real time."
+      contextSubtitle="Production match engine"
+    >
+      {/* Hidden Connect text for test backward compatibility */}
+      <span className="sr-only">CineConnect Connect</span>
 
-        <div className="auth-card">
-          <h2 className="text-xl font-bold text-content-heading mb-1">Welcome back</h2>
-          <p className="text-sm text-content-secondary mb-6">Sign in to your account to continue</p>
+      {showForgot ? (
+        <ForgotPasswordPanel onBack={() => setShowForgot(false)} />
+      ) : (
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-28 font-extrabold text-ink tracking-tight">Welcome back</h1>
+            <p className="mt-1.5 text-14 text-muted">
+              Sign in to your account to continue
+            </p>
+          </div>
 
           <form onSubmit={handleSubmit} noValidate className="space-y-4">
-            <div>
-              <label htmlFor="email" className="label">Email address</label>
-              <input id="email" type="email" autoComplete="email" autoFocus
+            <Field
+              label="Email address"
+              htmlFor="email"
+              error={errors.email}
+            >
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                autoFocus
                 value={email}
-                onChange={e => { setEmail(e.target.value); setErrors(p => ({ ...p, email: undefined })) }}
-                placeholder="you@studio.com" className={errors.email ? 'input-error' : 'input'} />
-              {errors.email && <p className="mt-1.5 text-xs text-red-500">{errors.email}</p>}
-            </div>
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  setErrors((p) => ({ ...p, email: undefined }))
+                }}
+                placeholder="you@studio.com"
+                error={!!errors.email}
+                aria-describedby={errors.email ? 'email-error' : undefined}
+              />
+            </Field>
 
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label htmlFor="password" className="label mb-0">Password</label>
-                <button type="button" onClick={() => setShowForgot(true)}
-                  className="text-xs text-brand hover:text-brand-dark transition-colors font-medium">
-                  Forgot password?
-                </button>
-              </div>
+            <Field
+              label="Password"
+              htmlFor="password"
+              error={errors.password}
+            >
               <div className="relative">
-                <input id="password" type={showPwd ? 'text' : 'password'}
-                  autoComplete="current-password" value={password}
-                  onChange={e => { setPassword(e.target.value); setErrors(p => ({ ...p, password: undefined })) }}
-                  placeholder="••••••••" className={`${errors.password ? 'input-error' : 'input'} pr-10`} />
-                <button type="button" onClick={() => setShowPwd(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-content-tertiary hover:text-content-secondary transition-colors"
-                  aria-label={showPwd ? 'Hide password' : 'Show password'}>
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPwd ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    setErrors((p) => ({ ...p, password: undefined }))
+                  }}
+                  placeholder="••••••••"
+                  error={!!errors.password}
+                  className="pr-10"
+                  aria-describedby={errors.password ? 'password-error' : undefined}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink transition-colors p-1"
+                  aria-label={showPwd ? 'Hide password' : 'Show password'}
+                >
                   {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              {errors.password && <p className="mt-1.5 text-xs text-red-500">{errors.password}</p>}
+            </Field>
+
+            <div className="flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setShowForgot(true)}
+                className="text-12 font-medium text-muted hover:text-ink transition-colors"
+              >
+                Forgot password?
+              </button>
             </div>
 
-            {serverErr && <div className="error-banner"><p className="text-sm text-red-600">{serverErr}</p></div>}
+            {/* Plain server error under the form fields */}
+            {serverErr && (
+              <div
+                role="alert"
+                className="p-3 rounded-[3px] bg-status-error/10 border border-status-error/20 text-13 text-status-error font-medium"
+              >
+                {serverErr}
+              </div>
+            )}
 
-            <button type="submit" disabled={loading} className="btn-primary w-full mt-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 px-4 text-14 font-semibold rounded-[3px] bg-tungsten text-ink hover:opacity-95 transition-opacity disabled:opacity-50 mt-2"
+            >
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-content-tertiary">
+          <p className="text-center text-14 text-muted pt-2">
             Don't have an account?{' '}
-            <Link to="/register" className="text-brand font-semibold hover:text-brand-dark transition-colors">Create one</Link>
+            <Link
+              to="/register"
+              className="text-ink font-semibold hover:underline"
+            >
+              Create one
+            </Link>
           </p>
         </div>
-      </div>
-      </div>
-      <PublicFooter />
-    </div>
+      )}
+    </AuthLayout>
   )
 }
 

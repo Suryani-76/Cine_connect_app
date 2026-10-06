@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import Login from '../pages/Login'
+import { supabase } from '../lib/supabase'
 
 // ── Mocks ─────────────────────────────────────────────────────
 
@@ -21,12 +22,28 @@ vi.mock('../lib/supabase', () => ({
   },
 }))
 
+const mockNavigate = vi.fn()
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom')
+  return { ...actual as object, useNavigate: () => mockNavigate }
+})
+
+const mockSetSession = vi.fn()
 vi.mock('../context/AuthContext', () => ({
-  useAuth: () => ({ setSession: vi.fn() }),
+  useAuth: () => ({ setSession: mockSetSession }),
 }))
 
 vi.mock('../hooks/usePageTitle', () => ({
   usePageTitle: vi.fn(),
+}))
+
+vi.mock('../lib/api', () => ({
+  productionApi: {
+    getMyProfile: vi.fn().mockResolvedValue({ profile: null }),
+  },
+  talentApi: {
+    getMyProfile: vi.fn().mockResolvedValue({ profile: null }),
+  },
 }))
 
 // ── Helper ────────────────────────────────────────────────────
@@ -41,7 +58,9 @@ const renderLogin = () =>
 // ── Tests ─────────────────────────────────────────────────────
 
 describe('Login page', () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   it('renders the sign in heading', () => {
     renderLogin()
@@ -51,14 +70,12 @@ describe('Login page', () => {
   it('renders email and password fields', () => {
     renderLogin()
     expect(screen.getByLabelText(/email address/i)).toBeInTheDocument()
-    // getByRole is more reliable than getByLabelText when labels are ambiguous
     const inputs = screen.getAllByRole('textbox')
-    expect(inputs.length).toBeGreaterThanOrEqual(1) // email field visible
+    expect(inputs.length).toBeGreaterThanOrEqual(1)
   })
 
   it('renders the CineConnect brand', () => {
     renderLogin()
-    // Brand is split across two spans so query by partial text on a container
     expect(screen.getAllByText('Connect')[0]).toBeInTheDocument()
   })
 
@@ -111,7 +128,40 @@ describe('Login page', () => {
     await userEvent.type(screen.getByLabelText(/^password$/i), 'password123')
     const btn = screen.getByRole('button', { name: /sign in/i })
     fireEvent.click(btn)
-    // Button should be briefly disabled
     expect(btn).toBeDisabled()
+  })
+
+  it('shows plain error message on invalid credentials without exposing whether email exists', async () => {
+    renderLogin()
+    await userEvent.type(screen.getByLabelText(/email address/i), 'wrong@test.com')
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'wrongpassword')
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
+    await waitFor(() => {
+      expect(screen.getByText('Email or password is wrong.')).toBeInTheDocument()
+    })
+  })
+
+  it('redirects to /create-profile when account has no profile yet', async () => {
+    vi.mocked(supabase.auth.signInWithPassword).mockResolvedValueOnce({
+      data: {
+        session: { access_token: 'fake-token', refresh_token: 'fake-refresh' } as any,
+        user: { id: 'user-123', email: 'noprofile@test.com' } as any,
+      },
+      error: null,
+    })
+    vi.mocked(supabase.from).mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: { role: 'production' }, error: null }),
+    } as any)
+
+    renderLogin()
+    await userEvent.type(screen.getByLabelText(/email address/i), 'noprofile@test.com')
+    await userEvent.type(screen.getByLabelText(/^password$/i), 'password123')
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/create-profile', { replace: true })
+    })
   })
 })
