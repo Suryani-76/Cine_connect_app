@@ -1,10 +1,11 @@
-import { useState, FormEvent, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, FormEvent, useEffect, useCallback } from 'react'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { Search as SearchIcon, X, ExternalLink, ArrowRight } from 'lucide-react'
 import { talentApi, TalentProfile } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { PageHeader } from '../components/PageHeader'
+import { supabase } from '../lib/supabase'
 
 // ── Talent card ───────────────────────────────────────────────
 
@@ -188,7 +189,8 @@ const EMPTY: Filters = { skills: '', role: '', location: '', language: '', avail
 
 const Search = () => {
   usePageTitle('Find Talent')
-  const { token } = useAuth()
+  const navigate = useNavigate()
+  const { token, isAuthenticated, loading: authLoading } = useAuth()
   const [filters, setFilters]     = useState<Filters>(EMPTY)
   const [results, setResults]     = useState<TalentProfile[]>([])
   const [searched, setSearched]   = useState(false)
@@ -196,7 +198,29 @@ const Search = () => {
   const [error, setError]         = useState('')
   const [sidebarOpen, setSidebar] = useState(false)
 
-  const runSearch = async (f: Filters) => {
+  // Resolve session token from useAuth or fallback to active Supabase session / localStorage
+  const getAccessToken = useCallback(async (): Promise<string | null> => {
+    if (token) return token
+    try {
+      const { data } = await supabase.auth.getSession()
+      if (data?.session?.access_token) return data.session.access_token
+    } catch {
+      // ignore
+    }
+    return (
+      localStorage.getItem('cc_access_token') ??
+      sessionStorage.getItem('cc_access_token') ??
+      null
+    )
+  }, [token])
+
+  const runSearch = useCallback(async (f: Filters) => {
+    const accessToken = await getAccessToken()
+    if (!accessToken) {
+      navigate('/login', { replace: true })
+      return
+    }
+
     setLoading(true); setError('')
     try {
       const skills = f.skills ? f.skills.split(',').map(s => s.trim()).filter(Boolean) : undefined
@@ -206,16 +230,33 @@ const Search = () => {
         location:     f.location.trim()     || undefined,
         language:     f.language.trim()     || undefined,
         availability: f.availability.trim() || undefined,
-      }, token ?? undefined)
+      }, accessToken)
       setResults(res.talent); setSearched(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Search failed')
     } finally {
       setLoading(false)
     }
+  }, [getAccessToken, navigate])
+
+  useEffect(() => {
+    if (authLoading) return
+    if (!isAuthenticated && !token) return
+    runSearch(EMPTY)
+  }, [authLoading, isAuthenticated, token, runSearch])
+
+  // If user is logged out and auth resolved, redirect to /login immediately without calling the API
+  if (!authLoading && !isAuthenticated && !token) {
+    return <Navigate to="/login" replace />
   }
 
-  useEffect(() => { runSearch(EMPTY) }, [token])
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-surface-section flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-surface-border border-t-brand rounded-full animate-spin mx-auto" />
+      </div>
+    )
+  }
 
   const handleSubmit = (e: FormEvent) => { e.preventDefault(); runSearch(filters) }
   const handleClear  = () => { setFilters(EMPTY); runSearch(EMPTY) }

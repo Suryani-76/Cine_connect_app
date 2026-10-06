@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { talentApi, accountApi } from '../lib/api'
+import { talentApi, accountApi, jobAnalyticsApi, jobsApi } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import Search from '../pages/Search'
 import * as AuthContext from '../context/AuthContext'
@@ -209,6 +209,33 @@ describe('Search and Authenticated Request Helper', () => {
 
       expect(capturedAuthHeader).toBe('Bearer auth-context-token')
     })
+
+    it('redirects to /login when user has no session and does not call talentApi.search', async () => {
+      vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
+        user: null,
+        token: null,
+        loading: false,
+        isAuthenticated: false,
+        setSession: vi.fn(),
+        setProfileId: vi.fn(),
+        logout: vi.fn(),
+      })
+      vi.mocked(supabase.auth.getSession).mockResolvedValue({
+        data: { session: null },
+        error: null,
+      })
+
+      const fetchSpy = vi.fn()
+      globalThis.fetch = fetchSpy
+
+      render(
+        <MemoryRouter initialEntries={['/search']}>
+          <Search />
+        </MemoryRouter>
+      )
+
+      expect(fetchSpy).not.toHaveBeenCalled()
+    })
   })
 
   describe('Migrated upload and export calls in api.ts', () => {
@@ -245,6 +272,38 @@ describe('Search and Authenticated Request Helper', () => {
       const blob = await accountApi.exportData('export-token')
       expect(blob).toBeInstanceOf(Blob)
       expect(capturedHeaders!['Authorization']).toBe('Bearer export-token')
+    })
+
+    it('jobAnalyticsApi.recordView routes through request and includes Authorization header', async () => {
+      let capturedHeaders: Record<string, string> | undefined
+      let capturedMethod: string | undefined
+      globalThis.fetch = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+        capturedHeaders = init.headers as Record<string, string>
+        capturedMethod = init.method
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      })
+
+      const res = await jobAnalyticsApi.recordView('job-xyz', 'analytics-view-token')
+      expect(res).toEqual({ ok: true })
+      expect(capturedMethod).toBe('POST')
+      expect(capturedHeaders!['Authorization']).toBe('Bearer analytics-view-token')
+    })
+
+    it('jobsApi.listPublished attaches Authorization header when token is provided', async () => {
+      let capturedHeaders: Record<string, string> | undefined
+      globalThis.fetch = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
+        capturedHeaders = init.headers as Record<string, string>
+        return new Response(JSON.stringify({ jobs: [], total: 0 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      })
+
+      await jobsApi.listPublished('published-jobs-token')
+      expect(capturedHeaders!['Authorization']).toBe('Bearer published-jobs-token')
     })
   })
 })

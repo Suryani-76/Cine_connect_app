@@ -159,8 +159,9 @@ const ProductionHome = () => {
   const [jobsError, setJobsError]         = useState('')
 
   const handleClose = async (jobId: string) => {
+    if (!token) return
     try {
-      await jobsApi.close(jobId, token ?? '')
+      await jobsApi.close(jobId, token)
       setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'closed' as const } : j))
     } catch {}
   }
@@ -309,11 +310,11 @@ function TalentHome() {
 
   // Load published jobs
   useEffect(() => {
-    jobsApi.listPublished()
+    jobsApi.listPublished(accessToken || undefined)
       .then(r => setBrowseJobs(r.jobs))
       .catch(() => {})
       .finally(() => setLBrowse(false))
-  }, [])
+  }, [accessToken])
 
   // Load my applications
   useEffect(() => {

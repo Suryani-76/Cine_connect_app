@@ -192,11 +192,16 @@ const JobDetail = () => {
   useEffect(() => {
     if (!id) return
     setLoading(true)
-    jobsApi.getById(id)
-      .then(r => { setJob(r.job); jobAnalyticsApi.recordView(id).catch(() => {}) })
+    jobsApi.getById(id, token ?? undefined)
+      .then(r => {
+        setJob(r.job)
+        if (token) {
+          jobAnalyticsApi.recordView(id, token).catch(() => {})
+        }
+      })
       .catch(e => setError(e instanceof Error ? e.message : 'Could not load job'))
       .finally(() => setLoading(false))
-  }, [id])
+  }, [id, token])
 
   if (loading) {
     return (

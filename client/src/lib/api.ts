@@ -14,7 +14,7 @@ export async function request<T>(
   token?: string
 ): Promise<T> {
   // If token is not explicitly provided, attempt to resolve from active Supabase session or storage
-  let effectiveToken = token
+  let effectiveToken = token ? token : undefined
   if (!effectiveToken) {
     try {
       const { data } = await supabase.auth.getSession()
@@ -32,6 +32,25 @@ export async function request<T>(
           undefined
       } catch {
         effectiveToken = undefined
+      }
+    }
+    if (!effectiveToken && typeof localStorage !== 'undefined') {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+            const raw = localStorage.getItem(key)
+            if (raw) {
+              const parsed = JSON.parse(raw)
+              if (parsed?.access_token) {
+                effectiveToken = parsed.access_token
+                break
+              }
+            }
+          }
+        }
+      } catch {
+        // ignore storage access errors
       }
     }
   }
@@ -392,7 +411,7 @@ export const jobsApi = {
   },
 
   /** List published jobs for talent browse — no production_id filter */
-  listPublished: () => request<JobsResponse>('/jobs?status=published'),
+  listPublished: (token?: string) => request<JobsResponse>('/jobs?status=published', {}, token),
 
   /** Applicant preview match score before applying */
   myMatch: (jobId: string, token: string) =>
@@ -856,8 +875,8 @@ export const jobAnalyticsApi = {
   get: (jobId: string, token: string) =>
     request<JobAnalyticsResponse>(`/jobs/${jobId}/analytics`, {}, token),
 
-  recordView: (jobId: string) =>
-    request<{ ok: boolean }>(`/jobs/${jobId}/view`, { method: 'POST' }),
+  recordView: (jobId: string, token?: string) =>
+    request<{ ok: boolean }>(`/jobs/${jobId}/view`, { method: 'POST' }, token),
 
   talentMatches: (jobId: string, token: string) =>
     request<RankedTalentResponse>(`/jobs/${jobId}/talent-matches`, {}, token),
