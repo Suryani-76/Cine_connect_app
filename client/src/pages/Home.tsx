@@ -26,32 +26,10 @@ import { LightMeter } from '../components/ui/LightMeter'
 import { Badge } from '../components/ui/Badge'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Skeleton } from '../components/ui/Skeleton'
-import { DepartmentMark, DepartmentKey } from '../components/ui/DepartmentMark'
+import { DepartmentMark, resolveDepartment } from '../components/ui/DepartmentMark'
 import { Avatar } from '../components/ui/Avatar'
 import { supabase } from '../lib/supabase'
 
-// ── Department Resolver ────────────────────────────────────────
-
-function resolveDepartment(roleOrDept?: string | null): DepartmentKey {
-  if (!roleOrDept) return 'production'
-  const r = roleOrDept.toLowerCase()
-  if (r.includes('camera') || r.includes('cinematograph') || r.includes('dop') || r.includes('gaffer') || r.includes('grip') || r.includes('focus')) {
-    return 'camera'
-  }
-  if (r.includes('sound') || r.includes('audio') || r.includes('boom') || r.includes('mixer') || r.includes('foley')) {
-    return 'sound'
-  }
-  if (r.includes('edit') || r.includes('color') || r.includes('vfx') || r.includes('post')) {
-    return 'editing'
-  }
-  if (r.includes('art') || r.includes('costume') || r.includes('set') || r.includes('wardrobe') || r.includes('makeup')) {
-    return 'art and costume'
-  }
-  if (r.includes('cast') || r.includes('actor') || r.includes('actress') || r.includes('talent')) {
-    return 'cast'
-  }
-  return 'production'
-}
 
 // ── Per-Section Error Component ────────────────────────────────
 
@@ -538,7 +516,7 @@ export function ProductionHome() {
       {/* ── Section 1: Needs Attention ── */}
       <section aria-labelledby="needs-attention-heading" className="space-y-3">
         <div>
-          <h2 id="needs-attention-heading" className="text-16 font-bold text-ink">
+          <h2 id="needs-attention-heading" className="text-16 font-bold text-ink scroll-mt-20">
             Needs attention
           </h2>
         </div>
@@ -625,7 +603,7 @@ export function ProductionHome() {
       <section aria-labelledby="my-jobs-heading" className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 id="my-jobs-heading" className="text-16 font-bold text-ink">
+            <h2 id="my-jobs-heading" className="text-16 font-bold text-ink scroll-mt-20">
               My jobs
             </h2>
           </div>
@@ -824,11 +802,13 @@ export function ProductionHome() {
                         </span>{' '}
                         {job.applicantCount === 1 ? 'applicant' : 'applicants'}
                       </div>
-                      <div className="tnum">Deadline: {deadlineStr}</div>
+                      <div className="tnum">
+                        {job.deadline ? `Deadline: ${deadlineStr}` : 'No deadline'}
+                      </div>
                     </div>
 
                     <div className="border-t border-line/60 pt-2.5">
-                      <p className="text-11 text-muted font-medium mb-1">Best match</p>
+                      <p className="text-12 text-muted mb-1">Best match</p>
                       {job.applicantCount === 0 || job.bestScore == null ? (
                         <p className="text-12 text-muted">No applicants yet</p>
                       ) : (
@@ -878,7 +858,7 @@ export function ProductionHome() {
       <section aria-labelledby="recommended-talent-heading" className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 id="recommended-talent-heading" className="text-16 font-bold text-ink">
+            <h2 id="recommended-talent-heading" className="text-16 font-bold text-ink scroll-mt-20">
               Recommended talent
             </h2>
             <p className="text-12 text-muted mt-0.5">
@@ -1179,7 +1159,7 @@ export function TalentHome() {
       <section aria-labelledby="my-applications-heading" className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 id="my-applications-heading" className="text-16 font-bold text-ink">
+            <h2 id="my-applications-heading" className="text-16 font-bold text-ink scroll-mt-20">
               My applications
             </h2>
             <p className="text-12 text-muted mt-0.5">
@@ -1291,7 +1271,7 @@ export function TalentHome() {
       <section aria-labelledby="recommended-jobs-heading" className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 id="recommended-jobs-heading" className="text-16 font-bold text-ink">
+            <h2 id="recommended-jobs-heading" className="text-16 font-bold text-ink scroll-mt-20">
               Recommended jobs
             </h2>
             <p className="text-12 text-muted mt-0.5">
@@ -1388,7 +1368,7 @@ export function TalentHome() {
       <section aria-labelledby="saved-jobs-heading" className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 id="saved-jobs-heading" className="text-16 font-bold text-ink">
+            <h2 id="saved-jobs-heading" className="text-16 font-bold text-ink scroll-mt-20">
               Saved jobs
             </h2>
             <p className="text-12 text-muted mt-0.5">

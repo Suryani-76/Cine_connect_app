@@ -312,6 +312,27 @@ describe('Home Page (Dashboards)', () => {
       expect(within(talentSection).getByText('Aarav Sharma')).toBeInTheDocument()
       expect(within(talentSection).getByText(/cinematographer/i)).toBeInTheDocument()
     })
+
+    it('renders mobile job cards with "No deadline" fallback and matching label styling', async () => {
+      render(
+        <MemoryRouter>
+          <Home />
+        </MemoryRouter>
+      )
+
+      await waitFor(() => {
+        expect(screen.getAllByText('Production Assistant').length).toBeGreaterThanOrEqual(1)
+      })
+
+      // Production Assistant has deadline: null, so mobile card renders "No deadline"
+      expect(screen.getAllByText('No deadline').length).toBeGreaterThanOrEqual(1)
+      // Must not display "Deadline: No deadline"
+      expect(screen.queryByText(/Deadline:\s*No deadline/i)).not.toBeInTheDocument()
+
+      // Best match label styling
+      const bestMatchLabels = screen.getAllByText('Best match')
+      expect(bestMatchLabels[0]).toHaveClass('text-12')
+    })
   })
 
   // ─────────────────────────────────────────────────────────────

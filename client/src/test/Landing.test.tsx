@@ -71,14 +71,22 @@ describe('Landing page', () => {
     expect(screen.getByText(/See how closely your experience matches any job before you spend time applying/i)).toBeInTheDocument()
     expect(screen.getByText(/Receive direct interview and audition requests from verified studio productions/i)).toBeInTheDocument()
 
+    // Section 2: How matching works & 7 signals
+    // Stray Signals toggle button should not be present
+    expect(screen.queryByRole('button', { name: /toggle match signals breakdown/i })).not.toBeInTheDocument()
+
     // Section 4: Roles we cover
     expect(screen.getByRole('heading', { name: /Roles we cover/i })).toBeInTheDocument()
+    expect(screen.getByText('Roles across the main film departments.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Cinematographer' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Sound Designer' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Editor' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Colorist' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Assistant Editor' })).toBeInTheDocument()
 
     // Section 5: Trust and verification
     expect(screen.getByRole('heading', { name: /Trust and verification/i })).toBeInTheDocument()
+    expect(screen.getByText(/We never sell your data\./i)).toBeInTheDocument()
     expect(screen.getByText(/Export or delete your data any time/i)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Verified studio badge' })).toBeInTheDocument()
 

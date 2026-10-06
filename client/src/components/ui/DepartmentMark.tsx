@@ -62,3 +62,57 @@ export function DepartmentMark({
     </span>
   )
 }
+
+export function resolveDepartment(roleOrDept?: string | null): DepartmentKey {
+  if (!roleOrDept) return 'production'
+  const r = roleOrDept.toLowerCase().trim()
+  if (r.includes('edit') || r.includes('color') || r.includes('vfx') || r.includes('post')) {
+    return 'editing'
+  }
+  if (
+    r.includes('camera') ||
+    r.includes('cinematograph') ||
+    r.includes('dop') ||
+    r.includes('gaffer') ||
+    r.includes('grip') ||
+    r.includes('focus') ||
+    r.includes('light') ||
+    r.includes('steadicam') ||
+    r.includes('dit')
+  ) {
+    return 'camera'
+  }
+  if (
+    r.includes('sound') ||
+    r.includes('audio') ||
+    r.includes('boom') ||
+    r.includes('mixer') ||
+    r.includes('foley') ||
+    r.includes('music')
+  ) {
+    return 'sound'
+  }
+  if (
+    r.includes('art') ||
+    r.includes('costume') ||
+    r.includes('set') ||
+    r.includes('wardrobe') ||
+    r.includes('makeup') ||
+    r.includes('dresser') ||
+    r.includes('prop')
+  ) {
+    return 'art and costume'
+  }
+  if (
+    r.includes('cast') ||
+    r.includes('actor') ||
+    r.includes('actress') ||
+    r.includes('talent') ||
+    r.includes('stunt') ||
+    r.includes('voice')
+  ) {
+    return 'cast'
+  }
+  return 'production'
+}
+

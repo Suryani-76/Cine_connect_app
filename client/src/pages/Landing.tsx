@@ -10,7 +10,7 @@ import {
 import { useAuth } from '../context/AuthContext'
 import { useLandingMeta } from '../hooks/useLandingMeta'
 import { LightMeter, Signal } from '../components/ui/LightMeter'
-import { DepartmentMark, DepartmentKey } from '../components/ui/DepartmentMark'
+import { DepartmentMark, DepartmentKey, resolveDepartment } from '../components/ui/DepartmentMark'
 import { VerifiedBadge } from '../components/VerifiedBadge'
 import { PublicFooter } from '../components/PublicFooter'
 import { vocabApi, VocabItem } from '../lib/api'
@@ -272,10 +272,15 @@ export default function Landing() {
         setDepartments((prev) =>
           prev.map((group) => {
             const apiRolesForGroup = roleList
-              .filter((r) => r.department?.toLowerCase().includes(group.key))
+              .filter((r) => resolveDepartment(r.department || r.name) === group.key)
               .map((r) => r.name)
-            if (!apiRolesForGroup.length) return group
-            const combined = Array.from(new Set([...group.roles, ...apiRolesForGroup]))
+            const combined = Array.from(
+              new Set(
+                [...group.roles, ...apiRolesForGroup].filter(
+                  (role) => resolveDepartment(role) === group.key
+                )
+              )
+            )
             return { ...group, roles: combined }
           })
         )
@@ -303,7 +308,7 @@ export default function Landing() {
             <div className="lg:col-span-6 flex flex-col items-start text-left">
               <h1
                 id="hero-heading"
-                className="text-[38px] sm:text-40 lg:text-56 font-extrabold text-ink tracking-tight leading-[1.1] scroll-mt-16 sm:scroll-mt-20"
+                className="text-[38px] sm:text-40 lg:text-56 font-extrabold text-ink tracking-tight leading-[1.1] scroll-mt-20 sm:scroll-mt-24"
               >
                 Hire film crew that fits the job, not just the title.
               </h1>
@@ -360,8 +365,8 @@ export default function Landing() {
 
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
                   {/* Job card on the left */}
-                  <div className="md:col-span-5 bg-surface border border-line rounded-[3px] p-3.5 flex flex-col justify-between gap-3 h-full">
-                    <div className="flex flex-col gap-2.5">
+                  <div className="md:col-span-5 bg-surface border border-line rounded-[3px] p-3.5 flex flex-col justify-start gap-2.5 h-full">
+                    <div className="flex flex-col gap-2">
                       <div className="flex items-center justify-between">
                         <DepartmentMark department="camera" size="sm" />
                         <span className="text-[11px] text-muted">Feature Film</span>
@@ -392,7 +397,7 @@ export default function Landing() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-1 pt-1 border-t border-line/60">
+                    <div className="flex flex-wrap gap-1 pt-1.5 border-t border-line/60">
                       <span className="px-1.5 py-0.5 bg-paper text-[10px] text-ink rounded-[2px] border border-line">
                         ARRI Alexa
                       </span>
@@ -463,7 +468,7 @@ export default function Landing() {
           <div className="max-w-3xl">
             <h2
               id="how-matching-works-heading"
-              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight scroll-mt-16 sm:scroll-mt-20"
+              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight scroll-mt-20 sm:scroll-mt-24"
             >
               How matching works
             </h2>
@@ -489,7 +494,7 @@ export default function Landing() {
               breakdown={SEVEN_SIGNALS}
               size="lg"
               defaultExpanded={true}
-              expandable={true}
+              expandable={false}
               label="Overall match score"
             />
           </div>
@@ -509,7 +514,7 @@ export default function Landing() {
               <div>
                 <h2
                   id="production-heading"
-                  className="text-22 sm:text-28 font-bold text-ink scroll-mt-16 sm:scroll-mt-20"
+                  className="text-22 sm:text-28 font-bold text-ink scroll-mt-20 sm:scroll-mt-24"
                 >
                   For production offices
                 </h2>
@@ -554,7 +559,7 @@ export default function Landing() {
               <div>
                 <h2
                   id="crew-heading"
-                  className="text-22 sm:text-28 font-bold text-ink scroll-mt-16 sm:scroll-mt-20"
+                  className="text-22 sm:text-28 font-bold text-ink scroll-mt-20 sm:scroll-mt-24"
                 >
                   For crew and cast
                 </h2>
@@ -607,13 +612,12 @@ export default function Landing() {
           <div className="max-w-2xl mb-10">
             <h2
               id="roles-heading"
-              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight scroll-mt-16 sm:scroll-mt-20"
+              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight scroll-mt-20 sm:scroll-mt-24"
             >
               Roles we cover
             </h2>
             <p className="mt-3 text-16 text-muted leading-relaxed">
-              Explore positions across all primary film departments. Every role links directly to
-              open listings in that specialization.
+              Roles across the main film departments.
             </p>
           </div>
 
@@ -668,7 +672,7 @@ export default function Landing() {
           <div className="max-w-2xl mb-12">
             <h2
               id="trust-heading"
-              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight scroll-mt-16 sm:scroll-mt-20"
+              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight scroll-mt-20 sm:scroll-mt-24"
             >
               Trust and verification
             </h2>
@@ -689,7 +693,7 @@ export default function Landing() {
               </div>
 
               <p className="text-14 text-muted leading-relaxed">
-                We collect only the professional credits, media showreels, and contact details you choose to share, never selling or sharing your data with third parties. You retain complete control to access, export, or permanently delete your account data at any time via your account settings or our{' '}
+                We collect only the professional credits, media showreels, and contact details you choose to share. We never sell your data. You retain complete control to access, export, or permanently delete your account data at any time via your account settings or our{' '}
                 <Link to="/privacy" className="text-ink font-semibold underline hover:opacity-80">
                   Privacy Policy
                 </Link>
@@ -727,7 +731,7 @@ export default function Landing() {
           <div className="max-w-3xl flex flex-col items-start text-left">
             <h2
               id="cta-heading"
-              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight scroll-mt-16 sm:scroll-mt-20"
+              className="text-28 sm:text-40 font-extrabold text-ink tracking-tight scroll-mt-20 sm:scroll-mt-24"
             >
               Ready to assemble your crew or book your next film production?
             </h2>
