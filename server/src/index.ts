@@ -50,7 +50,7 @@ if (process.env.NODE_ENV === "production") {
   }
 }
 
-const ALLOWED_ORIGINS = (rawAllowed || "http://localhost:5173")
+const ALLOWED_ORIGINS = (rawAllowed || "http://localhost:5173,http://localhost:4173")
   .split(",")
   .map(o => o.trim())
   .filter(Boolean)

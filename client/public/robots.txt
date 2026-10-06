@@ -1,0 +1,23 @@
+User-agent: *
+Allow: /
+Allow: /jobs
+Allow: /company/
+Allow: /login
+Allow: /register
+Allow: /privacy
+Allow: /terms
+Allow: /cookies
+Allow: /contact
+
+Disallow: /home
+Disallow: /profile
+Disallow: /settings
+Disallow: /messages
+Disallow: /chat
+Disallow: /admin
+Disallow: /search
+Disallow: /alerts
+Disallow: /applications
+Disallow: /saved-jobs
+
+Sitemap: https://cineconnect.app/sitemap.xml

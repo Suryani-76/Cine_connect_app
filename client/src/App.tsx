@@ -31,7 +31,7 @@ const Contact       = lazy(() => import('./pages/Contact'))
 const Unsubscribe   = lazy(() => import('./pages/Unsubscribe'))
 
 // Milestone M2 pages
-const Landing       = lazy(() => import('./pages/Landing'))
+import Landing from './pages/Landing'
 const BrowseJobs    = lazy(() => import('./pages/BrowseJobs'))
 const SavedJobs     = lazy(() => import('./pages/SavedJobs'))
 const Alerts        = lazy(() => import('./pages/Alerts'))
@@ -64,7 +64,7 @@ function App() {
           },
         }}
       />
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <ScrollToTop />
         <Suspense fallback={<PageLoader />}>
           <Routes>

@@ -303,7 +303,7 @@ export default function Landing() {
             <div className="lg:col-span-6 flex flex-col items-start text-left">
               <h1
                 id="hero-heading"
-                className="text-32 sm:text-40 lg:text-56 font-extrabold text-ink tracking-tight leading-[1.1] scroll-mt-16 sm:scroll-mt-20"
+                className="text-[38px] sm:text-40 lg:text-56 font-extrabold text-ink tracking-tight leading-[1.1] scroll-mt-16 sm:scroll-mt-20"
               >
                 Hire film crew that fits the job, not just the title.
               </h1>
@@ -330,15 +330,15 @@ export default function Landing() {
 
               <div className="mt-10 flex flex-wrap items-center gap-y-2 gap-x-6 text-12 text-muted">
                 <span className="inline-flex items-center gap-1.5">
-                  <Check size={14} className="text-tungsten" />
+                  <Check size={14} className="text-ink" />
                   Verified film credits
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <Check size={14} className="text-tungsten" />
+                  <Check size={14} className="text-ink" />
                   7-signal match scoring
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <Check size={14} className="text-tungsten" />
+                  <Check size={14} className="text-ink" />
                   Export or delete your data any time
                 </span>
               </div>
@@ -429,9 +429,10 @@ export default function Landing() {
                                 {cand.label}
                               </span>
                             </div>
-                            <span className="text-[11px] text-muted tnum">
-                              {cand.experience} • {cand.city}
-                            </span>
+                            <div className="flex items-center gap-2 text-[11px] text-muted tnum">
+                              <span>{cand.experience}</span>
+                              <span>{cand.city}</span>
+                            </div>
                           </div>
 
                           {/* Candidate LightMeter */}
