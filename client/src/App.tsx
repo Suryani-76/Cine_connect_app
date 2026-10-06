@@ -38,7 +38,9 @@ const Alerts        = lazy(() => import('./pages/Alerts'))
 const EditJob       = lazy(() => import('./pages/EditJob'))
 const CompanyDetail = lazy(() => import('./pages/CompanyDetail'))
 const AuditComponents = lazy(() => import('./pages/AuditComponents'))
-const DesignShowcase = lazy(() => import('./pages/DesignShowcase'))
+const DesignShowcase = import.meta.env.DEV
+  ? lazy(() => import('./pages/DesignShowcase'))
+  : () => null
 
 function PageLoader() {
   return (
@@ -140,7 +142,7 @@ function App() {
             </Route>
 
             {/* ── Design System (DEV only, standalone without AppShell) ── */}
-            {import.meta.env.DEV && (
+            {import.meta.env.DEV && DesignShowcase && (
               <Route path="/design" element={<DesignShowcase />} />
             )}
           </Routes>
