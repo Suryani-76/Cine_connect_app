@@ -6,7 +6,7 @@ import {
   Briefcase,
   FileText,
   Search,
-  Bell,
+  BellRing,
   MessageCircle,
   Bookmark,
   Settings,
@@ -163,7 +163,7 @@ function SignedInShell({ children }: { children?: ReactNode }) {
           { label: 'Jobs',          href: '/jobs',         icon: Briefcase },
           { label: 'Applicants',    href: '/applications', icon: FileText },
           { label: 'Talent search', href: '/search',       icon: Search },
-          { label: 'Alerts',        href: '/alerts',       icon: Bell },
+          { label: 'Alerts',        href: '/alerts',       icon: BellRing },
           { label: 'Messages',      href: '/chat',         icon: MessageCircle },
           { label: 'Settings',      href: '/settings',     icon: Settings },
           ...(isAdmin ? [{ label: 'Admin', href: '/admin', icon: Shield }] : []),
@@ -422,7 +422,7 @@ function SignedInShell({ children }: { children?: ReactNode }) {
                       onClick={() => setMoreSheetOpen(false)}
                       className="flex items-center gap-3 px-4 py-3 text-14 text-ink hover:bg-paper transition-colors"
                     >
-                      <Bell size={18} className="text-muted" />
+                      <BellRing size={18} className="text-muted" />
                       <span>Alerts</span>
                     </Link>
                   </>
