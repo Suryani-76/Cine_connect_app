@@ -291,53 +291,62 @@ const JobDetail = () => {
   const lightMeterSignals = useMemo<Signal[] | undefined>(() => {
     if (!matchPreview?.signals) return undefined
     const { signals } = matchPreview
+    const calcPoints = (sig?: { score: number; weight: number }, defaultWeight = 10) => {
+      const s = sig?.score ?? 0
+      const w = sig?.weight ?? defaultWeight
+      if (s > w) {
+        return Math.round((s * w) / 100)
+      }
+      return Math.min(w, Math.max(0, s))
+    }
+
     return [
       {
         name: 'Skills',
-        score: signals.skills_match?.score ?? 0,
-        maxScore: 30,
+        score: calcPoints(signals.skills_match, 30),
+        maxScore: signals.skills_match?.weight ?? 30,
         weight: signals.skills_match?.weight ?? 30,
         reason: signals.skills_match?.reason,
       },
       {
         name: 'Role',
-        score: signals.role_match?.score ?? 0,
-        maxScore: 20,
+        score: calcPoints(signals.role_match, 20),
+        maxScore: signals.role_match?.weight ?? 20,
         weight: signals.role_match?.weight ?? 20,
         reason: signals.role_match?.reason,
       },
       {
         name: 'Experience',
-        score: signals.experience_match?.score ?? 0,
-        maxScore: 15,
+        score: calcPoints(signals.experience_match, 15),
+        maxScore: signals.experience_match?.weight ?? 15,
         weight: signals.experience_match?.weight ?? 15,
         reason: signals.experience_match?.reason,
       },
       {
         name: 'Language',
-        score: signals.language_match?.score ?? 0,
-        maxScore: 10,
+        score: calcPoints(signals.language_match, 10),
+        maxScore: signals.language_match?.weight ?? 10,
         weight: signals.language_match?.weight ?? 10,
         reason: signals.language_match?.reason,
       },
       {
         name: 'Location',
-        score: signals.location_proximity?.score ?? 0,
-        maxScore: 10,
+        score: calcPoints(signals.location_proximity, 10),
+        maxScore: signals.location_proximity?.weight ?? 10,
         weight: signals.location_proximity?.weight ?? 10,
         reason: signals.location_proximity?.reason,
       },
       {
         name: 'Profile completeness',
-        score: signals.profile_completeness?.score ?? 0,
-        maxScore: 10,
+        score: calcPoints(signals.profile_completeness, 10),
+        maxScore: signals.profile_completeness?.weight ?? 10,
         weight: signals.profile_completeness?.weight ?? 10,
         reason: signals.profile_completeness?.reason,
       },
       {
         name: 'Recent activity',
-        score: signals.activity_recency?.score ?? 0,
-        maxScore: 5,
+        score: calcPoints(signals.activity_recency, 5),
+        maxScore: signals.activity_recency?.weight ?? 5,
         weight: signals.activity_recency?.weight ?? 5,
         reason: signals.activity_recency?.reason,
       },

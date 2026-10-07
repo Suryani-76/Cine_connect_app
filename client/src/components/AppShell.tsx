@@ -108,46 +108,60 @@ function SignedInShell({ children }: { children?: ReactNode }) {
 
   // Studio name for production users, display name for talent users (or fallback to email)
   const [accountName, setAccountName] = useState<string>(() => {
-    return (
-      user?.company_name ||
-      localStorage.getItem('cc_company_name') ||
-      localStorage.getItem('cc_full_name') ||
-      ''
-    )
+    if (role === 'production') {
+      return user?.company_name || localStorage.getItem('cc_company_name') || ''
+    }
+    if (role === 'talent') {
+      return user?.full_name || localStorage.getItem('cc_full_name') || ''
+    }
+    return user?.email || ''
   })
 
   useEffect(() => {
-    if (user?.company_name) {
-      setAccountName(user.company_name)
-      return
+    if (role === 'production') {
+      if (user?.company_name) {
+        setAccountName(user.company_name)
+        return
+      }
+      const cached = localStorage.getItem('cc_company_name')
+      if (cached) {
+        setAccountName(cached)
+        return
+      }
+      if (token) {
+        productionApi
+          .getMyProfile(token)
+          .then((res) => {
+            if (res?.profile?.company_name) {
+              setAccountName(res.profile.company_name)
+              localStorage.setItem('cc_company_name', res.profile.company_name)
+            }
+          })
+          .catch(() => {})
+      }
+    } else if (role === 'talent') {
+      if (user?.full_name) {
+        setAccountName(user.full_name)
+        return
+      }
+      const cached = localStorage.getItem('cc_full_name')
+      if (cached) {
+        setAccountName(cached)
+        return
+      }
+      if (token) {
+        talentApi
+          .getMyProfile(token)
+          .then((res) => {
+            if (res?.profile?.full_name) {
+              setAccountName(res.profile.full_name)
+              localStorage.setItem('cc_full_name', res.profile.full_name)
+            }
+          })
+          .catch(() => {})
+      }
     }
-    const cached = localStorage.getItem('cc_company_name') || localStorage.getItem('cc_full_name')
-    if (cached) {
-      setAccountName(cached)
-      return
-    }
-    if (role === 'production' && token) {
-      productionApi
-        .getMyProfile(token)
-        .then((res) => {
-          if (res?.profile?.company_name) {
-            setAccountName(res.profile.company_name)
-            localStorage.setItem('cc_company_name', res.profile.company_name)
-          }
-        })
-        .catch(() => {})
-    } else if (role === 'talent' && token) {
-      talentApi
-        .getMyProfile(token)
-        .then((res) => {
-          if (res?.profile?.full_name) {
-            setAccountName(res.profile.full_name)
-            localStorage.setItem('cc_full_name', res.profile.full_name)
-          }
-        })
-        .catch(() => {})
-    }
-  }, [role, token, user?.company_name])
+  }, [role, token, user?.company_name, user?.full_name])
 
   // Studio name or display name; fallback to email if neither exists
   const accountLabel = accountName.trim() || user?.email || 'User'

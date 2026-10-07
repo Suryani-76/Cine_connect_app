@@ -361,8 +361,8 @@ export async function listJobs(
     })
   }
 
-  // Best match scoring for talent
-  if (filter.sort === 'best_match' && filter.talentProfileId) {
+  // Best match scoring for talent (computed whenever talent profile is available)
+  if (filter.talentProfileId) {
     try {
       const { data: talent } = await supabase
         .from('talent_profiles')
@@ -384,7 +384,9 @@ export async function listJobs(
           const breakdown = calculateMatchScore(jobForScoring, talent as any, weights)
           job.match_score = breakdown.total
         }
-        jobs.sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0))
+        if (filter.sort === 'best_match') {
+          jobs.sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0))
+        }
       }
     } catch {
       // Graceful fallback to default sorting
@@ -559,7 +561,7 @@ export async function getMyJobMatch(jobId: string, talentProfileId: string) {
     enriched[key] = {
       score,
       weight,
-      weighted: Math.round(score * weight * 10) / 10,
+      weighted: Math.round((score * weight) / 10) / 10,
       reason: breakdown.reasons[key],
     }
   }

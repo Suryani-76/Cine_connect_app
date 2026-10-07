@@ -169,7 +169,10 @@ export function LightMeter({
           <div className="flex flex-col gap-2">
             {breakdown.map((sig, idx) => {
               const max = sig.maxScore ?? sig.weight ?? 10
-              const percent = Math.min(100, Math.round((sig.score / max) * 100))
+              const earned = sig.score > max
+                ? Math.min(max, Math.round((sig.score / 100) * max))
+                : Math.min(max, Math.max(0, sig.score))
+              const percent = max > 0 ? Math.min(100, Math.round((earned / max) * 100)) : 0
 
               return (
                 <div
@@ -179,7 +182,7 @@ export function LightMeter({
                   <div className="flex items-center justify-between text-ink">
                     <span className="font-medium">{sig.name}</span>
                     <span className="text-muted tnum">
-                      <strong className="text-ink">{sig.score}</strong> / {max} pts
+                      <strong className="text-ink">{earned}</strong> / {max} pts
                     </span>
                   </div>
 

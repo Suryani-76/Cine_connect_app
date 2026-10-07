@@ -903,7 +903,6 @@ export function ProductionHome() {
                         <p className="font-semibold text-14 text-ink truncate leading-tight">
                           {name}
                         </p>
-                        <VerifiedBadge />
                       </div>
                       <div className="mt-1 flex items-center gap-2">
                         <DepartmentMark
@@ -1346,7 +1345,7 @@ export function TalentHome() {
                   <div className="pt-3 border-t border-line/60 flex items-center justify-between gap-3">
                     <div className="w-36">
                       <LightMeter
-                        score={job.match_score ?? 84}
+                        score={job.match_score ?? 0}
                         size="sm"
                         expandable={false}
                         showScoreLabel={true}

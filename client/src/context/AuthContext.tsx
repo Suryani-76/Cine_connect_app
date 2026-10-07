@@ -12,6 +12,7 @@ export interface AuthUser {
   role:      UserRole
   profileId: string | null
   company_name?: string | null
+  full_name?: string | null
 }
 
 interface AuthState {
@@ -37,6 +38,7 @@ const KEYS = {
   userRole:    'cc_user_role',
   profileId:   'cc_profile_id',
   companyName: 'cc_company_name',
+  fullName:    'cc_full_name',
 } as const
 
 const store = localStorage
@@ -48,26 +50,34 @@ function persist(user: AuthUser, token: string, refreshToken: string) {
   store.setItem(KEYS.userEmail, user.email)
   store.setItem(KEYS.userRole,  user.role)
   if (user.profileId) store.setItem(KEYS.profileId, user.profileId)
-  if (user.company_name) store.setItem(KEYS.companyName, user.company_name)
+
+  if (user.role === 'production') {
+    if (user.company_name) store.setItem(KEYS.companyName, user.company_name)
+    store.removeItem(KEYS.fullName)
+  } else if (user.role === 'talent') {
+    if (user.full_name) store.setItem(KEYS.fullName, user.full_name)
+    store.removeItem(KEYS.companyName)
+  }
 }
 
 function clearStorage() {
   Object.values(KEYS).forEach(k => store.removeItem(k))
   ;['access_token','refresh_token','user_id','production_id',
     'cc_access_token','cc_refresh_token','cc_user_id',
-    'cc_user_email','cc_user_role','cc_profile_id','cc_company_name',
+    'cc_user_email','cc_user_role','cc_profile_id','cc_company_name','cc_full_name',
   ].forEach(k => sessionStorage.removeItem(k))
 }
 
 function loadFromStorage(): { user: AuthUser | null; token: string | null } {
   const get = (key: string) => store.getItem(key) ?? sessionStorage.getItem(key) ?? null
 
-  const token     = get(KEYS.token)     ?? get('access_token')
-  const id        = get(KEYS.userId)    ?? get('user_id')
-  const email     = get(KEYS.userEmail)
+  const token       = get(KEYS.token)     ?? get('access_token')
+  const id          = get(KEYS.userId)    ?? get('user_id')
+  const email       = get(KEYS.userEmail)
   const role        = get(KEYS.userRole)  as UserRole | null
   const profileId   = get(KEYS.profileId) ?? get('production_id')
-  const companyName = get(KEYS.companyName)
+  const companyName = role === 'production' ? get(KEYS.companyName) : null
+  const fullName    = role === 'talent'     ? get(KEYS.fullName)    : null
 
   if (!token || !id || !email || !role) return { user: null, token: null }
 
@@ -79,9 +89,10 @@ function loadFromStorage(): { user: AuthUser | null; token: string | null } {
     if (role)        store.setItem(KEYS.userRole,    role)
     if (profileId)   store.setItem(KEYS.profileId,   profileId)
     if (companyName) store.setItem(KEYS.companyName, companyName)
+    if (fullName)    store.setItem(KEYS.fullName,    fullName)
   }
 
-  return { token, user: { id, email, role, profileId: profileId ?? null, company_name: companyName ?? null } }
+  return { token, user: { id, email, role, profileId: profileId ?? null, company_name: companyName ?? null, full_name: fullName ?? null } }
 }
 
 // ── Context ───────────────────────────────────────────────────

@@ -304,7 +304,7 @@ export async function getMatchBreakdown(
     enriched[key] = {
       score,
       weight,
-      weighted: Math.round(score * weight * 10) / 10,
+      weighted: Math.round((score * weight) / 10) / 10,
       reason:   breakdown.reasons[key],
     }
   }

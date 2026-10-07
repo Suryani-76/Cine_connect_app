@@ -307,168 +307,172 @@ const BrowseJobs = () => {
 
       {/* Filter Bar Card */}
       <div className="border border-line rounded-sm bg-surface p-4 sm:p-5 space-y-4 shadow-subtle">
-        {/* Top search & Mobile Filter Button */}
-        <div className="flex gap-2.5 items-center">
-          <form onSubmit={handleSearchSubmit} className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={17} />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by role, title, keywords (e.g. Cinematographer, DaVinci, Gaffer)..."
-              className="input pl-10 pr-4 text-14 w-full"
-            />
-          </form>
-          <button
-            type="button"
-            onClick={handleSearchSubmit}
-            className="btn-primary text-13 px-4 py-2 shrink-0 hidden sm:inline-flex"
-          >
-            Search
-          </button>
+        {/* Unified Filter Bar: single row on desktop (>= lg), split with drawer on mobile */}
+        <div className="flex flex-col lg:flex-row lg:items-center gap-2.5">
+          {/* Search Bar + Mobile Drawer Trigger */}
+          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+            <form onSubmit={handleSearchSubmit} className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={16} />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by role, title, keywords (e.g. Cinematographer, DaVinci, Gaffer)..."
+                className="input pl-9 pr-3 py-1.5 text-13 lg:text-12 w-full border-line"
+              />
+            </form>
 
-          {/* Mobile Filter Sheet Trigger */}
-          <div className="lg:hidden shrink-0">
-            <Sheet open={mobileFilterOpen} onOpenChange={setMobileFilterOpen}>
-              <SheetTrigger asChild>
-                <button
-                  type="button"
-                  className="btn-secondary text-13 px-3 py-2 inline-flex items-center gap-1.5 relative"
-                  aria-label="Open filter sheet"
+            <button
+              type="button"
+              onClick={handleSearchSubmit}
+              className="btn-primary text-13 px-4 py-1.5 shrink-0 hidden sm:inline-flex lg:hidden"
+            >
+              Search
+            </button>
+
+            {/* Mobile Filter Sheet Trigger (< lg) */}
+            <div className="lg:hidden shrink-0">
+              <Sheet open={mobileFilterOpen} onOpenChange={setMobileFilterOpen}>
+                <SheetTrigger asChild>
+                  <button
+                    type="button"
+                    className="btn-secondary text-13 px-3 py-1.5 inline-flex items-center gap-1.5 relative"
+                    aria-label="Open filter sheet"
+                  >
+                    <SlidersHorizontal size={15} />
+                    <span>Filters</span>
+                    {activeFilterCount > 0 && (
+                      <span className="w-5 h-5 rounded-full bg-ink text-surface text-11 font-bold inline-flex items-center justify-center">
+                        {activeFilterCount}
+                      </span>
+                    )}
+                  </button>
+                </SheetTrigger>
+                <SheetContent
+                  side="bottom"
+                  title="Filter opportunities"
+                  description="Refine open film postings by department, type, location, and pay."
+                  className="space-y-4"
                 >
-                  <SlidersHorizontal size={15} />
-                  <span>Filters</span>
-                  {activeFilterCount > 0 && (
-                    <span className="w-5 h-5 rounded-full bg-ink text-surface text-11 font-bold inline-flex items-center justify-center">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                </button>
-              </SheetTrigger>
-              <SheetContent
-                side="bottom"
-                title="Filter opportunities"
-                description="Refine open film postings by department, type, location, and pay."
-                className="space-y-4"
-              >
-                <div className="space-y-4 pt-2">
-                  <div>
-                    <label className="text-12 font-semibold text-muted block mb-1.5">Department</label>
-                    <select
-                      value={deptParam}
-                      onChange={(e) => updateFilter({ department: e.target.value, page: '1' })}
-                      className="select w-full text-13"
-                    >
-                      {DEPARTMENTS.map((d) => (
-                        <option key={d.value} value={d.value}>
-                          {d.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-12 font-semibold text-muted block mb-1.5">Job type</label>
-                    <select
-                      value={typeParam}
-                      onChange={(e) => updateFilter({ type: e.target.value, page: '1' })}
-                      className="select w-full text-13"
-                    >
-                      {JOB_TYPES.map((t) => (
-                        <option key={t.value} value={t.value}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-12 font-semibold text-muted block mb-1.5">Experience</label>
-                    <select
-                      value={expParam}
-                      onChange={(e) => updateFilter({ experience: e.target.value, page: '1' })}
-                      className="select w-full text-13"
-                    >
-                      {EXP_LEVELS.map((exp) => (
-                        <option key={exp.value} value={exp.value}>
-                          {exp.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-12 font-semibold text-muted block mb-1.5">City</label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="Filter by city..."
-                        value={locParam}
-                        onChange={(e) => updateFilter({ location: e.target.value, page: '1' })}
-                        className="input pl-8 text-13 w-full"
-                      />
-                      <MapPin size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+                  <div className="space-y-4 pt-2">
+                    <div>
+                      <label className="text-12 font-semibold text-muted block mb-1.5">Department</label>
+                      <select
+                        value={deptParam}
+                        onChange={(e) => updateFilter({ department: e.target.value, page: '1' })}
+                        className="select w-full text-13"
+                      >
+                        {DEPARTMENTS.map((d) => (
+                          <option key={d.value} value={d.value}>
+                            {d.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="text-12 font-semibold text-muted block mb-1.5">Minimum pay</label>
-                    <select
-                      value={payParam}
-                      onChange={(e) => updateFilter({ pay: e.target.value, page: '1' })}
-                      className="select w-full text-13"
-                    >
-                      {PAY_OPTIONS.map((p) => (
-                        <option key={p.value} value={p.value}>
-                          {p.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                    <div>
+                      <label className="text-12 font-semibold text-muted block mb-1.5">Job type</label>
+                      <select
+                        value={typeParam}
+                        onChange={(e) => updateFilter({ type: e.target.value, page: '1' })}
+                        className="select w-full text-13"
+                      >
+                        {JOB_TYPES.map((t) => (
+                          <option key={t.value} value={t.value}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                  <div>
-                    <label className="text-12 font-semibold text-muted block mb-1.5">Sort order</label>
-                    <select
-                      value={sortParam}
-                      onChange={(e) => updateFilter({ sort: e.target.value, page: '1' })}
-                      className="select w-full text-13"
-                    >
-                      <option value="newest">Sort: Newest first</option>
-                      {user?.role === 'talent' && <option value="best_match">Sort: Best match for me</option>}
-                    </select>
-                  </div>
+                    <div>
+                      <label className="text-12 font-semibold text-muted block mb-1.5">Experience</label>
+                      <select
+                        value={expParam}
+                        onChange={(e) => updateFilter({ experience: e.target.value, page: '1' })}
+                        className="select w-full text-13"
+                      >
+                        {EXP_LEVELS.map((exp) => (
+                          <option key={exp.value} value={exp.value}>
+                            {exp.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                  <div className="flex gap-2 pt-2 border-t border-line">
-                    {hasActiveFilters && (
+                    <div>
+                      <label className="text-12 font-semibold text-muted block mb-1.5">City</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Filter by city..."
+                          value={locParam}
+                          onChange={(e) => updateFilter({ location: e.target.value, page: '1' })}
+                          className="input pl-8 text-13 w-full"
+                        />
+                        <MapPin size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-12 font-semibold text-muted block mb-1.5">Minimum pay</label>
+                      <select
+                        value={payParam}
+                        onChange={(e) => updateFilter({ pay: e.target.value, page: '1' })}
+                        className="select w-full text-13"
+                      >
+                        {PAY_OPTIONS.map((p) => (
+                          <option key={p.value} value={p.value}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-12 font-semibold text-muted block mb-1.5">Sort order</label>
+                      <select
+                        value={sortParam}
+                        onChange={(e) => updateFilter({ sort: e.target.value, page: '1' })}
+                        className="select w-full text-13"
+                      >
+                        <option value="newest">Sort: Newest first</option>
+                        {user?.role === 'talent' && <option value="best_match">Sort: Best match for me</option>}
+                      </select>
+                    </div>
+
+                    <div className="flex gap-2 pt-2 border-t border-line">
+                      {hasActiveFilters && (
+                        <button
+                          type="button"
+                          onClick={clearAllFilters}
+                          className="btn-ghost text-13 flex-1"
+                        >
+                          Clear all
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={clearAllFilters}
-                        className="btn-ghost text-13 flex-1"
+                        onClick={() => setMobileFilterOpen(false)}
+                        className="btn-primary text-13 flex-1"
                       >
-                        Clear all
+                        Show results
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setMobileFilterOpen(false)}
-                      className="btn-primary text-13 flex-1"
-                    >
-                      Show results
-                    </button>
+                    </div>
                   </div>
-                </div>
-              </SheetContent>
-            </Sheet>
+                </SheetContent>
+              </Sheet>
+            </div>
           </div>
-        </div>
 
-        {/* Desktop Filter Bar (>= lg) */}
-        <div className="hidden lg:flex flex-wrap items-center gap-2.5 pt-3 border-t border-line text-12">
+          {/* Desktop Single-Row Filter Bar (>= lg) */}
+          <div className="hidden lg:flex items-center gap-2 text-12 shrink-0">
+
           {/* Department Selector */}
           <select
             value={deptParam}
             onChange={(e) => updateFilter({ department: e.target.value, page: '1' })}
-            className="select py-1.5 px-3 text-12 rounded-sm border-line bg-paper/50"
+            className="select py-1.5 px-2.5 text-12 rounded-sm border-line bg-paper/50 shrink-0"
             aria-label="Department filter"
           >
             {DEPARTMENTS.map((d) => (
@@ -482,7 +486,7 @@ const BrowseJobs = () => {
           <select
             value={typeParam}
             onChange={(e) => updateFilter({ type: e.target.value, page: '1' })}
-            className="select py-1.5 px-3 text-12 rounded-sm border-line bg-paper/50"
+            className="select py-1.5 px-2.5 text-12 rounded-sm border-line bg-paper/50 shrink-0"
             aria-label="Job type filter"
           >
             {JOB_TYPES.map((t) => (
@@ -496,7 +500,7 @@ const BrowseJobs = () => {
           <select
             value={expParam}
             onChange={(e) => updateFilter({ experience: e.target.value, page: '1' })}
-            className="select py-1.5 px-3 text-12 rounded-sm border-line bg-paper/50"
+            className="select py-1.5 px-2.5 text-12 rounded-sm border-line bg-paper/50 shrink-0"
             aria-label="Experience level filter"
           >
             {EXP_LEVELS.map((exp) => (
@@ -507,13 +511,13 @@ const BrowseJobs = () => {
           </select>
 
           {/* City / Location Input */}
-          <div className="relative">
+          <div className="relative shrink-0 w-32">
             <input
               type="text"
-              placeholder="Filter by city..."
+              placeholder="City..."
               value={locParam}
               onChange={(e) => updateFilter({ location: e.target.value, page: '1' })}
-              className="input py-1.5 pl-7 pr-3 text-12 rounded-sm w-36 border-line"
+              className="input py-1.5 pl-7 pr-2 text-12 rounded-sm w-full border-line"
             />
             <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
           </div>
@@ -522,7 +526,7 @@ const BrowseJobs = () => {
           <select
             value={payParam}
             onChange={(e) => updateFilter({ pay: e.target.value, page: '1' })}
-            className="select py-1.5 px-3 text-12 rounded-sm border-line bg-paper/50"
+            className="select py-1.5 px-2.5 text-12 rounded-sm border-line bg-paper/50 shrink-0"
             aria-label="Pay filter"
           >
             {PAY_OPTIONS.map((p) => (
@@ -536,13 +540,14 @@ const BrowseJobs = () => {
           <select
             value={sortParam}
             onChange={(e) => updateFilter({ sort: e.target.value, page: '1' })}
-            className="select py-1.5 px-3 text-12 rounded-sm border-line bg-paper/50 ml-auto"
+            className="select py-1.5 px-2.5 text-12 rounded-sm border-line bg-paper/50 shrink-0"
             aria-label="Sort order"
           >
-            <option value="newest">Sort: Newest first</option>
-            {user?.role === 'talent' && <option value="best_match">Sort: Best match for me</option>}
+            <option value="newest">Sort: Newest</option>
+            {user?.role === 'talent' && <option value="best_match">Sort: Best match</option>}
           </select>
         </div>
+      </div>
 
         {/* Active Filter Chips */}
         {hasActiveFilters && (
@@ -661,8 +666,11 @@ const BrowseJobs = () => {
       {/* Results Count Header */}
       <div className="flex items-center justify-between text-12 text-muted px-1">
         <span>
-          Showing {displayedJobs.length > 0 ? (pageParam - 1) * limit + 1 : 0}–
-          {Math.min(pageParam * limit, total)} of {pluralize(total, 'listing')}
+          {total === 1
+            ? 'Showing 1 listing'
+            : total === 0
+            ? '0 listings'
+            : `Showing ${displayedJobs.length > 0 ? (pageParam - 1) * limit + 1 : 0}–${Math.min(pageParam * limit, total)} of ${pluralize(total, 'listing')}`}
         </span>
         {loading && (
           <span className="flex items-center gap-1.5 text-ink font-medium">
@@ -882,40 +890,30 @@ const BrowseJobs = () => {
         </div>
       )}
 
-      {/* Pagination & Visible End State */}
-      {!loading && !error && displayedJobs.length > 0 && (
-        <div className="pt-4 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-4">
-          <span className="text-12 text-muted">
-            {pageParam >= totalPages
-              ? `Showing all ${total} listings`
-              : `Showing ${displayedJobs.length} of ${total} listings`}
+      {/* Pagination Controls */}
+      {!loading && !error && displayedJobs.length > 0 && totalPages > 1 && (
+        <div className="pt-4 border-t border-line flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => updateFilter({ page: String(Math.max(1, pageParam - 1)) })}
+            disabled={pageParam <= 1 || loading}
+            className="btn-secondary text-12 py-1.5 px-3 disabled:opacity-40"
+          >
+            Previous
+          </button>
+
+          <span className="text-12 font-medium text-ink px-2">
+            Page {pageParam} of {totalPages}
           </span>
 
-          {totalPages > 1 && (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => updateFilter({ page: String(Math.max(1, pageParam - 1)) })}
-                disabled={pageParam <= 1 || loading}
-                className="btn-secondary text-12 py-1.5 px-3 disabled:opacity-40"
-              >
-                Previous
-              </button>
-
-              <span className="text-12 font-medium text-ink px-2">
-                Page {pageParam} of {totalPages}
-              </span>
-
-              <button
-                type="button"
-                onClick={() => updateFilter({ page: String(Math.min(totalPages, pageParam + 1)) })}
-                disabled={pageParam >= totalPages || loading}
-                className="btn-secondary text-12 py-1.5 px-3 disabled:opacity-40"
-              >
-                Next
-              </button>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => updateFilter({ page: String(Math.min(totalPages, pageParam + 1)) })}
+            disabled={pageParam >= totalPages || loading}
+            className="btn-secondary text-12 py-1.5 px-3 disabled:opacity-40"
+          >
+            Next
+          </button>
         </div>
       )}
     </div>
