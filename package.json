@@ -7,6 +7,7 @@
     "server"
   ],
   "scripts": {
+    "dev:clean": "(lsof -ti:3000,5173,4173 | xargs kill 2>/dev/null || true) && npm run dev",
     "dev:client": "npm run dev --workspace=client",
     "dev:server": "npm run dev --workspace=server",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
