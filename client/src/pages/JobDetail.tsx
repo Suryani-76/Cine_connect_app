@@ -24,6 +24,16 @@ import {
   MatchBreakdown,
   talentApi,
 } from '../lib/api'
+import {
+  formatJobType,
+  formatExperienceLevel,
+  formatPayRange,
+  formatDateRange,
+  formatDeadlineDate,
+  formatDate,
+  pluralize,
+  toSentenceCase,
+} from '../lib/formatters'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { VerifiedBadge } from '../components/VerifiedBadge'
@@ -176,11 +186,11 @@ function getDeadlineStatus(deadline: string | null | undefined): { text: string;
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
   const diffDays = Math.floor(diffHours / 24)
   if (diffDays > 0) {
-    const text = `${diffDays} day${diffDays > 1 ? 's' : ''} left (${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`
+    const text = `${pluralize(diffDays, 'day')} left (${formatDate(deadline)})`
     return { text, isPassed: false, isUrgent: diffDays <= 3 }
   }
   return {
-    text: `${diffHours} hour${diffHours !== 1 ? 's' : ''} left`,
+    text: `${pluralize(diffHours, 'hour')} left`,
     isPassed: false,
     isUrgent: true,
   }
@@ -275,18 +285,6 @@ const JobDetail = () => {
     } finally {
       setSavingBookmark(false)
     }
-  }
-
-  // Format pay helper
-  const formatPay = () => {
-    if (!job?.pay_min && !job?.pay_max) return null
-    const curr = job.pay_currency === 'INR' ? '₹' : (job.pay_currency ?? '₹')
-    const period = job.pay_period ? ` / ${job.pay_period}` : ''
-    if (job.pay_min && job.pay_max) {
-      return `${curr}${Number(job.pay_min).toLocaleString()} – ${curr}${Number(job.pay_max).toLocaleString()}${period}`
-    }
-    if (job.pay_min) return `From ${curr}${Number(job.pay_min).toLocaleString()}${period}`
-    return `Up to ${curr}${Number(job.pay_max).toLocaleString()}${period}`
   }
 
   // Convert match breakdown signals to LightMeter Signal[] format
@@ -430,17 +428,17 @@ const JobDetail = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Main Column (8 cols) */}
         <div className="lg:col-span-8 space-y-6">
-          {/* Header Card */}
-          <div className="border border-line rounded-sm bg-surface p-6 sm:p-7 space-y-4 shadow-subtle">
+          {/* Main Role Overview Panel (Header & About the role merged with divider) */}
+          <div className="border border-line rounded-sm bg-surface p-6 sm:p-7 space-y-6 shadow-subtle">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <DepartmentMark department={dept} label={primaryRole} size="sm" />
-                <span className="text-11 px-2 py-0.5 rounded-sm border border-line bg-paper text-ink font-medium capitalize">
-                  {job.job_type ? job.job_type.replace('_', ' ') : 'Freelance'}
+                <span className="text-11 px-2 py-0.5 rounded-sm border border-line bg-paper text-ink font-medium">
+                  {formatJobType(job.job_type)}
                 </span>
                 {job.status !== 'published' && (
-                  <span className="text-11 px-2 py-0.5 rounded-sm border border-line bg-paper text-muted capitalize">
-                    {job.status}
+                  <span className="text-11 px-2 py-0.5 rounded-sm border border-line bg-paper text-muted">
+                    {toSentenceCase(job.status)}
                   </span>
                 )}
               </div>
@@ -474,23 +472,26 @@ const JobDetail = () => {
                   </span>
                 )}
                 {req?.experience_level && (
-                  <span className="flex items-center gap-1.5 capitalize">
-                    <Briefcase size={14} className="text-muted" /> {req.experience_level} level
+                  <span className="flex items-center gap-1.5">
+                    <Briefcase size={14} className="text-muted" /> {formatExperienceLevel(req.experience_level)}
                   </span>
                 )}
                 <span className="flex items-center gap-1.5">
                   <Clock size={14} className="text-muted" />
-                  Posted {new Date(job.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  Posted {formatDate(job.created_at)}
                 </span>
               </div>
             </div>
-          </div>
 
-          {/* Description in Source Serif (font-serif) */}
-          <div className="border border-line rounded-sm bg-surface p-6 sm:p-7 space-y-3.5 shadow-subtle">
-            <h2 className="text-16 font-bold text-ink">About the role</h2>
-            <div className="font-serif text-15 sm:text-16 leading-relaxed text-ink whitespace-pre-wrap">
-              {job.description}
+            {/* Divider */}
+            <div className="border-t border-line/60" />
+
+            {/* About the role section */}
+            <div className="space-y-3">
+              <h2 className="text-16 font-bold text-ink">About the role</h2>
+              <div className="font-serif text-15 sm:text-16 leading-relaxed text-ink whitespace-pre-wrap">
+                {job.description}
+              </div>
             </div>
           </div>
 
@@ -619,7 +620,7 @@ const JobDetail = () => {
               <div>
                 <span className="text-11 font-semibold text-muted block mb-0.5">Remuneration</span>
                 <span className="text-15 font-semibold text-ink">
-                  {formatPay() || 'Unspecified pay'}
+                  {formatPayRange(job)}
                 </span>
               </div>
 
@@ -629,9 +630,7 @@ const JobDetail = () => {
                 <div className="flex items-center gap-1.5 text-ink">
                   <Calendar size={14} className="text-muted" />
                   <span>
-                    {job.start_date || job.end_date
-                      ? `${job.start_date ? new Date(job.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Immediate'} – ${job.end_date ? new Date(job.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD'}`
-                      : 'Flexible / To be discussed'}
+                    {formatDateRange(job.start_date, job.end_date)}
                   </span>
                 </div>
               </div>
@@ -642,7 +641,7 @@ const JobDetail = () => {
                 <div className="flex items-center gap-1.5 text-ink">
                   <Users size={14} className="text-muted" />
                   <span>
-                    {job.openings ?? 1} {job.openings === 1 ? 'opening' : 'openings'}
+                    {pluralize(job.openings ?? 1, 'opening')}
                   </span>
                 </div>
               </div>
@@ -659,8 +658,13 @@ const JobDetail = () => {
                       : 'text-ink'
                   }`}
                 >
-                  {deadlineInfo?.text || 'No deadline'}
+                  {job.deadline ? formatDeadlineDate(job.deadline) : 'No deadline'}
                 </span>
+                {deadlineInfo?.text && !deadlineInfo.isPassed && (
+                  <span className="text-11 text-muted block mt-0.5">
+                    {deadlineInfo.text}
+                  </span>
+                )}
               </div>
             </div>
 

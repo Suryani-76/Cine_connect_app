@@ -14,6 +14,13 @@ import { toast } from 'sonner'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { jobsApi, savedJobsApi, JobWithProduction, JobType } from '../lib/api'
+import {
+  formatJobType,
+  formatExperienceLevel,
+  formatPayRange,
+  formatDeadlineDate,
+  pluralize,
+} from '../lib/formatters'
 import { PageHeader } from '../components/PageHeader'
 import { VerifiedBadge } from '../components/VerifiedBadge'
 import {
@@ -62,14 +69,7 @@ const PAY_OPTIONS = [
 ]
 
 function formatPay(job: JobWithProduction): string {
-  if (!job.pay_min && !job.pay_max) return 'Pay unspecified'
-  const curr = job.pay_currency === 'INR' ? '₹' : (job.pay_currency ?? '₹')
-  const period = job.pay_period ? ` / ${job.pay_period}` : ''
-  if (job.pay_min && job.pay_max) {
-    return `${curr}${Number(job.pay_min).toLocaleString()} – ${curr}${Number(job.pay_max).toLocaleString()}${period}`
-  }
-  if (job.pay_min) return `From ${curr}${Number(job.pay_min).toLocaleString()}${period}`
-  return `Up to ${curr}${Number(job.pay_max).toLocaleString()}${period}`
+  return formatPayRange(job)
 }
 
 function formatDeadline(deadline: string | null | undefined): string {
@@ -80,7 +80,7 @@ function formatDeadline(deadline: string | null | undefined): string {
   const diffDays = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
   if (diffDays < 0) return 'Deadline passed'
   if (diffDays === 0) return 'Deadline today'
-  return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+  return formatDeadlineDate(deadline, { includeTime: false })
 }
 
 const BrowseJobs = () => {
@@ -280,7 +280,7 @@ const BrowseJobs = () => {
   const expLabel = useMemo(() => {
     if (!expParam) return ''
     const match = EXP_LEVELS.find((e) => e.value.toLowerCase() === expParam.toLowerCase())
-    return match?.label && match.label !== 'All experience' ? match.label : formatFilterValue(expParam)
+    return match?.label && match.label !== 'All experience' ? match.label : formatExperienceLevel(expParam)
   }, [expParam])
 
   const payLabel = useMemo(() => {
@@ -662,7 +662,7 @@ const BrowseJobs = () => {
       <div className="flex items-center justify-between text-12 text-muted px-1">
         <span>
           Showing {displayedJobs.length > 0 ? (pageParam - 1) * limit + 1 : 0}–
-          {Math.min(pageParam * limit, total)} of {total} listings
+          {Math.min(pageParam * limit, total)} of {pluralize(total, 'listing')}
         </span>
         {loading && (
           <span className="flex items-center gap-1.5 text-ink font-medium">
@@ -815,10 +815,10 @@ const BrowseJobs = () => {
                     </TableCell>
 
                     {/* Type */}
-                    <TableCell className="block md:table-cell p-0 md:py-2.5 md:px-3 text-12 capitalize text-muted">
+                    <TableCell className="block md:table-cell p-0 md:py-2.5 md:px-3 text-12 text-muted">
                       <div className="flex items-center justify-between md:justify-start">
                         <span className="text-muted md:hidden">Type:</span>
-                        <span>{job.job_type ? job.job_type.replace('_', ' ') : 'Freelance'}</span>
+                        <span>{formatJobType(job.job_type)}</span>
                       </div>
                     </TableCell>
 

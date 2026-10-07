@@ -3,6 +3,14 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Check, Building2, MapPin, Eye, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { jobsApi, productionApi, SetRequirementsPayload, JobType, PayPeriod } from '../lib/api'
+import {
+  formatJobType,
+  formatExperienceLevel,
+  formatPayRange,
+  formatDateRange,
+  formatDeadlineDate,
+  pluralize,
+} from '../lib/formatters'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { AutocompleteInput } from '../components/AutocompleteInput'
@@ -29,7 +37,7 @@ interface Step2Form {
   skills: string[]
   roles: string[]
   experience_level: 'entry' | 'mid' | 'senior' | 'any' | ''
-  language: string
+  languages: string[]
   location: string
 }
 
@@ -49,10 +57,10 @@ interface Step2Errors {
 
 const EXP_OPTIONS: { value: Step2Form['experience_level']; label: string }[] = [
   { value: '', label: 'Any level' },
-  { value: 'entry', label: 'Entry' },
-  { value: 'mid', label: 'Mid' },
+  { value: 'entry', label: 'Entry level' },
+  { value: 'mid', label: 'Mid level' },
   { value: 'senior', label: 'Senior' },
-  { value: 'any', label: 'Any' },
+  { value: 'any', label: 'Any level' },
 ]
 
 const JOB_TYPE_OPTIONS: { value: JobType; label: string }[] = [
@@ -162,24 +170,6 @@ function LiveJobPreview({
   const primaryRole = step2.roles[0] || step1.title || 'Crew role'
   const dept = resolveDepartment(primaryRole)
 
-  const formatPayString = () => {
-    if (!step1.pay_min && !step1.pay_max) return 'Pay unspecified'
-    const curr = step1.pay_currency === 'INR' ? '₹' : step1.pay_currency
-    const period = step1.pay_period ? ` / ${step1.pay_period}` : ''
-    if (step1.pay_min && step1.pay_max) {
-      return `${curr}${Number(step1.pay_min).toLocaleString()} – ${curr}${Number(step1.pay_max).toLocaleString()}${period}`
-    }
-    if (step1.pay_min) return `From ${curr}${Number(step1.pay_min).toLocaleString()}${period}`
-    return `Up to ${curr}${Number(step1.pay_max).toLocaleString()}${period}`
-  }
-
-  const formatDeadlineString = () => {
-    if (!step1.deadline) return 'No deadline'
-    const d = new Date(step1.deadline)
-    if (isNaN(d.getTime())) return 'No deadline'
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  }
-
   return (
     <div className="border border-line rounded-sm bg-surface p-5 space-y-4 shadow-subtle">
       <div className="flex items-center justify-between pb-3 border-b border-line">
@@ -195,8 +185,8 @@ function LiveJobPreview({
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <DepartmentMark department={dept} label={primaryRole} size="sm" />
-          <span className="text-11 px-2 py-0.5 rounded-sm border border-line bg-paper text-ink capitalize">
-            {step1.job_type ? step1.job_type.replace('_', ' ') : 'Freelance'}
+          <span className="text-11 px-2 py-0.5 rounded-sm border border-line bg-paper text-ink font-medium">
+            {formatJobType(step1.job_type)}
           </span>
         </div>
 
@@ -211,19 +201,26 @@ function LiveJobPreview({
         </div>
 
         <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-12 text-muted pt-1">
-          <span className="font-medium text-ink">{formatPayString()}</span>
+          <span className="font-medium text-ink">
+            {formatPayRange({
+              pay_min: step1.pay_min,
+              pay_max: step1.pay_max,
+              pay_currency: step1.pay_currency,
+              pay_period: step1.pay_period,
+            })}
+          </span>
           {step2.location && (
             <span className="flex items-center gap-1">
               <MapPin size={12} className="text-muted" /> {step2.location}
             </span>
           )}
-          <span>{formatDeadlineString()}</span>
+          <span>{formatDeadlineDate(step1.deadline)}</span>
         </div>
 
         {/* Requirements Pills */}
-        {(step2.roles.length > 0 || step2.skills.length > 0) && (
+        {(step2.roles.length > 0 || step2.skills.length > 0 || step2.languages.length > 0) && (
           <div className="pt-2 border-t border-line/60 space-y-1.5">
-            <span className="text-11 font-semibold text-muted block">Required skills & roles</span>
+            <span className="text-11 font-semibold text-muted block">Required skills & details</span>
             <div className="flex flex-wrap gap-1.5">
               {step2.roles.map((r) => (
                 <span key={r} className="px-2 py-0.5 rounded-sm bg-paper border border-line text-11 text-ink">
@@ -233,6 +230,11 @@ function LiveJobPreview({
               {step2.skills.map((s) => (
                 <span key={s} className="px-2 py-0.5 rounded-sm bg-paper border border-line text-11 text-ink">
                   {s}
+                </span>
+              ))}
+              {step2.languages.map((l) => (
+                <span key={l} className="px-2 py-0.5 rounded-sm bg-paper border border-line text-11 text-ink">
+                  {l}
                 </span>
               ))}
             </div>
@@ -292,7 +294,7 @@ const CreateJob = () => {
     skills: [],
     roles: [],
     experience_level: '',
-    language: '',
+    languages: [],
     location: '',
   })
   const [step2Errors, setS2Errors] = useState<Step2Errors>({})
@@ -413,11 +415,18 @@ const CreateJob = () => {
         setJobId(currentId)
       }
 
-      if (currentId && (currentStep2.skills.length > 0 || currentStep2.roles.length > 0)) {
+      if (
+        currentId &&
+        (currentStep2.skills.length > 0 ||
+          currentStep2.roles.length > 0 ||
+          currentStep2.languages.length > 0 ||
+          currentStep2.location ||
+          currentStep2.experience_level)
+      ) {
         const reqPayload: SetRequirementsPayload = {
           skills: currentStep2.skills,
           roles: currentStep2.roles,
-          language: currentStep2.language.trim() || undefined,
+          language: currentStep2.languages.join(', ').trim() || undefined,
           location: currentStep2.location.trim() || undefined,
           experience_level: (currentStep2.experience_level || undefined) as SetRequirementsPayload['experience_level'],
         }
@@ -517,7 +526,7 @@ const CreateJob = () => {
       const payload: SetRequirementsPayload = {
         skills: step2.skills,
         roles: step2.roles,
-        language: step2.language.trim() || undefined,
+        language: step2.languages.join(', ').trim() || undefined,
         location: step2.location.trim() || undefined,
         experience_level: (step2.experience_level || undefined) as SetRequirementsPayload['experience_level'],
       }
@@ -889,18 +898,18 @@ const CreateJob = () => {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
                   <div>
-                    <label htmlFor="language" className="text-12 font-semibold text-muted block mb-1">
-                      Language
-                    </label>
-                    <input
-                      id="language"
-                      value={step2.language}
-                      onChange={(e) => setStep2((p) => ({ ...p, language: e.target.value }))}
-                      onBlur={() => autoSaveDraft(step1, step2)}
-                      placeholder="e.g. Hindi, English, Tamil"
-                      className="input text-13 w-full"
+                    <AutocompleteTagInput
+                      label="Language"
+                      placeholder="e.g. Hindi, English, Tamil…"
+                      tags={step2.languages}
+                      onChange={(t) => {
+                        setStep2((p) => ({ ...p, languages: t }))
+                        autoSaveDraft(step1, { ...step2, languages: t })
+                      }}
+                      type="languages"
+                      helpText=""
                     />
                   </div>
                   <div>
@@ -951,22 +960,25 @@ const CreateJob = () => {
                     </button>
                   </div>
                   <div className="bg-paper rounded-sm p-4 space-y-1">
-                    <ReviewRow label="Title" value={step1.title} />
-                    <ReviewRow label="Type" value={step1.job_type.replace('_', ' ')} />
-                    <ReviewRow label="Openings" value={String(step1.openings)} />
-                    {(step1.pay_min || step1.pay_max) && (
-                      <ReviewRow
-                        label="Pay"
-                        value={`${step1.pay_currency} ${step1.pay_min || '0'} – ${step1.pay_max || '—'} / ${step1.pay_period}`}
-                      />
-                    )}
+                    <ReviewRow label="Title" value={step1.title || 'Untitled post'} />
+                    <ReviewRow label="Type" value={formatJobType(step1.job_type)} />
+                    <ReviewRow label="Openings" value={pluralize(step1.openings, 'opening')} />
+                    <ReviewRow
+                      label="Pay"
+                      value={formatPayRange({
+                        pay_min: step1.pay_min,
+                        pay_max: step1.pay_max,
+                        pay_currency: step1.pay_currency,
+                        pay_period: step1.pay_period,
+                      })}
+                    />
                     <ReviewRow
                       label="Dates"
-                      value={`${step1.start_date || 'Immediate'} to ${step1.end_date || 'TBD'}`}
+                      value={formatDateRange(step1.start_date, step1.end_date)}
                     />
                     <ReviewRow
                       label="Deadline"
-                      value={step1.deadline ? new Date(step1.deadline).toLocaleString() : 'No deadline'}
+                      value={formatDeadlineDate(step1.deadline)}
                     />
                   </div>
                 </section>
@@ -986,8 +998,8 @@ const CreateJob = () => {
                   <div className="bg-paper rounded-sm p-4 space-y-1">
                     <ReviewRow label="Roles" value={step2.roles.length ? step2.roles.join(', ') : 'None specified'} />
                     <ReviewRow label="Skills" value={step2.skills.length ? step2.skills.join(', ') : 'None specified'} />
-                    <ReviewRow label="Experience" value={step2.experience_level || 'Any level'} />
-                    <ReviewRow label="Language" value={step2.language || 'Any language'} />
+                    <ReviewRow label="Experience" value={formatExperienceLevel(step2.experience_level)} />
+                    <ReviewRow label="Language" value={step2.languages.length ? step2.languages.join(', ') : 'Any language'} />
                     <ReviewRow label="Location" value={step2.location || 'Flexible'} />
                   </div>
                 </section>

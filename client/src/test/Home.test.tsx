@@ -217,8 +217,8 @@ describe('Home Page (Dashboards)', () => {
 
       const summary = screen.getByLabelText(/dashboard metrics summary/i)
       // Contains active jobs, new applicants, talent matches, notifications as links when count > 0
-      expect(within(summary).getByRole('link', { name: /active jobs/i })).toHaveAttribute('href', '/jobs')
-      expect(within(summary).getByRole('link', { name: /new applicants/i })).toHaveAttribute('href', '/applications')
+      expect(within(summary).getByRole('link', { name: /active jobs?/i })).toHaveAttribute('href', '/jobs')
+      expect(within(summary).getByRole('link', { name: /new applicants?/i })).toHaveAttribute('href', '/applications')
       expect(within(summary).getByRole('link', { name: /talent matches/i })).toHaveAttribute('href', '/search')
       expect(within(summary).getByRole('link', { name: /notifications/i })).toHaveAttribute('href', '/notifications')
 

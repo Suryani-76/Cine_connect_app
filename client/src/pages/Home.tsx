@@ -29,6 +29,11 @@ import { Skeleton } from '../components/ui/Skeleton'
 import { DepartmentMark, resolveDepartment } from '../components/ui/DepartmentMark'
 import { Avatar } from '../components/ui/Avatar'
 import { supabase } from '../lib/supabase'
+import {
+  pluralize,
+  formatDeadlineDate,
+  formatDate,
+} from '../lib/formatters'
 
 
 // ── Per-Section Error Component ────────────────────────────────
@@ -263,13 +268,16 @@ interface JobEnriched extends Job {
 
 function StatMetric({
   count,
-  label,
+  singular,
+  plural,
   href,
 }: {
   count: number
-  label: string
+  singular: string
+  plural?: string
   href: string
 }) {
+  const label = count === 1 ? singular : (plural ?? `${singular}s`)
   if (count === 0) {
     return (
       <span className="flex items-center gap-1.5 text-muted select-none">
@@ -488,25 +496,29 @@ export function ProductionHome() {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-6 py-3 px-4 bg-surface border border-line rounded-sm text-14 text-muted">
             <StatMetric
               count={stats?.active_jobs ?? counts.published}
-              label="active jobs"
+              singular="active job"
+              plural="active jobs"
               href="/jobs"
             />
             <span className="h-4 w-px bg-line shrink-0 hidden sm:inline-block" aria-hidden="true" />
             <StatMetric
               count={stats?.new_applications ?? pendingApplicantsCount}
-              label="new applicants"
+              singular="new applicant"
+              plural="new applicants"
               href="/applications"
             />
             <span className="h-4 w-px bg-line shrink-0 hidden sm:inline-block" aria-hidden="true" />
             <StatMetric
               count={stats?.recommended_talent ?? 0}
-              label="talent matches"
+              singular="talent match"
+              plural="talent matches"
               href="/search"
             />
             <span className="h-4 w-px bg-line shrink-0 hidden sm:inline-block" aria-hidden="true" />
             <StatMetric
               count={stats?.unread_notifications ?? 0}
-              label="notifications"
+              singular="notification"
+              plural="notifications"
               href="/notifications"
             />
           </div>
@@ -543,7 +555,7 @@ export function ProductionHome() {
               <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-paper/30 transition-colors">
                 <div>
                   <p className="text-14 font-semibold text-ink">
-                    {pendingApplicantsCount} new applicant{pendingApplicantsCount !== 1 ? 's' : ''} waiting for review
+                    {pluralize(pendingApplicantsCount, 'new applicant')} waiting for review
                   </p>
                   <p className="text-12 text-muted mt-0.5">
                     Unreviewed submissions across your open film productions
@@ -562,7 +574,7 @@ export function ProductionHome() {
               <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-paper/30 transition-colors">
                 <div>
                   <p className="text-14 font-semibold text-ink">
-                    {scheduledInterviewsCount} interview{scheduledInterviewsCount !== 1 ? 's' : ''} scheduled this week
+                    {pluralize(scheduledInterviewsCount, 'interview')} scheduled this week
                   </p>
                   <p className="text-12 text-muted mt-0.5">
                     Upcoming conversations with prospective cast and crew members
@@ -581,7 +593,7 @@ export function ProductionHome() {
               <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-paper/30 transition-colors">
                 <div>
                   <p className="text-14 font-semibold text-ink">
-                    {closingSoonJobs.length} job post{closingSoonJobs.length !== 1 ? 's' : ''} closing soon
+                    {pluralize(closingSoonJobs.length, 'job post')} closing soon
                   </p>
                   <p className="text-12 text-muted mt-0.5">
                     Production application windows ending within seven days
@@ -655,17 +667,9 @@ export function ProductionHome() {
                     const primaryRole = job.job_requirements?.roles?.[0] || 'Film Crew'
                     const dept = resolveDepartment(primaryRole)
                     const deadlineStr = job.deadline
-                      ? new Date(job.deadline).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })
+                      ? formatDeadlineDate(job.deadline, { includeTime: false })
                       : job.end_date
-                      ? new Date(job.end_date).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })
+                      ? formatDate(job.end_date)
                       : 'No deadline'
 
                     return (
@@ -764,11 +768,9 @@ export function ProductionHome() {
                 const primaryRole = job.job_requirements?.roles?.[0] || 'Film Crew'
                 const dept = resolveDepartment(primaryRole)
                 const deadlineStr = job.deadline
-                  ? new Date(job.deadline).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })
+                  ? formatDeadlineDate(job.deadline, { includeTime: false })
+                  : job.end_date
+                  ? formatDate(job.end_date)
                   : 'No deadline'
 
                 return (
@@ -1165,7 +1167,7 @@ export function TalentHome() {
             <p className="text-12 text-muted mt-0.5">
               {myApps.length === 0
                 ? 'Track submission status and interviews across your active roles'
-                : `${myApps.length} active application${myApps.length !== 1 ? 's' : ''}`}
+                : pluralize(myApps.length, 'active application')}
             </p>
           </div>
           {myApps.length > 0 && (
@@ -1216,7 +1218,7 @@ export function TalentHome() {
                         <span className="text-12 text-muted font-medium">{companyName}</span>
                         {prod?.verified && <VerifiedBadge />}
                         <span className="text-12 text-muted/70 tnum">
-                          Applied {new Date(app.applied_at || app.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          Applied {formatDate(app.applied_at || app.created_at)}
                         </span>
                       </div>
                     </div>

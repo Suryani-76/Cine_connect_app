@@ -128,24 +128,24 @@ export function AutocompleteInput({
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       {label && (
-        <label htmlFor={id} className="label flex items-center justify-between">
-          <span>
-            {label} {required && <span className="text-red-500">*</span>}
-          </span>
+        <div className="flex items-center justify-between mb-1">
+          <label htmlFor={id} className="text-12 font-semibold text-muted block">
+            {label} {required && <span className="text-status-error">*</span>}
+          </label>
           {query.trim() && (
-            <span className="text-[11px] font-normal">
+            <span className="text-11 font-normal">
               {isExactVerified ? (
-                <span className="text-emerald-600 inline-flex items-center gap-0.5">
+                <span className="text-status-success inline-flex items-center gap-0.5">
                   <Check size={11} /> Verified term
                 </span>
               ) : (
-                <span className="text-amber-600 inline-flex items-center gap-0.5">
+                <span className="text-status-warning inline-flex items-center gap-0.5">
                   <AlertCircle size={11} /> Custom (unverified)
                 </span>
               )}
             </span>
           )}
-        </label>
+        </div>
       )}
 
       <div className="relative">
