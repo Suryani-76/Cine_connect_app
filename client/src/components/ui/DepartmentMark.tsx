@@ -18,6 +18,8 @@ const GEL_CONFIG: Record<string, { key: DepartmentKey; label: string; bgClass: s
   'art & costume': { key: 'art and costume', label: 'Art & Costume', bgClass: 'bg-gel-art', dotColor: 'var(--color-gel-art)' },
   cast: { key: 'cast', label: 'Cast', bgClass: 'bg-gel-cast', dotColor: 'var(--color-gel-cast)' },
   production: { key: 'production', label: 'Production', bgClass: 'bg-gel-production', dotColor: 'var(--color-gel-production)' },
+  'post-production': { key: 'editing', label: 'Editing', bgClass: 'bg-gel-editing', dotColor: 'var(--color-gel-editing)' },
+  post: { key: 'editing', label: 'Editing', bgClass: 'bg-gel-editing', dotColor: 'var(--color-gel-editing)' },
 }
 
 export interface DepartmentMarkProps extends HTMLAttributes<HTMLSpanElement> {
@@ -35,8 +37,8 @@ export function DepartmentMark({
   className = '',
   ...props
 }: DepartmentMarkProps) {
-  const normalizedKey = department?.toLowerCase().trim() || 'production'
-  const config = GEL_CONFIG[normalizedKey] || {
+  const resolvedKey = resolveDepartment(department)
+  const config = GEL_CONFIG[resolvedKey] || {
     key: 'production',
     label: department || 'Production',
     bgClass: 'bg-gel-production',

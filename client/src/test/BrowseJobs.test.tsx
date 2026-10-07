@@ -147,4 +147,38 @@ describe('BrowseJobs page', () => {
       expect(screen.getByText(/Director of Photography/i)).toBeInTheDocument()
     })
   })
+
+  it('syncs filters to URL and displays active filter chips', async () => {
+    vi.mocked(jobsApi.list).mockResolvedValue({
+      jobs: mockJobs,
+      total: 1,
+      page: 1,
+      limit: 12,
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/jobs?q=Gaffer&type=freelance&department=camera']}>
+        <BrowseJobs />
+      </MemoryRouter>
+    )
+
+    await waitFor(() => {
+      // Query filter chip
+      expect(screen.getByText(/Query: “Gaffer”/i)).toBeInTheDocument()
+      // Type filter chip
+      expect(screen.getByText(/Type: Freelance/i)).toBeInTheDocument()
+      // Department filter chip
+      expect(screen.getByText(/Dept: Camera/i)).toBeInTheDocument()
+      // Clear all button is present
+      expect(screen.getByRole('button', { name: /Clear all/i })).toBeInTheDocument()
+    })
+
+    // Click clear all
+    fireEvent.click(screen.getByRole('button', { name: /^Clear all$/i }))
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Query: “Gaffer”/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Dept: Camera/i)).not.toBeInTheDocument()
+    })
+  })
 })

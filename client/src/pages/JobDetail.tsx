@@ -1,40 +1,53 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { MapPin, Globe, Briefcase, Clock, Building2, ExternalLink, X, Bookmark, BookmarkCheck } from 'lucide-react'
-import { jobsApi, applicationsApi, savedJobsApi, jobAnalyticsApi, JobWithProduction, MatchBreakdown } from '../lib/api'
+import {
+  MapPin,
+  Globe,
+  Briefcase,
+  Clock,
+  Building2,
+  ExternalLink,
+  Bookmark,
+  BookmarkCheck,
+  Check,
+  AlertCircle,
+  Calendar,
+  Users,
+} from 'lucide-react'
+import { toast } from 'sonner'
+import {
+  jobsApi,
+  applicationsApi,
+  savedJobsApi,
+  jobAnalyticsApi,
+  JobWithProduction,
+  MatchBreakdown,
+  talentApi,
+} from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { VerifiedBadge } from '../components/VerifiedBadge'
 import { PageHeader } from '../components/PageHeader'
+import { LightMeter, Signal } from '../components/ui/LightMeter'
+import { DepartmentMark, resolveDepartment } from '../components/ui/DepartmentMark'
+import { Modal, ModalContent } from '../components/ui/Modal'
 
-// ── Apply modal ───────────────────────────────────────────────
+// ── Apply Modal ───────────────────────────────────────────────
 
-function ApplyModal({
-  jobId,
-  token,
-  onClose,
-  onSuccess,
-}: {
-  jobId:   string
-  token:   string
+interface ApplyModalProps {
+  jobId: string
+  token: string
+  matchPreview: MatchBreakdown | null
   onClose: () => void
-  onSuccess:        () => void
-}) {
-  const [coverNote, setCoverNote] = useState('')
-  const [loading, setLoading]     = useState(false)
-  const [error, setError]         = useState('')
-  const [matchPreview, setMatchPreview] = useState<MatchBreakdown | null>(null)
-  const [matchLoading, setMatchLoading] = useState(false)
-  const remaining = 1000 - coverNote.length
+  onSuccess: () => void
+}
 
-  useEffect(() => {
-    if (!token || !jobId) return
-    setMatchLoading(true)
-    jobsApi.myMatch(jobId, token)
-      .then(res => setMatchPreview(res))
-      .catch(() => setMatchPreview(null))
-      .finally(() => setMatchLoading(false))
-  }, [jobId, token])
+function ApplyModal({ jobId, token, matchPreview, onClose, onSuccess }: ApplyModalProps) {
+  const [coverNote, setCoverNote] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const maxChars = 1000
+  const remaining = maxChars - coverNote.length
 
   const handleSubmit = async () => {
     setError('')
@@ -44,6 +57,7 @@ function ApplyModal({
         { job_id: jobId, cover_note: coverNote.trim() || undefined },
         token
       )
+      toast.success('Application submitted successfully')
       onSuccess()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to apply')
@@ -52,96 +66,79 @@ function ApplyModal({
     }
   }
 
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [onClose])
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(11,37,69,0.55)', backdropFilter: 'blur(4px)' }}>
-      <div className="bg-white rounded-2xl shadow-card-md w-full max-w-lg">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-border">
-          <h2 className="text-lg font-bold text-content-heading">Apply for this job</h2>
-          <button onClick={onClose}
-            className="p-1.5 rounded-lg text-content-tertiary hover:text-content-primary hover:bg-surface-section transition-colors">
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-6 py-5 space-y-4">
-          {/* Match Score Preview & Explainability */}
-          {matchLoading ? (
-            <div className="p-3 bg-surface-section rounded-xl border border-surface-border animate-pulse space-y-2">
-              <div className="h-4 bg-slate-200 rounded w-1/3" />
-              <div className="h-3 bg-slate-200 rounded w-2/3" />
-            </div>
-          ) : matchPreview ? (
-            <div className="p-4 bg-blue-50/70 border border-brand/20 rounded-xl space-y-2.5">
+    <Modal open onOpenChange={(open) => { if (!open) onClose() }}>
+      <ModalContent
+        title="Apply for this job"
+        description="Submit your application with an optional cover note to the production team."
+        className="max-w-lg"
+      >
+        <div className="space-y-4 pt-1">
+          {/* Match Score Preview inside Modal */}
+          {matchPreview && (
+            <div className="p-3.5 bg-paper rounded-sm border border-line space-y-2">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="mono-text text-xl font-bold text-brand">{matchPreview.total}%</span>
-                  <span className="text-xs font-semibold text-content-heading uppercase tracking-wide">Match Preview</span>
-                </div>
-                <span className="text-[11px] text-content-muted">Based on your talent profile</span>
+                <span className="text-12 font-medium text-muted">Your match score</span>
+                <span className="text-11 text-muted">Computed from talent profile</span>
               </div>
-
-              {matchPreview.summary_reasons && matchPreview.summary_reasons.length > 0 && (
-                <ul className="text-xs text-content-secondary space-y-1">
-                  {matchPreview.summary_reasons.slice(0, 3).map((r, i) => (
-                    <li key={i} className="flex items-start gap-1.5">
-                      <span className="text-brand shrink-0">•</span>
-                      <span>{r}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
+              <LightMeter
+                score={typeof matchPreview.total === 'number' && !isNaN(matchPreview.total) ? matchPreview.total : 0}
+                size="sm"
+                showScoreLabel={true}
+                expandable={false}
+              />
               {matchPreview.missing_skills && matchPreview.missing_skills.length > 0 && (
-                <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2.5 py-1">
+                <p className="text-11 text-status-warning bg-amber-50/70 border border-amber-200/80 rounded-sm p-2">
                   Missing required skills: <span className="font-semibold">{matchPreview.missing_skills.join(', ')}</span>
                 </p>
               )}
             </div>
-          ) : null}
+          )}
 
-          <div>
-            <div className="flex justify-between mb-1.5">
-              <label className="label mb-0">Cover note <span className="text-content-muted font-normal">(optional)</span></label>
-              <span className={`text-xs ${remaining < 100 ? 'text-amber-600' : 'text-content-muted'}`}>
-                {remaining} left
+          {/* Cover note input */}
+          <div className="space-y-1.5">
+            <div className="flex justify-between items-baseline">
+              <label htmlFor="cover-note-input" className="text-12 font-semibold text-muted">
+                Cover note <span className="text-muted font-normal">(optional)</span>
+              </label>
+              <span className={`text-11 ${remaining < 100 ? 'text-status-warning' : 'text-muted'}`}>
+                {remaining} characters left
               </span>
             </div>
             <textarea
+              id="cover-note-input"
               rows={5}
               value={coverNote}
-              onChange={e => setCoverNote(e.target.value)}
-              placeholder="Briefly introduce yourself and why you're a great fit for this role…"
-              className="input resize-none"
+              onChange={(e) => setCoverNote(e.target.value.slice(0, maxChars))}
+              placeholder="Introduce yourself and explain why your experience fits this film production…"
+              className="input resize-none w-full text-13"
               autoFocus
             />
           </div>
 
           {error && (
-            <div className="error-banner">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="p-2.5 rounded-sm bg-red-50 border border-red-200 text-12 text-status-error">
+              {error}
             </div>
           )}
-        </div>
 
-        {/* Footer */}
-        <div className="flex gap-3 px-6 py-4 border-t border-surface-border">
-          <button onClick={onClose} className="btn-ghost flex-1">Cancel</button>
-          <button onClick={handleSubmit} disabled={loading} className="btn-primary flex-1">
-            {loading ? 'Submitting…' : 'Submit application'}
-          </button>
+          {/* Footer buttons */}
+          <div className="flex gap-2.5 pt-3 border-t border-line">
+            <button type="button" onClick={onClose} className="btn-ghost flex-1 text-13">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={loading}
+              className="btn-primary flex-1 text-13"
+            >
+              {loading ? 'Submitting…' : 'Send application'}
+            </button>
+          </div>
         </div>
-      </div>
-    </div>
+      </ModalContent>
+    </Modal>
   )
 }
 
@@ -149,82 +146,23 @@ function ApplyModal({
 
 function SuccessBanner({ onViewApplications }: { onViewApplications: () => void }) {
   return (
-    <div className="success-banner flex items-center justify-between">
+    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-sm flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <span className="text-emerald-600 text-lg">✓</span>
-        <p className="text-sm font-semibold text-emerald-700">Application submitted!</p>
+        <span className="text-status-success font-bold">✓</span>
+        <p className="text-13 font-semibold text-status-success">Application submitted</p>
       </div>
-      <button onClick={onViewApplications}
-        className="text-xs text-emerald-700 font-semibold hover:text-emerald-800 underline transition-colors">
-        View my applications →
+      <button
+        type="button"
+        onClick={onViewApplications}
+        className="text-12 text-status-success font-semibold hover:underline"
+      >
+        View my applications
       </button>
     </div>
   )
 }
 
-// ── Skill / requirement pill ──────────────────────────────────
-
-function Pill({ label }: { label: string }) {
-  return (
-    <span className="badge bg-blue-50 border-brand/25 text-brand text-xs font-medium">{label}</span>
-  )
-}
-
-// ── Page ──────────────────────────────────────────────────────
-
-const JobDetail = () => {
-  const { id }        = useParams<{ id: string }>()
-  const navigate      = useNavigate()
-  const { user, token } = useAuth()
-
-  const isTalent      = user?.role === 'talent'
-  const talentProfileId = user?.profileId ?? ''
-
-  const [job, setJob]           = useState<JobWithProduction | null>(null)
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState('')
-  const [showModal, setModal]   = useState(false)
-  const [applied, setApplied]   = useState(false)
-  const [saved, setSaved]       = useState(false)
-
-  usePageTitle(job?.title ?? 'Job')
-
-  useEffect(() => {
-    if (!id) return
-    setLoading(true)
-    jobsApi.getById(id, token ?? undefined)
-      .then(r => {
-        setJob(r.job)
-        if (token) {
-          jobAnalyticsApi.recordView(id, token).catch(() => {})
-        }
-      })
-      .catch(e => setError(e instanceof Error ? e.message : 'Could not load job'))
-      .finally(() => setLoading(false))
-  }, [id, token])
-
-  if (loading) {
-    return (
-      <div className="max-w-3xl mx-auto px-6 py-10 space-y-4">
-        <div className="card p-8 space-y-4">
-          {[1,2,3,4].map(i => <div key={i} className="skeleton h-5 rounded w-full" />)}
-        </div>
-      </div>
-    )
-  }
-
-  if (error || !job) {
-    return (
-      <div className="page flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-4xl mb-3">🎬</p>
-          <p className="font-bold text-content-heading mb-1">Job not found</p>
-          <p className="text-sm text-content-tertiary mb-5">{error || 'This job may have been removed.'}</p>
-          <button onClick={() => navigate(-1)} className="btn-ghost">← Go back</button>
-        </div>
-      </div>
-    )
-  }
+// ── Deadline status helper ────────────────────────────────────
 
 function getDeadlineStatus(deadline: string | null | undefined): { text: string; isPassed: boolean; isUrgent: boolean } | null {
   if (!deadline) return null
@@ -248,22 +186,100 @@ function getDeadlineStatus(deadline: string | null | undefined): { text: string;
   }
 }
 
-  const req  = job.job_requirements
-  const prod = job.production_profiles || (job as any).production || { company_name: 'Production House' }
-  const isClosed    = job.status === 'closed'
-  const isPublished = job.status === 'published'
-  const deadlineInfo = getDeadlineStatus(job.deadline)
-  const isDeadlinePassed = deadlineInfo?.isPassed ?? false
-  const canApply = isTalent && isPublished && !isClosed && !isDeadlinePassed && !applied
+// ── Main Page Component ───────────────────────────────────────
 
-  const STATUS_STYLES: Record<string, string> = {
-    draft:     'bg-amber-50  text-amber-700  border-amber-200',
-    published: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    closed:    'bg-slate-100  text-slate-500  border-slate-200',
+const JobDetail = () => {
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const { user, token } = useAuth()
+
+  const isTalent = user?.role === 'talent'
+  const talentProfileId = user?.profileId ?? ''
+
+  const [job, setJob] = useState<JobWithProduction | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [showModal, setModal] = useState(false)
+  const [applied, setApplied] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [savingBookmark, setSavingBookmark] = useState(false)
+
+  // Talent match score preview
+  const [matchPreview, setMatchPreview] = useState<MatchBreakdown | null>(null)
+  const [matchLoading, setMatchLoading] = useState(false)
+  const [talentSkills, setTalentSkills] = useState<string[]>([])
+
+  usePageTitle(job?.title ?? 'Job')
+
+  // Fetch Job details
+  useEffect(() => {
+    if (!id) return
+    setLoading(true)
+    jobsApi
+      .getById(id, token ?? undefined)
+      .then((r) => {
+        setJob(r.job)
+        if (token) {
+          jobAnalyticsApi.recordView(id, token).catch(() => {})
+        }
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load job'))
+      .finally(() => setLoading(false))
+  }, [id, token])
+
+  // Fetch talent match breakdown & profile skills if authenticated talent
+  useEffect(() => {
+    if (!id || !token || !isTalent) return
+    setMatchLoading(true)
+    jobsApi
+      .myMatch(id, token)
+      .then((res) => setMatchPreview(res))
+      .catch(() => setMatchPreview(null))
+      .finally(() => setMatchLoading(false))
+
+    // Check if job is already saved
+    savedJobsApi
+      .list(token)
+      .then((res) => {
+        const isJobSaved = (res.saved || []).some((s) => s.job_id === id)
+        setSaved(isJobSaved)
+      })
+      .catch(() => {})
+
+    // Load talent profile skills for fallback skill checking
+    talentApi
+      .getMyProfile(token)
+      .then((prof) => {
+        if (prof?.profile?.skills) {
+          setTalentSkills(prof.profile.skills)
+        }
+      })
+      .catch(() => {})
+  }, [id, token, isTalent])
+
+  const handleToggleSave = async () => {
+    if (!job || !token || !isTalent) return
+    setSavingBookmark(true)
+    try {
+      if (saved) {
+        await savedJobsApi.unsave(job.id, token)
+        setSaved(false)
+        toast.success('Job removed from saved listings')
+      } else {
+        await savedJobsApi.save(job.id, token)
+        setSaved(true)
+        toast.success('Job saved to your bookmarks')
+      }
+    } catch {
+      toast.error('Failed to update bookmark')
+    } finally {
+      setSavingBookmark(false)
+    }
   }
 
+  // Format pay helper
   const formatPay = () => {
-    if (!job.pay_min && !job.pay_max) return null
+    if (!job?.pay_min && !job?.pay_max) return null
     const curr = job.pay_currency === 'INR' ? '₹' : (job.pay_currency ?? '₹')
     const period = job.pay_period ? ` / ${job.pay_period}` : ''
     if (job.pay_min && job.pay_max) {
@@ -273,8 +289,131 @@ function getDeadlineStatus(deadline: string | null | undefined): { text: string;
     return `Up to ${curr}${Number(job.pay_max).toLocaleString()}${period}`
   }
 
+  // Convert match breakdown signals to LightMeter Signal[] format
+  const lightMeterSignals = useMemo<Signal[] | undefined>(() => {
+    if (!matchPreview?.signals) return undefined
+    const { signals } = matchPreview
+    return [
+      {
+        name: 'Skills',
+        score: signals.skills_match?.score ?? 0,
+        maxScore: 30,
+        weight: signals.skills_match?.weight ?? 30,
+        reason: signals.skills_match?.reason,
+      },
+      {
+        name: 'Role',
+        score: signals.role_match?.score ?? 0,
+        maxScore: 20,
+        weight: signals.role_match?.weight ?? 20,
+        reason: signals.role_match?.reason,
+      },
+      {
+        name: 'Experience',
+        score: signals.experience_match?.score ?? 0,
+        maxScore: 15,
+        weight: signals.experience_match?.weight ?? 15,
+        reason: signals.experience_match?.reason,
+      },
+      {
+        name: 'Language',
+        score: signals.language_match?.score ?? 0,
+        maxScore: 10,
+        weight: signals.language_match?.weight ?? 10,
+        reason: signals.language_match?.reason,
+      },
+      {
+        name: 'Location',
+        score: signals.location_proximity?.score ?? 0,
+        maxScore: 10,
+        weight: signals.location_proximity?.weight ?? 10,
+        reason: signals.location_proximity?.reason,
+      },
+      {
+        name: 'Profile completeness',
+        score: signals.profile_completeness?.score ?? 0,
+        maxScore: 10,
+        weight: signals.profile_completeness?.weight ?? 10,
+        reason: signals.profile_completeness?.reason,
+      },
+      {
+        name: 'Recent activity',
+        score: signals.activity_recency?.score ?? 0,
+        maxScore: 5,
+        weight: signals.activity_recency?.weight ?? 5,
+        reason: signals.activity_recency?.reason,
+      },
+    ]
+  }, [matchPreview])
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-4">
+        <div className="border border-line rounded-sm bg-surface p-8 space-y-4 animate-pulse">
+          <div className="h-7 bg-paper rounded w-1/3" />
+          <div className="h-4 bg-paper rounded w-1/2" />
+          <div className="h-32 bg-paper rounded w-full pt-4" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !job) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center px-4">
+        <div className="text-center max-w-sm border border-line rounded-sm p-8 bg-surface">
+          <p className="font-bold text-18 text-ink mb-1">Job not found</p>
+          <p className="text-14 text-muted mb-5">{error || 'This job may have been removed or unpublished.'}</p>
+          <button type="button" onClick={() => navigate(-1)} className="btn-secondary text-13">
+            Go back
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const req = job.job_requirements
+  const prod = job.production_profiles || { company_name: 'Production House', verified: false }
+  const primaryRole = req?.roles?.[0] || job.title
+  const dept = resolveDepartment(primaryRole)
+  const isClosed = job.status === 'closed'
+  const isPublished = job.status === 'published'
+  const deadlineInfo = getDeadlineStatus(job.deadline)
+  const isDeadlinePassed = deadlineInfo?.isPassed ?? false
+  const canApply = isTalent && isPublished && !isClosed && !isDeadlinePassed && !applied
+
+  // Missing and matching skills check
+  const checkSkillStatus = (skillName: string): { isPresent: boolean; isMissing: boolean } => {
+    if (!isTalent) return { isPresent: false, isMissing: false }
+    const sLower = skillName.trim().toLowerCase()
+
+    if (matchPreview?.missing_skills) {
+      const isMiss = matchPreview.missing_skills.some((ms) => ms.toLowerCase() === sLower)
+      if (isMiss) return { isPresent: false, isMissing: true }
+    }
+    if (matchPreview?.matching_skills) {
+      const isPres = matchPreview.matching_skills.some((ms) => ms.toLowerCase() === sLower)
+      if (isPres) return { isPresent: true, isMissing: false }
+    }
+
+    // Fallback: check profile skills
+    if (talentSkills.length > 0) {
+      const existsInProfile = talentSkills.some((ts) => ts.toLowerCase() === sLower)
+      return existsInProfile ? { isPresent: true, isMissing: false } : { isPresent: false, isMissing: true }
+    }
+
+    return { isPresent: false, isMissing: false }
+  }
+
+  // Reason summary for score preview
+  const missingCount = matchPreview?.missing_skills?.length ?? 0
+  const totalRequiredSkills = req?.skills?.length ?? 0
+  const scoreReasonsSummary = missingCount > 0
+    ? `Missing ${missingCount} of ${totalRequiredSkills} skills: ${matchPreview?.missing_skills?.join(', ')}`
+    : matchPreview?.summary_reasons?.[0] || 'High alignment with required film credentials.'
+
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       <PageHeader
         title={job.title}
         breadcrumbs={[
@@ -283,203 +422,360 @@ function getDeadlineStatus(deadline: string | null | undefined): { text: string;
         ]}
       />
 
-      <div className="space-y-6">
-        {/* Applied success banner */}
-        {applied && (
-          <div className="mb-6">
-            <SuccessBanner onViewApplications={() => navigate('/home')} />
-          </div>
-        )}
+      {applied && (
+        <SuccessBanner onViewApplications={() => navigate('/home')} />
+      )}
 
-        {/* Job header card */}
-        <div className="card p-7 mb-5">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex-1 min-w-[260px]">
-              <div className="flex items-center gap-3 mb-2 flex-wrap">
-                <h2 className="text-2xl font-bold text-content-heading">{job.title}</h2>
-                <span className={`badge ${STATUS_STYLES[job.status]}`}>
-                  {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
+      {/* 2-Column Responsive Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left Main Column (8 cols) */}
+        <div className="lg:col-span-8 space-y-6">
+          {/* Header Card */}
+          <div className="border border-line rounded-sm bg-surface p-6 sm:p-7 space-y-4 shadow-subtle">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <DepartmentMark department={dept} label={primaryRole} size="sm" />
+                <span className="text-11 px-2 py-0.5 rounded-sm border border-line bg-paper text-ink font-medium capitalize">
+                  {job.job_type ? job.job_type.replace('_', ' ') : 'Freelance'}
                 </span>
-                {job.job_type && (
-                  <span className="badge bg-purple-50 text-purple-700 border-purple-200 capitalize">
-                    {job.job_type.replace('_', ' ')}
-                  </span>
-                )}
-                {job.openings && job.openings > 1 && (
-                  <span className="badge bg-slate-50 text-slate-700 border-slate-200">
-                    {job.openings} openings
+                {job.status !== 'published' && (
+                  <span className="text-11 px-2 py-0.5 rounded-sm border border-line bg-paper text-muted capitalize">
+                    {job.status}
                   </span>
                 )}
               </div>
 
-              {/* Production house */}
-              <div className="flex items-center gap-2 mb-4">
-                <Building2 size={15} className="text-content-tertiary shrink-0" />
-                <span className="text-sm font-semibold text-brand">{prod.company_name}</span>
+              {/* Studio with verified badge */}
+              <div className="flex items-center gap-2 text-14 text-ink">
+                <Building2 size={16} className="text-muted shrink-0" />
+                {prod.id ? (
+                  <Link
+                    to={`/company/${prod.id}`}
+                    className="font-semibold text-ink hover:underline"
+                  >
+                    {prod.company_name}
+                  </Link>
+                ) : (
+                  <span className="font-semibold text-ink">{prod.company_name}</span>
+                )}
                 {prod.verified && <VerifiedBadge />}
               </div>
 
-              {/* Meta pills */}
-              <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-content-secondary">
-                {formatPay() && (
-                  <span className="flex items-center gap-1.5 font-medium text-content-primary">
-                    💰 {formatPay()}
-                  </span>
-                )}
+              {/* Quick meta row */}
+              <div className="flex flex-wrap gap-x-5 gap-y-2 text-13 text-muted pt-2 border-t border-line/60">
                 {req?.location && (
                   <span className="flex items-center gap-1.5">
-                    <MapPin size={14} className="text-content-tertiary" /> {req.location}
+                    <MapPin size={14} className="text-muted" /> {req.location}
                   </span>
                 )}
                 {req?.language && (
                   <span className="flex items-center gap-1.5">
-                    <Globe size={14} className="text-content-tertiary" /> {req.language}
+                    <Globe size={14} className="text-muted" /> {req.language}
                   </span>
                 )}
                 {req?.experience_level && (
-                  <span className="flex items-center gap-1.5">
-                    <Briefcase size={14} className="text-content-tertiary" />
-                    {req.experience_level.charAt(0).toUpperCase() + req.experience_level.slice(1)} level
-                  </span>
-                )}
-                {(job.start_date || job.end_date) && (
-                  <span className="flex items-center gap-1.5">
-                    🗓️ {job.start_date ? new Date(job.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD'}
-                    {' – '}
-                    {job.end_date ? new Date(job.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD'}
-                  </span>
-                )}
-                {deadlineInfo && (
-                  <span className={`flex items-center gap-1.5 font-medium ${
-                    deadlineInfo.isPassed ? 'text-red-600' : deadlineInfo.isUrgent ? 'text-amber-600' : 'text-content-secondary'
-                  }`}>
-                    ⏳ {deadlineInfo.text}
+                  <span className="flex items-center gap-1.5 capitalize">
+                    <Briefcase size={14} className="text-muted" /> {req.experience_level} level
                   </span>
                 )}
                 <span className="flex items-center gap-1.5">
-                  <Clock size={14} className="text-content-tertiary" />
-                  Posted {new Date(job.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  <Clock size={14} className="text-muted" />
+                  Posted {new Date(job.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Description in Source Serif (font-serif) */}
+          <div className="border border-line rounded-sm bg-surface p-6 sm:p-7 space-y-3.5 shadow-subtle">
+            <h2 className="text-16 font-bold text-ink">About the role</h2>
+            <div className="font-serif text-15 sm:text-16 leading-relaxed text-ink whitespace-pre-wrap">
+              {job.description}
+            </div>
+          </div>
+
+          {/* Requirements with Present / Missing Badges */}
+          {req && (req.skills.length > 0 || req.roles.length > 0) && (
+            <div className="border border-line rounded-sm bg-surface p-6 sm:p-7 space-y-5 shadow-subtle">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 pb-1">
+                <h2 className="text-16 font-bold text-ink">Requirements</h2>
+                {isTalent && (
+                  <span className="text-11 text-muted">
+                    Checked against your talent profile
+                  </span>
+                )}
+              </div>
+
+              {/* Roles */}
+              {req.roles.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-12 font-semibold text-muted block">Hiring roles</span>
+                  <div className="flex flex-wrap gap-2">
+                    {req.roles.map((r) => (
+                      <span
+                        key={r}
+                        className="px-2.5 py-1 rounded-sm text-12 font-medium bg-paper border border-line text-ink"
+                      >
+                        {r}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Required Skills readable list */}
+              {req.skills.length > 0 && (
+                <div className="space-y-2.5">
+                  <span className="text-12 font-semibold text-muted block">Required skills</span>
+                  <div className="space-y-2">
+                    {req.skills.map((skill) => {
+                      const { isPresent, isMissing } = checkSkillStatus(skill)
+
+                      return (
+                        <div
+                          key={skill}
+                          className={`flex items-center justify-between p-3 rounded-sm border transition-colors ${
+                            isPresent
+                              ? 'bg-emerald-50/60 border-emerald-200'
+                              : isMissing
+                              ? 'bg-amber-50/60 border-amber-200'
+                              : 'bg-paper border-line'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            {isPresent ? (
+                              <span className="w-5 h-5 rounded-full bg-status-success text-surface inline-flex items-center justify-center shrink-0">
+                                <Check size={13} />
+                              </span>
+                            ) : isMissing ? (
+                              <span className="w-5 h-5 rounded-full bg-amber-500 text-surface inline-flex items-center justify-center shrink-0">
+                                <AlertCircle size={13} />
+                              </span>
+                            ) : (
+                              <span className="w-1.5 h-1.5 rounded-full bg-muted shrink-0" />
+                            )}
+                            <span className="text-14 font-medium text-ink">{skill}</span>
+                          </div>
+
+                          {/* Present / Missing indicator text */}
+                          {isTalent && (
+                            <span
+                              className={`text-12 font-medium ${
+                                isPresent
+                                  ? 'text-status-success'
+                                  : isMissing
+                                  ? 'text-amber-800'
+                                  : 'text-muted'
+                              }`}
+                            >
+                              {isPresent ? 'Present in your profile' : isMissing ? 'Missing from your profile' : ''}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* About Production House */}
+          <div className="border border-line rounded-sm bg-surface p-6 sm:p-7 space-y-3.5 shadow-subtle">
+            <h2 className="text-16 font-bold text-ink">About the production house</h2>
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-sm bg-ink text-surface font-bold text-15 flex items-center justify-center shrink-0">
+                {prod.company_name?.[0]?.toUpperCase() ?? 'P'}
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-semibold text-15 text-ink">{prod.company_name}</span>
+                  {prod.verified && <VerifiedBadge />}
+                </div>
+                {prod.bio && (
+                  <p className="text-13 text-muted leading-relaxed">{prod.bio}</p>
+                )}
+                {prod.id && (
+                  <Link
+                    to={`/company/${prod.id}`}
+                    className="inline-flex items-center gap-1 text-12 font-semibold text-ink hover:underline pt-1"
+                  >
+                    View studio profile <ExternalLink size={12} />
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Sticky Panel (4 cols) */}
+        <div className="lg:col-span-4 space-y-5 lg:sticky lg:top-20">
+          {/* Key Facts Card */}
+          <div className="border border-line rounded-sm bg-surface p-6 space-y-4 shadow-subtle">
+            <h2 className="text-15 font-bold text-ink pb-2 border-b border-line">Opportunity facts</h2>
+
+            <div className="space-y-3 text-13">
+              {/* Pay */}
+              <div>
+                <span className="text-11 font-semibold text-muted block mb-0.5">Remuneration</span>
+                <span className="text-15 font-semibold text-ink">
+                  {formatPay() || 'Unspecified pay'}
+                </span>
+              </div>
+
+              {/* Shoot Dates */}
+              <div>
+                <span className="text-11 font-semibold text-muted block mb-0.5">Production dates</span>
+                <div className="flex items-center gap-1.5 text-ink">
+                  <Calendar size={14} className="text-muted" />
+                  <span>
+                    {job.start_date || job.end_date
+                      ? `${job.start_date ? new Date(job.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Immediate'} – ${job.end_date ? new Date(job.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD'}`
+                      : 'Flexible / To be discussed'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Openings */}
+              <div>
+                <span className="text-11 font-semibold text-muted block mb-0.5">Openings</span>
+                <div className="flex items-center gap-1.5 text-ink">
+                  <Users size={14} className="text-muted" />
+                  <span>
+                    {job.openings ?? 1} {job.openings === 1 ? 'opening' : 'openings'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Deadline countdown (Rule 1: never "Deadline: No deadline") */}
+              <div>
+                <span className="text-11 font-semibold text-muted block mb-0.5">Application deadline</span>
+                <span
+                  className={`font-medium ${
+                    deadlineInfo?.isPassed
+                      ? 'text-status-error'
+                      : deadlineInfo?.isUrgent
+                      ? 'text-status-warning'
+                      : 'text-ink'
+                  }`}
+                >
+                  {deadlineInfo?.text || 'No deadline'}
                 </span>
               </div>
             </div>
 
-            {/* Apply + bookmark buttons */}
-            <div className="flex items-center gap-2 shrink-0">
-              {isTalent && (
-                <button
-                  onClick={async () => {
-                    if (!talentProfileId || !token) return
-                    if (saved) {
-                      await savedJobsApi.unsave(job.id, token).catch(() => {})
-                      setSaved(false)
-                    } else {
-                      await savedJobsApi.save(job.id, token).catch(() => {})
-                      setSaved(true)
-                    }
-                  }}
-                  title={saved ? 'Remove bookmark' : 'Save job'}
-                  className={`p-2.5 rounded-lg border transition-colors
-                    ${saved ? 'border-brand bg-brand/5 text-brand' : 'border-surface-border text-content-tertiary hover:border-brand hover:text-brand'}`}>
-                  {saved ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
-                </button>
-              )}
-
+            {/* Apply & Save Buttons */}
+            <div className="pt-3 border-t border-line space-y-2.5">
               {canApply && (
                 <button
-                  onClick={() => { if (!talentProfileId) { navigate('/create-profile'); return } setModal(true) }}
-                  className="btn-primary text-base px-6 py-3">
+                  type="button"
+                  onClick={() => {
+                    if (!talentProfileId) {
+                      navigate('/create-profile')
+                      return
+                    }
+                    setModal(true)
+                  }}
+                  className="btn-primary w-full text-14 py-2.5"
+                >
                   Apply now
                 </button>
               )}
+
               {isTalent && isClosed && (
-                <span className="badge bg-slate-100 text-slate-600 border-slate-200 text-sm px-3 py-1.5">
+                <div className="w-full text-center py-2 px-3 rounded-sm bg-paper border border-line text-13 font-medium text-muted">
                   Applications closed
-                </span>
+                </div>
               )}
+
               {isTalent && isPublished && !isClosed && isDeadlinePassed && (
-                <span className="badge bg-red-50 text-red-600 border-red-200 text-sm px-3 py-1.5">
+                <div className="w-full text-center py-2 px-3 rounded-sm bg-red-50 border border-red-200 text-13 font-medium text-status-error">
                   Deadline passed
-                </span>
+                </div>
               )}
+
               {applied && (
-                <span className="badge bg-emerald-50 border-emerald-200 text-emerald-700 text-sm px-3 py-1.5">
-                  ✓ Applied
-                </span>
+                <div className="w-full text-center py-2 px-3 rounded-sm bg-emerald-50 border border-emerald-200 text-13 font-medium text-status-success">
+                  Application submitted
+                </div>
+              )}
+
+              {/* Save bookmark button */}
+              {isTalent && (
+                <button
+                  type="button"
+                  onClick={handleToggleSave}
+                  disabled={savingBookmark}
+                  className={`btn-secondary w-full text-13 py-2 inline-flex items-center justify-center gap-1.5 ${
+                    saved ? 'border-ink text-ink font-semibold' : ''
+                  }`}
+                >
+                  {saved ? (
+                    <>
+                      <BookmarkCheck size={15} className="fill-ink" />
+                      <span>Saved in bookmarks</span>
+                    </>
+                  ) : (
+                    <>
+                      <Bookmark size={15} />
+                      <span>Save job</span>
+                    </>
+                  )}
+                </button>
               )}
             </div>
           </div>
-        </div>
 
-        {/* Description */}
-        <div className="card p-7 mb-5">
-          <h2 className="text-base font-bold text-content-heading mb-4">About the role</h2>
-          <p className="text-sm text-content-secondary leading-relaxed whitespace-pre-wrap">{job.description}</p>
-        </div>
-
-        {/* Requirements */}
-        {req && (req.skills.length > 0 || req.roles.length > 0) && (
-          <div className="card p-7 mb-5">
-            <h2 className="text-base font-bold text-content-heading mb-4">Requirements</h2>
-            <div className="space-y-4">
-              {req.roles.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-content-tertiary uppercase tracking-wider mb-2">Roles</p>
-                  <div className="flex flex-wrap gap-2">{req.roles.map(r => <Pill key={r} label={r} />)}</div>
-                </div>
-              )}
-              {req.skills.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-content-tertiary uppercase tracking-wider mb-2">Skills</p>
-                  <div className="flex flex-wrap gap-2">{req.skills.map(s => <Pill key={s} label={s} />)}</div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Production house */}
-        <div className="card p-7">
-          <h2 className="text-base font-bold text-content-heading mb-3">About the production house</h2>
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-navy flex items-center justify-center text-white font-bold text-sm shrink-0">
-              {prod.company_name[0]?.toUpperCase()}
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <p className="font-semibold text-content-heading">{prod.company_name}</p>
-                {prod.verified && <VerifiedBadge />}
+          {/* Score Preview Panel (for signed-in talent) */}
+          {isTalent && (
+            <div className="border border-line rounded-sm bg-surface p-6 space-y-3.5 shadow-subtle">
+              <div className="flex items-center justify-between pb-2 border-b border-line">
+                <h2 className="text-15 font-bold text-ink">Score preview</h2>
+                <span className="text-11 text-muted">7-signal match</span>
               </div>
-            </div>
-          </div>
-          {prod.bio && <p className="text-sm text-content-secondary leading-relaxed">{prod.bio}</p>}
-          <Link to={`/profile/${prod.id}`}
-            className="inline-flex items-center gap-1 mt-3 text-xs text-brand font-semibold hover:text-brand-dark transition-colors">
-            View full profile <ExternalLink size={11} />
-          </Link>
-        </div>
 
-        {/* Floating apply CTA for mobile */}
-        {isTalent && isPublished && !applied && (
-          <div className="sm:hidden fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-surface-border z-10">
-            <button
-              onClick={() => {
-                if (!talentProfileId) { navigate('/create-profile'); return }
-                setModal(true)
-              }}
-              className="btn-primary w-full py-3 text-base">
-              Apply now
-            </button>
-          </div>
-        )}
+              {matchLoading ? (
+                <div className="space-y-2 py-2 animate-pulse">
+                  <div className="h-4 bg-paper rounded w-1/3" />
+                  <div className="h-6 bg-paper rounded w-full" />
+                </div>
+              ) : matchPreview ? (
+                <div className="space-y-3">
+                  <LightMeter
+                    score={typeof matchPreview.total === 'number' && !isNaN(matchPreview.total) ? matchPreview.total : 0}
+                    breakdown={lightMeterSignals}
+                    size="md"
+                    showScoreLabel={true}
+                    expandable={true}
+                    defaultExpanded={true}
+                  />
+
+                  {/* Explainability Reasons */}
+                  <div className="p-3 bg-paper rounded-sm border border-line text-12 text-ink space-y-1.5">
+                    <span className="font-semibold text-muted block text-11">Match analysis</span>
+                    <p className="leading-snug">{scoreReasonsSummary}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-12 text-muted">Complete your talent profile to view your match score breakdown.</p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Apply modal */}
+
+      {/* Apply Modal */}
       {showModal && token && (
         <ApplyModal
           jobId={job.id}
           token={token}
+          matchPreview={matchPreview}
           onClose={() => setModal(false)}
-          onSuccess={() => { setModal(false); setApplied(true) }}
+          onSuccess={() => {
+            setModal(false)
+            setApplied(true)
+          }}
         />
       )}
     </div>

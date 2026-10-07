@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   Search,
@@ -8,9 +8,7 @@ import {
   Bookmark,
   BookmarkCheck,
   X,
-  ChevronLeft,
-  ChevronRight,
-  TrendingUp,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '../context/AuthContext'
@@ -18,6 +16,17 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { jobsApi, savedJobsApi, JobWithProduction, JobType } from '../lib/api'
 import { PageHeader } from '../components/PageHeader'
 import { VerifiedBadge } from '../components/VerifiedBadge'
+import {
+  DataTable,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '../components/ui/DataTable'
+import { LightMeter } from '../components/ui/LightMeter'
+import { DepartmentMark, resolveDepartment, DepartmentKey } from '../components/ui/DepartmentMark'
+import { Sheet, SheetTrigger, SheetContent } from '../components/ui/Sheet'
 
 const JOB_TYPES: { label: string; value: JobType | '' }[] = [
   { label: 'All Types', value: '' },
@@ -34,6 +43,46 @@ const EXP_LEVELS = [
   { label: 'Senior', value: 'senior' },
 ]
 
+const DEPARTMENTS: { label: string; value: DepartmentKey | '' }[] = [
+  { label: 'All Departments', value: '' },
+  { label: 'Camera', value: 'camera' },
+  { label: 'Sound', value: 'sound' },
+  { label: 'Editing', value: 'editing' },
+  { label: 'Art & Costume', value: 'art and costume' },
+  { label: 'Cast', value: 'cast' },
+  { label: 'Production', value: 'production' },
+]
+
+const PAY_OPTIONS = [
+  { label: 'Any Pay', value: '' },
+  { label: '₹10,000+', value: '10000' },
+  { label: '₹25,000+', value: '25000' },
+  { label: '₹50,000+', value: '50000' },
+  { label: '₹1,00,000+', value: '100000' },
+]
+
+function formatPay(job: JobWithProduction): string {
+  if (!job.pay_min && !job.pay_max) return 'Pay unspecified'
+  const curr = job.pay_currency === 'INR' ? '₹' : (job.pay_currency ?? '₹')
+  const period = job.pay_period ? ` / ${job.pay_period}` : ''
+  if (job.pay_min && job.pay_max) {
+    return `${curr}${Number(job.pay_min).toLocaleString()} – ${curr}${Number(job.pay_max).toLocaleString()}${period}`
+  }
+  if (job.pay_min) return `From ${curr}${Number(job.pay_min).toLocaleString()}${period}`
+  return `Up to ${curr}${Number(job.pay_max).toLocaleString()}${period}`
+}
+
+function formatDeadline(deadline: string | null | undefined): string {
+  if (!deadline) return 'No deadline'
+  const d = new Date(deadline)
+  if (isNaN(d.getTime())) return 'No deadline'
+  const now = new Date()
+  const diffDays = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays < 0) return 'Deadline passed'
+  if (diffDays === 0) return 'Deadline today'
+  return `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+}
+
 const BrowseJobs = () => {
   usePageTitle(
     'Browse Open Film & Production Jobs',
@@ -45,8 +94,10 @@ const BrowseJobs = () => {
   // Query parameter bindings
   const qParam = searchParams.get('q') || ''
   const typeParam = (searchParams.get('type') as JobType) || ''
-  const locParam = searchParams.get('location') || ''
+  const locParam = searchParams.get('location') || searchParams.get('city') || ''
   const expParam = searchParams.get('experience') || ''
+  const deptParam = (searchParams.get('department') as DepartmentKey) || ''
+  const payParam = searchParams.get('pay') || searchParams.get('pay_min') || ''
   const sortParam = (searchParams.get('sort') as 'newest' | 'best_match') || 'newest'
   const pageParam = parseInt(searchParams.get('page') || '1', 10)
 
@@ -57,11 +108,17 @@ const BrowseJobs = () => {
   const [error, setError] = useState<string | null>(null)
   const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set())
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
 
-  // Form input state (debounced search text)
+  // Form input state (search text)
   const [searchTerm, setSearchTerm] = useState(qParam)
 
   const limit = 12
+
+  // Keep local search term in sync with query param
+  useEffect(() => {
+    setSearchTerm(qParam)
+  }, [qParam])
 
   // Update query params helper
   const updateFilter = (updates: Record<string, string | null>) => {
@@ -69,6 +126,8 @@ const BrowseJobs = () => {
     Object.entries(updates).forEach(([k, v]) => {
       if (v === null || v === '' || (k === 'page' && v === '1')) {
         nextParams.delete(k)
+        if (k === 'location') nextParams.delete('city')
+        if (k === 'pay') nextParams.delete('pay_min')
       } else {
         nextParams.set(k, v)
       }
@@ -94,6 +153,7 @@ const BrowseJobs = () => {
     setError(null)
 
     const offset = (pageParam - 1) * limit
+    const minPayNum = payParam ? parseFloat(payParam) : undefined
 
     jobsApi
       .list(
@@ -102,6 +162,7 @@ const BrowseJobs = () => {
           job_type: typeParam ? (typeParam as JobType) : undefined,
           location: locParam || undefined,
           experience_level: expParam || undefined,
+          pay_min: !isNaN(minPayNum!) ? minPayNum : undefined,
           sort: sortParam,
           limit,
           offset,
@@ -118,7 +179,7 @@ const BrowseJobs = () => {
       .finally(() => {
         setLoading(false)
       })
-  }, [qParam, typeParam, locParam, expParam, sortParam, pageParam, token])
+  }, [qParam, typeParam, locParam, expParam, payParam, sortParam, pageParam, token])
 
   useEffect(() => {
     fetchJobs()
@@ -172,10 +233,33 @@ const BrowseJobs = () => {
   const clearAllFilters = () => {
     setSearchTerm('')
     setSearchParams(new URLSearchParams())
+    setMobileFilterOpen(false)
   }
 
+  // Client-side department filter on top of fetched batch
+  const displayedJobs = useMemo(() => {
+    if (!deptParam) return jobs
+    return jobs.filter((j) => {
+      const primaryRole = j.job_requirements?.roles?.[0] || j.title
+      const resolved = resolveDepartment(primaryRole)
+      return resolved === deptParam
+    })
+  }, [jobs, deptParam])
+
   const totalPages = Math.ceil(total / limit)
-  const hasActiveFilters = Boolean(qParam || typeParam || locParam || expParam || sortParam !== 'newest')
+  const hasActiveFilters = Boolean(
+    qParam || typeParam || locParam || expParam || deptParam || payParam || sortParam !== 'newest'
+  )
+
+  const activeFilterCount = [
+    Boolean(qParam),
+    Boolean(typeParam),
+    Boolean(locParam),
+    Boolean(expParam),
+    Boolean(deptParam),
+    Boolean(payParam),
+    sortParam !== 'newest',
+  ].filter(Boolean).length
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -191,273 +275,619 @@ const BrowseJobs = () => {
         }
       />
 
-        {/* Search & Filter Controls */}
-        <div className="card p-5 space-y-4 border-surface-border bg-white shadow-sm">
-          <form onSubmit={handleSearchSubmit} className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-content-tertiary" size={18} />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by role, title, keywords (e.g. Cinematographer, DaVinci, Gaffer)..."
-                className="input pl-10 pr-4 text-sm w-full"
-              />
-            </div>
-            <button type="submit" className="btn-primary text-sm px-5">
-              Search
-            </button>
+      {/* Filter Bar Card */}
+      <div className="border border-line rounded-sm bg-surface p-4 sm:p-5 space-y-4 shadow-subtle">
+        {/* Top search & Mobile Filter Button */}
+        <div className="flex gap-2.5 items-center">
+          <form onSubmit={handleSearchSubmit} className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={17} />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by role, title, keywords (e.g. Cinematographer, DaVinci, Gaffer)..."
+              className="input pl-10 pr-4 text-14 w-full"
+            />
           </form>
+          <button
+            type="button"
+            onClick={handleSearchSubmit}
+            className="btn-primary text-13 px-4 py-2 shrink-0 hidden sm:inline-flex"
+          >
+            Search
+          </button>
 
-          {/* Filter Bar */}
-          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-surface-border text-xs">
-            {/* Job Type Selector */}
-            <select
-              value={typeParam}
-              onChange={(e) => updateFilter({ type: e.target.value, page: '1' })}
-              className="select py-1.5 px-3 text-xs rounded-lg border-surface-border bg-surface-section"
-            >
-              {JOB_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-
-            {/* Experience Level Selector */}
-            <select
-              value={expParam}
-              onChange={(e) => updateFilter({ experience: e.target.value, page: '1' })}
-              className="select py-1.5 px-3 text-xs rounded-lg border-surface-border bg-surface-section"
-            >
-              {EXP_LEVELS.map((exp) => (
-                <option key={exp.value} value={exp.value}>
-                  {exp.label}
-                </option>
-              ))}
-            </select>
-
-            {/* Location Input Filter */}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Filter by city..."
-                value={locParam}
-                onChange={(e) => updateFilter({ location: e.target.value, page: '1' })}
-                className="input py-1.5 pl-7 pr-3 text-xs rounded-lg w-36"
-              />
-              <MapPin size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-content-tertiary" />
-            </div>
-
-            {/* Sort Selector */}
-            <select
-              value={sortParam}
-              onChange={(e) => updateFilter({ sort: e.target.value, page: '1' })}
-              className="select py-1.5 px-3 text-xs rounded-lg border-surface-border bg-surface-section ml-auto"
-            >
-              <option value="newest">Sort: Newest First</option>
-              {user?.role === 'talent' && <option value="best_match">Sort: Best Match for Me</option>}
-            </select>
-
-            {/* Reset Filters */}
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={clearAllFilters}
-                className="text-xs text-red-600 hover:text-red-700 font-medium inline-flex items-center gap-1 px-2 py-1 rounded hover:bg-red-50"
+          {/* Mobile Filter Sheet Trigger */}
+          <div className="lg:hidden shrink-0">
+            <Sheet open={mobileFilterOpen} onOpenChange={setMobileFilterOpen}>
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  className="btn-secondary text-13 px-3 py-2 inline-flex items-center gap-1.5 relative"
+                  aria-label="Open filter sheet"
+                >
+                  <SlidersHorizontal size={15} />
+                  <span>Filters</span>
+                  {activeFilterCount > 0 && (
+                    <span className="w-5 h-5 rounded-full bg-ink text-surface text-11 font-bold inline-flex items-center justify-center">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+              </SheetTrigger>
+              <SheetContent
+                side="bottom"
+                title="Filter opportunities"
+                description="Refine open film postings by department, type, location, and pay."
+                className="space-y-4"
               >
-                <X size={13} /> Clear filters
-              </button>
-            )}
+                <div className="space-y-4 pt-2">
+                  <div>
+                    <label className="text-12 font-semibold text-muted block mb-1.5">Department</label>
+                    <select
+                      value={deptParam}
+                      onChange={(e) => updateFilter({ department: e.target.value, page: '1' })}
+                      className="select w-full text-13"
+                    >
+                      {DEPARTMENTS.map((d) => (
+                        <option key={d.value} value={d.value}>
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-12 font-semibold text-muted block mb-1.5">Job type</label>
+                    <select
+                      value={typeParam}
+                      onChange={(e) => updateFilter({ type: e.target.value, page: '1' })}
+                      className="select w-full text-13"
+                    >
+                      {JOB_TYPES.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-12 font-semibold text-muted block mb-1.5">Experience</label>
+                    <select
+                      value={expParam}
+                      onChange={(e) => updateFilter({ experience: e.target.value, page: '1' })}
+                      className="select w-full text-13"
+                    >
+                      {EXP_LEVELS.map((exp) => (
+                        <option key={exp.value} value={exp.value}>
+                          {exp.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-12 font-semibold text-muted block mb-1.5">City</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Filter by city..."
+                        value={locParam}
+                        onChange={(e) => updateFilter({ location: e.target.value, page: '1' })}
+                        className="input pl-8 text-13 w-full"
+                      />
+                      <MapPin size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-12 font-semibold text-muted block mb-1.5">Minimum pay</label>
+                    <select
+                      value={payParam}
+                      onChange={(e) => updateFilter({ pay: e.target.value, page: '1' })}
+                      className="select w-full text-13"
+                    >
+                      {PAY_OPTIONS.map((p) => (
+                        <option key={p.value} value={p.value}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-12 font-semibold text-muted block mb-1.5">Sort order</label>
+                    <select
+                      value={sortParam}
+                      onChange={(e) => updateFilter({ sort: e.target.value, page: '1' })}
+                      className="select w-full text-13"
+                    >
+                      <option value="newest">Sort: Newest first</option>
+                      {user?.role === 'talent' && <option value="best_match">Sort: Best match for me</option>}
+                    </select>
+                  </div>
+
+                  <div className="flex gap-2 pt-2 border-t border-line">
+                    {hasActiveFilters && (
+                      <button
+                        type="button"
+                        onClick={clearAllFilters}
+                        className="btn-ghost text-13 flex-1"
+                      >
+                        Clear all
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setMobileFilterOpen(false)}
+                      className="btn-primary text-13 flex-1"
+                    >
+                      Show results
+                    </button>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
 
-        {/* Results Header */}
-        <div className="flex items-center justify-between text-xs text-content-secondary px-1">
-          <span>
-            Showing {jobs.length > 0 ? (pageParam - 1) * limit + 1 : 0}–
-            {Math.min(pageParam * limit, total)} of {total} listings
+        {/* Desktop Filter Bar (>= lg) */}
+        <div className="hidden lg:flex flex-wrap items-center gap-2.5 pt-3 border-t border-line text-12">
+          {/* Department Selector */}
+          <select
+            value={deptParam}
+            onChange={(e) => updateFilter({ department: e.target.value, page: '1' })}
+            className="select py-1.5 px-3 text-12 rounded-sm border-line bg-paper/50"
+            aria-label="Department filter"
+          >
+            {DEPARTMENTS.map((d) => (
+              <option key={d.value} value={d.value}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Job Type Selector */}
+          <select
+            value={typeParam}
+            onChange={(e) => updateFilter({ type: e.target.value, page: '1' })}
+            className="select py-1.5 px-3 text-12 rounded-sm border-line bg-paper/50"
+            aria-label="Job type filter"
+          >
+            {JOB_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Experience Level Selector */}
+          <select
+            value={expParam}
+            onChange={(e) => updateFilter({ experience: e.target.value, page: '1' })}
+            className="select py-1.5 px-3 text-12 rounded-sm border-line bg-paper/50"
+            aria-label="Experience level filter"
+          >
+            {EXP_LEVELS.map((exp) => (
+              <option key={exp.value} value={exp.value}>
+                {exp.label}
+              </option>
+            ))}
+          </select>
+
+          {/* City / Location Input */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Filter by city..."
+              value={locParam}
+              onChange={(e) => updateFilter({ location: e.target.value, page: '1' })}
+              className="input py-1.5 pl-7 pr-3 text-12 rounded-sm w-36 border-line"
+            />
+            <MapPin size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
+          </div>
+
+          {/* Pay Selector */}
+          <select
+            value={payParam}
+            onChange={(e) => updateFilter({ pay: e.target.value, page: '1' })}
+            className="select py-1.5 px-3 text-12 rounded-sm border-line bg-paper/50"
+            aria-label="Pay filter"
+          >
+            {PAY_OPTIONS.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Sort Selector */}
+          <select
+            value={sortParam}
+            onChange={(e) => updateFilter({ sort: e.target.value, page: '1' })}
+            className="select py-1.5 px-3 text-12 rounded-sm border-line bg-paper/50 ml-auto"
+            aria-label="Sort order"
+          >
+            <option value="newest">Sort: Newest first</option>
+            {user?.role === 'talent' && <option value="best_match">Sort: Best match for me</option>}
+          </select>
+        </div>
+
+        {/* Active Filter Chips */}
+        {hasActiveFilters && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-line/60">
+            <span className="text-11 font-semibold text-muted select-none">Active filters:</span>
+
+            {qParam && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-paper text-ink text-11 border border-line">
+                <span>Query: &ldquo;{qParam}&rdquo;</span>
+                <button
+                  type="button"
+                  onClick={() => updateFilter({ q: null, page: '1' })}
+                  className="hover:text-status-error ml-0.5"
+                  aria-label="Remove query filter"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            )}
+
+            {deptParam && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-paper text-ink text-11 border border-line">
+                <span>Dept: {DEPARTMENTS.find((d) => d.value === deptParam)?.label}</span>
+                <button
+                  type="button"
+                  onClick={() => updateFilter({ department: null, page: '1' })}
+                  className="hover:text-status-error ml-0.5"
+                  aria-label="Remove department filter"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            )}
+
+            {typeParam && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-paper text-ink text-11 border border-line">
+                <span>Type: {JOB_TYPES.find((t) => t.value === typeParam)?.label}</span>
+                <button
+                  type="button"
+                  onClick={() => updateFilter({ type: null, page: '1' })}
+                  className="hover:text-status-error ml-0.5"
+                  aria-label="Remove type filter"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            )}
+
+            {expParam && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-paper text-ink text-11 border border-line">
+                <span>Exp: {EXP_LEVELS.find((e) => e.value === expParam)?.label}</span>
+                <button
+                  type="button"
+                  onClick={() => updateFilter({ experience: null, page: '1' })}
+                  className="hover:text-status-error ml-0.5"
+                  aria-label="Remove experience filter"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            )}
+
+            {locParam && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-paper text-ink text-11 border border-line">
+                <span>City: {locParam}</span>
+                <button
+                  type="button"
+                  onClick={() => updateFilter({ location: null, page: '1' })}
+                  className="hover:text-status-error ml-0.5"
+                  aria-label="Remove location filter"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            )}
+
+            {payParam && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-paper text-ink text-11 border border-line">
+                <span>Pay: {PAY_OPTIONS.find((p) => p.value === payParam)?.label}</span>
+                <button
+                  type="button"
+                  onClick={() => updateFilter({ pay: null, page: '1' })}
+                  className="hover:text-status-error ml-0.5"
+                  aria-label="Remove pay filter"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            )}
+
+            {sortParam === 'best_match' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-paper text-ink text-11 border border-line">
+                <span>Sort: Best match</span>
+                <button
+                  type="button"
+                  onClick={() => updateFilter({ sort: 'newest', page: '1' })}
+                  className="hover:text-status-error ml-0.5"
+                  aria-label="Remove sort filter"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              className="text-11 text-status-error hover:underline font-medium ml-1"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Results Count Header */}
+      <div className="flex items-center justify-between text-12 text-muted px-1">
+        <span>
+          Showing {displayedJobs.length > 0 ? (pageParam - 1) * limit + 1 : 0}–
+          {Math.min(pageParam * limit, total)} of {total} listings
+        </span>
+        {loading && (
+          <span className="flex items-center gap-1.5 text-ink font-medium">
+            <RefreshCw size={13} className="animate-spin" /> Updating listings…
           </span>
-          {loading && (
-            <span className="flex items-center gap-1.5 text-brand">
-              <RefreshCw size={13} className="animate-spin" /> Updating listings…
-            </span>
+        )}
+      </div>
+
+      {/* Loading Skeletons */}
+      {loading && (
+        <div className="border border-line rounded-sm bg-surface p-6 space-y-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex items-center gap-4 py-2 border-b border-line last:border-b-0 animate-pulse">
+              <div className="h-5 bg-paper rounded w-1/4" />
+              <div className="h-4 bg-paper rounded w-1/6" />
+              <div className="h-4 bg-paper rounded w-1/6" />
+              <div className="h-4 bg-paper rounded w-1/6 ml-auto" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Error State */}
+      {!loading && error && (
+        <div className="border border-status-error/30 rounded-sm p-8 text-center space-y-3 bg-surface">
+          <p className="text-14 text-status-error font-semibold">{error}</p>
+          <button onClick={fetchJobs} className="btn-secondary text-12 inline-flex items-center gap-2">
+            <RefreshCw size={13} /> Try Again
+          </button>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && !error && displayedJobs.length === 0 && (
+        <div className="border border-dashed border-line rounded-sm p-12 text-center space-y-3 bg-surface">
+          <div className="w-12 h-12 rounded-full bg-paper flex items-center justify-center mx-auto text-muted">
+            <Briefcase size={22} />
+          </div>
+          <h3 className="text-16 font-bold text-ink">No listings found</h3>
+          <p className="text-14 text-muted max-w-md mx-auto">
+            We couldn&apos;t find any open positions matching your search criteria. Try removing some filters or search for another department.
+          </p>
+          {hasActiveFilters && (
+            <button onClick={clearAllFilters} className="btn-secondary text-13">
+              Clear all filters
+            </button>
           )}
         </div>
+      )}
 
-        {/* Loading Skeletons */}
-        {loading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="card p-5 space-y-3 bg-white">
-                <div className="skeleton h-5 w-3/4" />
-                <div className="skeleton h-4 w-1/2" />
-                <div className="skeleton h-14 w-full" />
-                <div className="skeleton h-4 w-full pt-3" />
-              </div>
-            ))}
-          </div>
-        )}
+      {/* Responsive Dense Rows (Desktop Table + Mobile Stacked Cards in single DOM tree) */}
+      {!loading && !error && displayedJobs.length > 0 && (
+        <div className="w-full">
+          <DataTable className="block md:table border-0 md:border border-line">
+            <TableHeader className="hidden md:table-header-group">
+              <TableRow>
+                <TableHead className="w-2/5">Role & Department</TableHead>
+                <TableHead>Studio</TableHead>
+                <TableHead>Location</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Pay</TableHead>
+                <TableHead>Deadline</TableHead>
+                {user?.role === 'talent' && <TableHead className="w-32">Match</TableHead>}
+                <TableHead className="text-right w-12" />
+              </TableRow>
+            </TableHeader>
+            <TableBody className="block md:table-row-group space-y-3 md:space-y-0">
+              {displayedJobs.map((job) => {
+                const primaryRole = job.job_requirements?.roles?.[0] || job.title
+                const dept = resolveDepartment(primaryRole)
+                const deptLabel = dept.charAt(0).toUpperCase() + dept.slice(1)
+                const company = job.production_profiles
+                const isSaved = savedJobIds.has(job.id)
+                const skills = job.job_requirements?.skills?.slice(0, 2) ?? []
+                const deadlineStr = formatDeadline(job.deadline)
 
-        {/* Error State */}
-        {!loading && error && (
-          <div className="card p-8 text-center space-y-3 bg-white border-red-200">
-            <p className="text-sm text-red-600 font-semibold">{error}</p>
-            <button onClick={fetchJobs} className="btn-secondary text-xs inline-flex items-center gap-2">
-              <RefreshCw size={13} /> Try Again
-            </button>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!loading && !error && jobs.length === 0 && (
-          <div className="card p-12 text-center space-y-4 bg-white border-dashed border-surface-border">
-            <div className="w-12 h-12 rounded-full bg-brand/10 text-brand flex items-center justify-center mx-auto">
-              <Briefcase size={22} />
-            </div>
-            <h3 className="text-lg font-bold text-content-heading">No listings found</h3>
-            <p className="text-sm text-content-secondary max-w-md mx-auto">
-              We couldn&apos;t find any open positions matching your search criteria. Try removing some filters or search for another department.
-            </p>
-            {hasActiveFilters && (
-              <button onClick={clearAllFilters} className="btn-secondary text-sm">
-                Clear All Filters
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Job Listings Grid */}
-        {!loading && !error && jobs.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {jobs.map((job) => {
-              const req = job.job_requirements
-              const company = job.production_profiles
-              const isSaved = savedJobIds.has(job.id)
-              const skills = req?.skills?.slice(0, 3) ?? []
-
-              return (
-                <div
-                  key={job.id}
-                  className="card-hover p-5 bg-white border-surface-border flex flex-col justify-between group relative"
-                >
-                  <div className="space-y-2.5">
-                    {/* Header: Company & Bookmark */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-brand-navy text-white text-xs font-bold flex items-center justify-center shrink-0">
-                          {company?.company_name?.[0]?.toUpperCase() ?? 'P'}
+                return (
+                  <TableRow
+                    key={job.id}
+                    className="block md:table-row p-4 md:py-2.5 md:px-3 border md:border-0 border-line rounded-sm md:rounded-none bg-surface hover:bg-paper/30 space-y-2 md:space-y-0 transition-colors"
+                  >
+                    {/* Role & Title */}
+                    <TableCell className="block md:table-cell p-0 md:py-2.5 md:px-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <Link
+                            to={`/jobs/${job.id}`}
+                            className="font-semibold text-ink hover:underline block leading-tight text-14 sm:text-15"
+                          >
+                            {job.title}
+                          </Link>
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <DepartmentMark department={dept} label={deptLabel} size="sm" />
+                            {skills.length > 0 && (
+                              <span className="text-11 text-muted">
+                                {skills.join(', ')}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div className="min-w-0 truncate">
-                          {company?.id ? (
-                            <Link
-                              to={`/company/${company.id}`}
-                              className="text-xs font-medium text-content-secondary hover:text-brand truncate block"
+
+                        {/* Mobile bookmark icon */}
+                        {user?.role === 'talent' && (
+                          <div className="md:hidden shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => handleToggleSave(e, job.id)}
+                              disabled={savingId === job.id}
+                              className="text-muted hover:text-ink p-1"
+                              title={isSaved ? 'Remove from saved' : 'Save job'}
+                              aria-label={isSaved ? 'Remove from saved' : 'Save job'}
                             >
-                              {company.company_name}
-                            </Link>
-                          ) : (
-                            <span className="text-xs font-medium text-content-secondary truncate block">
-                              {company?.company_name ?? 'Studio'}
-                            </span>
-                          )}
-                        </div>
+                              {isSaved ? (
+                                <BookmarkCheck size={16} className="text-ink fill-ink" />
+                              ) : (
+                                <Bookmark size={16} />
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    {/* Studio */}
+                    <TableCell className="block md:table-cell p-0 md:py-2.5 md:px-3 text-12 md:text-13">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-muted md:hidden">Studio:</span>
+                        {company?.id ? (
+                          <Link
+                            to={`/company/${company.id}`}
+                            className="font-medium text-ink hover:underline truncate"
+                          >
+                            {company.company_name}
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-ink truncate">
+                            {company?.company_name ?? 'Studio'}
+                          </span>
+                        )}
                         {company?.verified && <VerifiedBadge />}
                       </div>
+                    </TableCell>
 
+                    {/* Location */}
+                    <TableCell className="block md:table-cell p-0 md:py-2.5 md:px-3 text-12 md:text-13 text-muted">
+                      <div className="flex items-center justify-between md:justify-start">
+                        <span className="text-muted md:hidden">Location:</span>
+                        <span>{job.job_requirements?.location || 'Flexible'}</span>
+                      </div>
+                    </TableCell>
+
+                    {/* Type */}
+                    <TableCell className="block md:table-cell p-0 md:py-2.5 md:px-3 text-12 capitalize text-muted">
+                      <div className="flex items-center justify-between md:justify-start">
+                        <span className="text-muted md:hidden">Type:</span>
+                        <span>{job.job_type ? job.job_type.replace('_', ' ') : 'Freelance'}</span>
+                      </div>
+                    </TableCell>
+
+                    {/* Pay */}
+                    <TableCell className="block md:table-cell p-0 md:py-2.5 md:px-3 text-12 md:text-13 font-medium text-ink">
+                      <div className="flex items-center justify-between md:justify-start">
+                        <span className="text-muted md:hidden font-normal">Pay:</span>
+                        <span>{formatPay(job)}</span>
+                      </div>
+                    </TableCell>
+
+                    {/* Deadline (Rule 1: never "Deadline: No deadline") */}
+                    <TableCell className="block md:table-cell p-0 md:py-2.5 md:px-3 text-12 text-muted tnum">
+                      <div className="flex items-center justify-between md:justify-start border-t md:border-t-0 border-line/60 pt-2 md:pt-0">
+                        <span className="text-muted md:hidden">Deadline:</span>
+                        <span>{deadlineStr}</span>
+                      </div>
+                    </TableCell>
+
+                    {/* Talent Match Meter */}
+                    {user?.role === 'talent' && (
+                      <TableCell className="block md:table-cell p-0 md:py-2.5 md:px-3">
+                        <div className="flex items-center justify-between md:justify-start gap-2 pt-1 md:pt-0">
+                          <span className="text-12 text-muted md:hidden">Match score:</span>
+                          <div className="w-28 md:w-32">
+                            <LightMeter
+                              score={job.match_score ?? 0}
+                              size="sm"
+                              expandable={false}
+                              showScoreLabel={true}
+                            />
+                          </div>
+                        </div>
+                      </TableCell>
+                    )}
+
+                    {/* Desktop Bookmark action */}
+                    <TableCell className="hidden md:table-cell p-0 md:py-2.5 md:px-3 text-right">
                       {user?.role === 'talent' && (
                         <button
                           type="button"
                           onClick={(e) => handleToggleSave(e, job.id)}
                           disabled={savingId === job.id}
-                          className="text-content-tertiary hover:text-brand p-1 -mr-1 transition-colors"
+                          className="text-muted hover:text-ink p-1 rounded transition-colors inline-flex items-center justify-center"
                           title={isSaved ? 'Remove from saved' : 'Save job'}
+                          aria-label={isSaved ? 'Remove from saved' : 'Save job'}
                         >
                           {isSaved ? (
-                            <BookmarkCheck size={18} className="text-brand fill-brand" />
+                            <BookmarkCheck size={16} className="text-ink fill-ink" />
                           ) : (
-                            <Bookmark size={18} />
+                            <Bookmark size={16} />
                           )}
                         </button>
                       )}
-                    </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </DataTable>
+        </div>
+      )}
 
-                    {/* Job Title */}
-                    <Link to={`/jobs/${job.id}`} className="block">
-                      <h3 className="text-base font-bold text-content-heading group-hover:text-brand transition-colors line-clamp-1">
-                        {job.title}
-                      </h3>
-                    </Link>
+      {/* Pagination & Visible End State */}
+      {!loading && !error && displayedJobs.length > 0 && (
+        <div className="pt-4 border-t border-line flex flex-col sm:flex-row items-center justify-between gap-4">
+          <span className="text-12 text-muted">
+            {pageParam >= totalPages
+              ? `Showing all ${total} listings`
+              : `Showing ${displayedJobs.length} of ${total} listings`}
+          </span>
 
-                    {/* Description preview */}
-                    <p className="text-xs text-content-secondary line-clamp-2 leading-relaxed">
-                      {job.description}
-                    </p>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => updateFilter({ page: String(Math.max(1, pageParam - 1)) })}
+                disabled={pageParam <= 1 || loading}
+                className="btn-secondary text-12 py-1.5 px-3 disabled:opacity-40"
+              >
+                Previous
+              </button>
 
-                    {/* Skills pills */}
-                    {skills.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {skills.map((s) => (
-                          <span
-                            key={s}
-                            className="badge text-[11px] bg-surface-section border-surface-border text-content-secondary"
-                          >
-                            {s}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+              <span className="text-12 font-medium text-ink px-2">
+                Page {pageParam} of {totalPages}
+              </span>
 
-                  {/* Footer Meta */}
-                  <div className="pt-4 mt-4 border-t border-surface-border flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2 text-content-tertiary">
-                      {req?.location && (
-                        <span className="flex items-center gap-1">
-                          <MapPin size={12} /> {req.location}
-                        </span>
-                      )}
-                      <span className="capitalize">{job.job_type ?? 'Freelance'}</span>
-                    </div>
-
-                    {job.match_score != null && (
-                      <span className="mono-text text-[11px] font-bold text-brand bg-blue-50 border border-brand/20 px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <TrendingUp size={11} /> {Math.round(job.match_score)}%
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Pagination Controls */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 pt-6">
-            <button
-              type="button"
-              onClick={() => updateFilter({ page: String(Math.max(1, pageParam - 1)) })}
-              disabled={pageParam <= 1 || loading}
-              className="btn-secondary text-xs py-1.5 px-3 disabled:opacity-40"
-            >
-              <ChevronLeft size={14} /> Previous
-            </button>
-
-            <span className="text-xs font-semibold text-content-secondary px-3">
-              Page {pageParam} of {totalPages}
-            </span>
-
-            <button
-              type="button"
-              onClick={() => updateFilter({ page: String(Math.min(totalPages, pageParam + 1)) })}
-              disabled={pageParam >= totalPages || loading}
-              className="btn-secondary text-xs py-1.5 px-3 disabled:opacity-40"
-            >
-              Next <ChevronRight size={14} />
-            </button>
-          </div>
-        )}
+              <button
+                type="button"
+                onClick={() => updateFilter({ page: String(Math.min(totalPages, pageParam + 1)) })}
+                disabled={pageParam >= totalPages || loading}
+                className="btn-secondary text-12 py-1.5 px-3 disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
