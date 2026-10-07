@@ -181,4 +181,63 @@ describe('BrowseJobs page', () => {
       expect(screen.queryByText(/Dept: Camera/i)).not.toBeInTheDocument()
     })
   })
+
+  it('displays custom formatted type chip value like Type: Feature Film with remove button', async () => {
+    vi.mocked(jobsApi.list).mockResolvedValue({
+      jobs: mockJobs,
+      total: 1,
+      page: 1,
+      limit: 12,
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/jobs?type=feature_film']}>
+        <BrowseJobs />
+      </MemoryRouter>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText(/Type: Feature Film/i)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Remove type filter/i })).toBeInTheDocument()
+    })
+  })
+
+  it('hides Post a job button for talent accounts and shows it for production accounts', async () => {
+    vi.mocked(jobsApi.list).mockResolvedValue({
+      jobs: mockJobs,
+      total: 1,
+      page: 1,
+      limit: 12,
+    })
+
+    // Talent user: Post a job should NOT be visible
+    const { unmount } = render(
+      <MemoryRouter>
+        <BrowseJobs />
+      </MemoryRouter>
+    )
+
+    expect(screen.queryByRole('link', { name: /Post a job/i })).not.toBeInTheDocument()
+    expect(screen.getByText(/Explore film opportunities/i)).toBeInTheDocument()
+    unmount()
+
+    // Production user: Post a job SHOULD be visible
+    vi.spyOn(AuthContext, 'useAuth').mockReturnValue({
+      user: { id: 'prod-1', email: 'studio@cine.test', role: 'production', profileId: 'prod-1' },
+      token: 'jwt-token',
+      loading: false,
+      isAuthenticated: true,
+      setSession: vi.fn(),
+      setProfileId: vi.fn(),
+      logout: vi.fn(),
+    })
+
+    render(
+      <MemoryRouter>
+        <BrowseJobs />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole('link', { name: /Post a job/i })).toBeInTheDocument()
+  })
 })

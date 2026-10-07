@@ -183,7 +183,7 @@ function LiveJobPreview({
           <Eye size={14} />
           <span>Talent view preview</span>
         </div>
-        <span className="text-11 px-2 py-0.5 rounded-sm bg-paper text-muted border border-line">
+        <span className="text-11 font-medium text-muted">
           Live preview
         </span>
       </div>
@@ -245,7 +245,10 @@ function LiveJobPreview({
 
         {/* Sample LightMeter */}
         <div className="pt-2 border-t border-line/60 space-y-1">
-          <span className="text-11 text-muted block">Applicant match meter preview</span>
+          <div className="flex items-center justify-between text-11 text-muted">
+            <span className="font-medium text-ink">Sample score</span>
+            <span className="text-11 text-muted">Applicant view</span>
+          </div>
           <LightMeter score={88} size="sm" showScoreLabel={true} expandable={false} />
         </div>
       </div>
@@ -666,9 +669,14 @@ export default function EditJob() {
 
         {/* Status / Link actions */}
         <div className="flex items-center gap-3">
+          {draftStatus === 'saving' && (
+            <span className="flex items-center gap-1.5 text-12 text-muted">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Saving...
+            </span>
+          )}
           {draftStatus === 'saved' && (
             <span className="flex items-center gap-1 text-12 text-status-success font-medium">
-              <CheckCircle2 size={13} /> Saved automatically
+              <CheckCircle2 size={13} /> Draft saved just now
             </span>
           )}
           <Link
@@ -757,7 +765,7 @@ export default function EditJob() {
                       disabled={isPublished}
                       onChange={(e) => setStep1((p) => ({ ...p, job_type: e.target.value as JobType }))}
                       onBlur={() => autoSaveDraft(step1, step2)}
-                      className={`select text-13 w-full ${isPublished ? 'bg-paper text-muted cursor-not-allowed' : ''}`}
+                      className={`select h-[38px] text-13 w-full border border-line rounded-[3px] bg-surface px-3 py-2 ${isPublished ? 'bg-paper text-muted cursor-not-allowed' : ''}`}
                     >
                       {JOB_TYPE_OPTIONS.map((o) => (
                         <option key={o.value} value={o.value}>
@@ -830,7 +838,7 @@ export default function EditJob() {
                       value={step1.pay_period}
                       onChange={(e) => setStep1((p) => ({ ...p, pay_period: e.target.value as PayPeriod }))}
                       onBlur={() => autoSaveDraft(step1, step2)}
-                      className="select text-13"
+                      className="select h-[38px] text-13 border border-line rounded-[3px] bg-surface px-3 py-2"
                     >
                       {PAY_PERIOD_OPTIONS.map((o) => (
                         <option key={o.value} value={o.value}>
@@ -955,7 +963,7 @@ export default function EditJob() {
                     Save draft and exit
                   </button>
                   <button type="submit" disabled={saving} className="btn-primary text-13">
-                    {saving ? 'Saving…' : 'Save details & continue'}
+                    {saving ? 'Saving…' : 'Save details and continue'}
                   </button>
                 </div>
               </form>
@@ -1002,7 +1010,7 @@ export default function EditJob() {
                       setStep2((p) => ({ ...p, experience_level: val }))
                       autoSaveDraft(step1, { ...step2, experience_level: val })
                     }}
-                    className="select text-13 w-full"
+                    className="select h-[38px] text-13 w-full border border-line rounded-[3px] bg-surface px-3 py-2"
                   >
                     {EXP_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value}>
@@ -1052,7 +1060,7 @@ export default function EditJob() {
                     Back to details
                   </button>
                   <button type="submit" disabled={saving} className="btn-primary text-13">
-                    {saving ? 'Saving…' : 'Save requirements & review'}
+                    {saving ? 'Saving…' : 'Save requirements and review'}
                   </button>
                 </div>
               </form>
@@ -1170,7 +1178,7 @@ export default function EditJob() {
           <LiveJobPreview
             step1={step1}
             step2={step2}
-            studioName={job.production_profiles?.company_name || 'Your Studio'}
+            studioName={job.production_profiles?.company_name || user?.company_name || localStorage.getItem('cc_company_name') || 'Your Studio'}
           />
         </div>
       </div>

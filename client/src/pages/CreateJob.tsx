@@ -1,8 +1,8 @@
-import { useState, useCallback, FormEvent } from 'react'
+import { useState, useEffect, useCallback, FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Check, Building2, MapPin, Eye, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { jobsApi, SetRequirementsPayload, JobType, PayPeriod } from '../lib/api'
+import { jobsApi, productionApi, SetRequirementsPayload, JobType, PayPeriod } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { AutocompleteInput } from '../components/AutocompleteInput'
@@ -187,7 +187,7 @@ function LiveJobPreview({
           <Eye size={14} />
           <span>Talent view preview</span>
         </div>
-        <span className="text-11 px-2 py-0.5 rounded-sm bg-paper text-muted border border-line">
+        <span className="text-11 font-medium text-muted">
           Live preview
         </span>
       </div>
@@ -249,7 +249,10 @@ function LiveJobPreview({
 
         {/* Sample LightMeter */}
         <div className="pt-2 border-t border-line/60 space-y-1">
-          <span className="text-11 text-muted block">Applicant match meter preview</span>
+          <div className="flex items-center justify-between text-11 text-muted">
+            <span className="font-medium text-ink">Sample score</span>
+            <span className="text-11 text-muted">Applicant view</span>
+          </div>
           <LightMeter score={88} size="sm" showScoreLabel={true} expandable={false} />
         </div>
       </div>
@@ -296,6 +299,33 @@ const CreateJob = () => {
 
   const [loading, setLoading] = useState(false)
   const [serverError, setServerError] = useState('')
+
+  const [studioName, setStudioName] = useState<string>(() => {
+    return user?.company_name || localStorage.getItem('cc_company_name') || ''
+  })
+
+  useEffect(() => {
+    if (user?.company_name) {
+      setStudioName(user.company_name)
+      return
+    }
+    const cached = localStorage.getItem('cc_company_name')
+    if (cached) {
+      setStudioName(cached)
+      return
+    }
+    if (accessToken && user?.role === 'production') {
+      productionApi
+        .getMyProfile(accessToken)
+        .then((res) => {
+          if (res?.profile?.company_name) {
+            setStudioName(res.profile.company_name)
+            localStorage.setItem('cc_company_name', res.profile.company_name)
+          }
+        })
+        .catch(() => {})
+    }
+  }, [accessToken, user?.company_name, user?.role])
 
   const descRemaining = 5000 - step1.description.length
 
@@ -539,13 +569,13 @@ const CreateJob = () => {
         {/* Auto-save status indicator */}
         <div className="flex items-center gap-2 text-12 text-muted">
           {draftStatus === 'saving' && (
-            <span className="flex items-center gap-1 text-muted">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" /> Saving draft…
+            <span className="flex items-center gap-1.5 text-muted">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Saving...
             </span>
           )}
           {draftStatus === 'saved' && (
             <span className="flex items-center gap-1 text-status-success font-medium">
-              <CheckCircle2 size={13} /> Draft saved automatically
+              <CheckCircle2 size={13} /> Draft saved just now
             </span>
           )}
         </div>
@@ -606,7 +636,7 @@ const CreateJob = () => {
                       value={step1.job_type}
                       onChange={(e) => setStep1((p) => ({ ...p, job_type: e.target.value as JobType }))}
                       onBlur={() => autoSaveDraft(step1, step2)}
-                      className="select text-13 w-full"
+                      className="select h-[38px] text-13 w-full border border-line rounded-[3px] bg-surface px-3 py-2"
                     >
                       {JOB_TYPE_OPTIONS.map((o) => (
                         <option key={o.value} value={o.value}>
@@ -677,7 +707,7 @@ const CreateJob = () => {
                       value={step1.pay_period}
                       onChange={(e) => setStep1((p) => ({ ...p, pay_period: e.target.value as PayPeriod }))}
                       onBlur={() => autoSaveDraft(step1, step2)}
-                      className="select text-13"
+                      className="select h-[38px] text-13 border border-line rounded-[3px] bg-surface px-3 py-2"
                     >
                       {PAY_PERIOD_OPTIONS.map((o) => (
                         <option key={o.value} value={o.value}>
@@ -849,7 +879,7 @@ const CreateJob = () => {
                       setStep2((p) => ({ ...p, experience_level: val }))
                       autoSaveDraft(step1, { ...step2, experience_level: val })
                     }}
-                    className="select text-13 w-full"
+                    className="select h-[38px] text-13 w-full border border-line rounded-[3px] bg-surface px-3 py-2"
                   >
                     {EXP_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value}>
@@ -998,7 +1028,7 @@ const CreateJob = () => {
           <LiveJobPreview
             step1={step1}
             step2={step2}
-            studioName={user?.email ? user.email.split('@')[0] : 'Studio'}
+            studioName={studioName || 'Your Studio'}
           />
         </div>
       </div>

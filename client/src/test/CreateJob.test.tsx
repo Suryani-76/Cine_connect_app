@@ -52,7 +52,8 @@ describe('CreateJob page wizard', () => {
     expect(screen.getByText('Requirements')).toBeInTheDocument()
     expect(screen.getByText('Review & publish')).toBeInTheDocument()
     expect(screen.getByText('Talent view preview')).toBeInTheDocument()
-    expect(screen.getByText('Applicant match meter preview')).toBeInTheDocument()
+    expect(screen.getByText('Sample score')).toBeInTheDocument()
+    expect(screen.getByText('Live preview')).toBeInTheDocument()
   })
 
   it('validates fields on blur and shows inline error messages', async () => {

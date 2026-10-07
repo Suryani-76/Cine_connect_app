@@ -29,32 +29,32 @@ import { DepartmentMark, resolveDepartment, DepartmentKey } from '../components/
 import { Sheet, SheetTrigger, SheetContent } from '../components/ui/Sheet'
 
 const JOB_TYPES: { label: string; value: JobType | '' }[] = [
-  { label: 'All Types', value: '' },
+  { label: 'All types', value: '' },
   { label: 'Freelance', value: 'freelance' },
   { label: 'Contract', value: 'contract' },
-  { label: 'Full Time', value: 'full_time' },
-  { label: 'Part Time', value: 'part_time' },
+  { label: 'Full time', value: 'full_time' },
+  { label: 'Part time', value: 'part_time' },
 ]
 
 const EXP_LEVELS = [
-  { label: 'All Experience', value: '' },
-  { label: 'Entry Level', value: 'entry' },
-  { label: 'Mid Level', value: 'mid' },
+  { label: 'All experience', value: '' },
+  { label: 'Entry level', value: 'entry' },
+  { label: 'Mid level', value: 'mid' },
   { label: 'Senior', value: 'senior' },
 ]
 
 const DEPARTMENTS: { label: string; value: DepartmentKey | '' }[] = [
-  { label: 'All Departments', value: '' },
+  { label: 'All departments', value: '' },
   { label: 'Camera', value: 'camera' },
   { label: 'Sound', value: 'sound' },
   { label: 'Editing', value: 'editing' },
-  { label: 'Art & Costume', value: 'art and costume' },
+  { label: 'Art & costume', value: 'art and costume' },
   { label: 'Cast', value: 'cast' },
   { label: 'Production', value: 'production' },
 ]
 
 const PAY_OPTIONS = [
-  { label: 'Any Pay', value: '' },
+  { label: 'Any pay', value: '' },
   { label: '₹10,000+', value: '10000' },
   { label: '₹25,000+', value: '25000' },
   { label: '₹50,000+', value: '50000' },
@@ -261,15 +261,45 @@ const BrowseJobs = () => {
     sortParam !== 'newest',
   ].filter(Boolean).length
 
+  const formatFilterValue = (val: string) => {
+    return val.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  }
+
+  const deptLabel = useMemo(() => {
+    if (!deptParam) return ''
+    const match = DEPARTMENTS.find((d) => d.value.toLowerCase() === deptParam.toLowerCase())
+    return match?.label && match.label !== 'All departments' ? match.label : formatFilterValue(deptParam)
+  }, [deptParam])
+
+  const typeLabel = useMemo(() => {
+    if (!typeParam) return ''
+    const match = JOB_TYPES.find((t) => t.value.toLowerCase() === typeParam.toLowerCase())
+    return match?.label && match.label !== 'All types' ? match.label : formatFilterValue(typeParam)
+  }, [typeParam])
+
+  const expLabel = useMemo(() => {
+    if (!expParam) return ''
+    const match = EXP_LEVELS.find((e) => e.value.toLowerCase() === expParam.toLowerCase())
+    return match?.label && match.label !== 'All experience' ? match.label : formatFilterValue(expParam)
+  }, [expParam])
+
+  const payLabel = useMemo(() => {
+    if (!payParam) return ''
+    const match = PAY_OPTIONS.find((p) => p.value === payParam)
+    if (match?.label && match.label !== 'Any pay') return match.label
+    const num = Number(payParam)
+    return !isNaN(num) ? `₹${num.toLocaleString()}+` : payParam
+  }, [payParam])
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       <PageHeader
-        title="Explore Film Opportunities"
+        title="Explore film opportunities"
         description="Find verified postings from production houses and studios across India."
         action={
           user?.role === 'production' ? (
-            <Link to="/jobs/create" className="btn-primary text-sm inline-flex items-center gap-2">
-              <Briefcase size={16} /> Post a New Role
+            <Link to="/jobs/create" className="btn-primary text-13 inline-flex items-center gap-2">
+              <Briefcase size={15} /> Post a job
             </Link>
           ) : undefined
         }
@@ -535,7 +565,7 @@ const BrowseJobs = () => {
 
             {deptParam && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-paper text-ink text-11 border border-line">
-                <span>Dept: {DEPARTMENTS.find((d) => d.value === deptParam)?.label}</span>
+                <span>Dept: {deptLabel}</span>
                 <button
                   type="button"
                   onClick={() => updateFilter({ department: null, page: '1' })}
@@ -549,7 +579,7 @@ const BrowseJobs = () => {
 
             {typeParam && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-paper text-ink text-11 border border-line">
-                <span>Type: {JOB_TYPES.find((t) => t.value === typeParam)?.label}</span>
+                <span>Type: {typeLabel}</span>
                 <button
                   type="button"
                   onClick={() => updateFilter({ type: null, page: '1' })}
@@ -563,7 +593,7 @@ const BrowseJobs = () => {
 
             {expParam && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-paper text-ink text-11 border border-line">
-                <span>Exp: {EXP_LEVELS.find((e) => e.value === expParam)?.label}</span>
+                <span>Exp: {expLabel}</span>
                 <button
                   type="button"
                   onClick={() => updateFilter({ experience: null, page: '1' })}
@@ -591,7 +621,7 @@ const BrowseJobs = () => {
 
             {payParam && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-paper text-ink text-11 border border-line">
-                <span>Pay: {PAY_OPTIONS.find((p) => p.value === payParam)?.label}</span>
+                <span>Pay: {payLabel}</span>
                 <button
                   type="button"
                   onClick={() => updateFilter({ pay: null, page: '1' })}
@@ -660,7 +690,7 @@ const BrowseJobs = () => {
         <div className="border border-status-error/30 rounded-sm p-8 text-center space-y-3 bg-surface">
           <p className="text-14 text-status-error font-semibold">{error}</p>
           <button onClick={fetchJobs} className="btn-secondary text-12 inline-flex items-center gap-2">
-            <RefreshCw size={13} /> Try Again
+            <RefreshCw size={13} /> Try again
           </button>
         </div>
       )}
@@ -689,7 +719,7 @@ const BrowseJobs = () => {
           <DataTable className="block md:table border-0 md:border border-line">
             <TableHeader className="hidden md:table-header-group">
               <TableRow>
-                <TableHead className="w-2/5">Role & Department</TableHead>
+                <TableHead className="w-2/5">Role & department</TableHead>
                 <TableHead>Studio</TableHead>
                 <TableHead>Location</TableHead>
                 <TableHead>Type</TableHead>
