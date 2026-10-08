@@ -20,6 +20,7 @@ import {
   formatPayRange,
   formatDeadlineDate,
   pluralize,
+  formatLoadErrorMessage,
 } from '../lib/formatters'
 import { PageHeader } from '../components/PageHeader'
 import { VerifiedBadge } from '../components/VerifiedBadge'
@@ -174,7 +175,7 @@ const BrowseJobs = () => {
         setTotal(res.total ?? res.jobs.length)
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : 'Failed to fetch jobs')
+        setError(formatLoadErrorMessage(err, "Couldn't load jobs. Check your connection and try again."))
       })
       .finally(() => {
         setLoading(false)

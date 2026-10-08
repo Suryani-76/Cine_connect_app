@@ -33,6 +33,7 @@ import {
   pluralize,
   formatDeadlineDate,
   formatDate,
+  formatLoadErrorMessage,
 } from '../lib/formatters'
 
 
@@ -45,12 +46,13 @@ function SectionError({
   message: string
   onRetry: () => void
 }) {
+  const displayMessage = formatLoadErrorMessage(message, "Couldn't load data. Check your connection and try again.")
   return (
     <div
       role="alert"
       className="p-4 rounded-sm border border-status-error/30 bg-status-error/5 flex items-center justify-between gap-4 text-14 select-none"
     >
-      <p className="text-14 text-ink font-medium leading-normal">{message}</p>
+      <p className="text-14 text-ink font-medium leading-normal">{displayMessage}</p>
       <button
         type="button"
         onClick={onRetry}
@@ -333,7 +335,7 @@ export function ProductionHome() {
       const res = await dashboardApi.stats(token)
       setStats(res.stats)
     } catch (err) {
-      setStatsError(err instanceof Error ? err.message : 'Failed to load overview')
+      setStatsError(formatLoadErrorMessage(err, "Couldn't load overview. Check your connection and try again."))
     } finally {
       setLoadingStats(false)
     }
@@ -378,7 +380,7 @@ export function ProductionHome() {
       setJobs(enriched)
       setAttentionApplications(allApps)
     } catch (err) {
-      setJobsError(err instanceof Error ? err.message : 'Failed to load jobs')
+      setJobsError(formatLoadErrorMessage(err, "Couldn't load jobs. Check your connection and try again."))
     } finally {
       setLoadingJobs(false)
     }
@@ -402,7 +404,7 @@ export function ProductionHome() {
       }))
       setRecommendedTalent(formatted)
     } catch (err) {
-      setTalentError(err instanceof Error ? err.message : 'Failed to load recommended talent')
+      setTalentError(formatLoadErrorMessage(err, "Couldn't load recommended talent. Check your connection and try again."))
     } finally {
       setLoadingTalent(false)
     }
@@ -920,13 +922,17 @@ export function ProductionHome() {
                   </div>
 
                   <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
-                    <div className="w-32">
-                      <LightMeter
-                        score={item.match_score}
-                        size="sm"
-                        expandable={false}
-                        showScoreLabel={true}
-                      />
+                    <div className="flex flex-col items-end gap-1 w-28">
+                      <div className="flex items-baseline justify-between w-full text-11">
+                        <span className="text-muted font-medium">Department fit</span>
+                        <span className="font-semibold text-ink tnum">{item.match_score}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-paper rounded-[2px] overflow-hidden border border-line/60">
+                        <div
+                          className="h-full bg-tungsten/80 rounded-[1px] transition-all duration-300"
+                          style={{ width: `${item.match_score}%` }}
+                        />
+                      </div>
                     </div>
                     <Link
                       to={`/profile/${profile.id}`}
@@ -1002,7 +1008,7 @@ export function TalentHome() {
       const res = await applicationsApi.myApplications(profileId, accessToken)
       setMyApps(res.applications || [])
     } catch (err) {
-      setAppsError(err instanceof Error ? err.message : 'Failed to load applications')
+      setAppsError(formatLoadErrorMessage(err, "Couldn't load applications. Check your connection and try again."))
     } finally {
       setLoadingApps(false)
     }
@@ -1016,7 +1022,7 @@ export function TalentHome() {
       const res = await jobsApi.listPublished(accessToken || undefined)
       setRecommendedJobs((res.jobs || []).slice(0, 4))
     } catch (err) {
-      setJobsError(err instanceof Error ? err.message : 'Failed to load recommended jobs')
+      setJobsError(formatLoadErrorMessage(err, "Couldn't load recommended jobs. Check your connection and try again."))
     } finally {
       setLoadingJobs(false)
     }
@@ -1034,7 +1040,7 @@ export function TalentHome() {
       const res = await savedJobsApi.list(accessToken)
       setSavedJobs(res.saved || [])
     } catch (err) {
-      setSavedError(err instanceof Error ? err.message : 'Failed to load saved jobs')
+      setSavedError(formatLoadErrorMessage(err, "Couldn't load saved jobs. Check your connection and try again."))
     } finally {
       setLoadingSaved(false)
     }

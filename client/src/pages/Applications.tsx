@@ -15,6 +15,7 @@ import {
   Film,
   Sparkles,
   AlertCircle,
+  RefreshCw,
 } from 'lucide-react'
 import {
   applicationsApi,
@@ -35,6 +36,7 @@ import { Avatar } from '../components/ui/Avatar'
 import { Badge } from '../components/ui/Badge'
 import { Sheet, SheetContent } from '../components/ui/Sheet'
 import { Modal, ModalContent } from '../components/ui/Modal'
+import { pluralize, formatLoadErrorMessage } from '../lib/formatters'
 
 // ── Pipeline definitions ───────────────────────────────────────
 
@@ -165,12 +167,13 @@ export const Applications = () => {
   const [actionLoading, setActionLoading] = useState(false)
 
   // 1. Fetch published jobs
-  useEffect(() => {
+  const fetchJobs = useCallback(() => {
     if (!productionId) {
       setLoadingJobs(false)
       return
     }
     setLoadingJobs(true)
+    setError('')
     jobsApi
       .list({ production_id: productionId, status: 'published' }, accessToken)
       .then((res) => {
@@ -182,25 +185,39 @@ export const Applications = () => {
           }
         }
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load jobs'))
+      .catch((e) =>
+        setError(formatLoadErrorMessage(e, "Couldn't load jobs. Check your connection and try again."))
+      )
       .finally(() => setLoadingJobs(false))
-  }, [productionId, accessToken])
+  }, [productionId, accessToken, selectedJobId, setSearchParams])
+
+  useEffect(() => {
+    fetchJobs()
+  }, [fetchJobs])
 
   // 2. Fetch applications for chosen job
-  useEffect(() => {
-    if (!selectedJobId || !accessToken) return
+  const fetchApplications = useCallback((jobId: string) => {
+    if (!jobId || !accessToken) return
     setLoadingApps(true)
     setError('')
     applicationsApi
-      .forJob(selectedJobId, accessToken)
+      .forJob(jobId, accessToken)
       .then((res) => {
         const sorted = (res.applications ?? []).slice().sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0))
         setApplications(sorted)
         setCompareIds(new Set())
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load applications'))
+      .catch((e) =>
+        setError(formatLoadErrorMessage(e, "Couldn't load applicants. Check your connection and try again."))
+      )
       .finally(() => setLoadingApps(false))
-  }, [selectedJobId, accessToken])
+  }, [accessToken])
+
+  useEffect(() => {
+    if (selectedJobId) {
+      fetchApplications(selectedJobId)
+    }
+  }, [selectedJobId, fetchApplications])
 
   const selectedJob = useMemo(() => jobs.find((j) => j.id === selectedJobId), [jobs, selectedJobId])
 
@@ -328,7 +345,7 @@ export const Applications = () => {
               >
                 {jobs.map((j) => (
                   <option key={j.id} value={j.id}>
-                    {j.title} {j.openings ? `(${j.openings} open)` : ''}
+                    {j.title} {j.openings ? `(${pluralize(j.openings, 'opening')})` : ''}
                   </option>
                 ))}
               </select>
@@ -347,7 +364,7 @@ export const Applications = () => {
             <span>{activeApplicantCount} in active pipeline</span>
             <span>{groupedApps.hired.length} hired</span>
             {selectedJob.openings && (
-              <span>{selectedJob.openings} total openings</span>
+              <span>{pluralize(selectedJob.openings, 'opening')}</span>
             )}
             {applications.length > 0 && (
               <span>
@@ -394,11 +411,27 @@ export const Applications = () => {
         </div>
       )}
 
-      {/* Error Banner */}
+      {/* Error Banner with Retry */}
       {error && (
-        <div className="p-3 bg-status-error/10 border border-status-error/30 rounded-sm flex items-center gap-2 text-status-error text-13">
-          <AlertCircle size={15} />
-          <span>{error}</span>
+        <div className="p-3 bg-status-error/10 border border-status-error/30 rounded-sm flex items-center justify-between gap-3 text-status-error text-13">
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertCircle size={15} className="shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (selectedJobId) {
+                fetchApplications(selectedJobId)
+              } else {
+                fetchJobs()
+              }
+            }}
+            className="btn-secondary text-12 py-1 px-2.5 inline-flex items-center gap-1.5 shrink-0"
+          >
+            <RefreshCw size={12} />
+            <span>Try again</span>
+          </button>
         </div>
       )}
 
@@ -448,35 +481,38 @@ export const Applications = () => {
 
       {/* Mobile Stage Tabs (< md) */}
       {!loadingApps && applications.length > 0 && (
-        <div className="md:hidden flex overflow-x-auto gap-1 border-b border-line pb-1.5 scrollbar-none">
-          {ACTIVE_STAGES.map((stg) => {
-            const count = groupedApps[stg.id].length
-            return (
-              <button
-                key={stg.id}
-                type="button"
-                onClick={() => setMobileTab(stg.id)}
-                className={`px-3 py-1.5 rounded-sm text-12 font-medium whitespace-nowrap transition-colors ${
-                  mobileTab === stg.id
-                    ? 'bg-ink text-surface font-semibold'
-                    : 'bg-paper text-muted hover:text-ink'
-                }`}
-              >
-                {stg.label} ({count})
-              </button>
-            )
-          })}
-          <button
-            type="button"
-            onClick={() => setMobileTab('closed')}
-            className={`px-3 py-1.5 rounded-sm text-12 font-medium whitespace-nowrap transition-colors ${
-              mobileTab === 'closed'
-                ? 'bg-ink text-surface font-semibold'
-                : 'bg-paper text-muted hover:text-ink'
-            }`}
-          >
-            Closed ({totalClosed})
-          </button>
+        <div className="md:hidden relative">
+          <div className="flex overflow-x-auto gap-1.5 border-b border-line pb-1.5 scrollbar-none pr-8">
+            {ACTIVE_STAGES.map((stg) => {
+              const count = groupedApps[stg.id].length
+              return (
+                <button
+                  key={stg.id}
+                  type="button"
+                  onClick={() => setMobileTab(stg.id)}
+                  className={`px-3 py-1.5 rounded-sm text-12 font-medium whitespace-nowrap transition-colors shrink-0 ${
+                    mobileTab === stg.id
+                      ? 'bg-ink text-surface font-semibold'
+                      : 'bg-paper text-muted hover:text-ink'
+                  }`}
+                >
+                  {stg.label} ({count})
+                </button>
+              )
+            })}
+            <button
+              type="button"
+              onClick={() => setMobileTab('closed')}
+              className={`px-3 py-1.5 rounded-sm text-12 font-medium whitespace-nowrap transition-colors shrink-0 ${
+                mobileTab === 'closed'
+                  ? 'bg-ink text-surface font-semibold'
+                  : 'bg-paper text-muted hover:text-ink'
+              }`}
+            >
+              Closed ({totalClosed})
+            </button>
+          </div>
+          <div className="pointer-events-none absolute right-0 top-0 bottom-1.5 w-8 bg-gradient-to-l from-surface to-transparent" />
         </div>
       )}
 
@@ -644,7 +680,7 @@ export const Applications = () => {
                             size="md"
                           />
                           <div className="min-w-0">
-                            <p className="font-semibold text-13 text-ink truncate">
+                            <p className="font-semibold text-14 text-ink truncate">
                               {talent.full_name || 'Anonymous Talent'}
                             </p>
                             {app.cover_note && (
@@ -657,16 +693,16 @@ export const Applications = () => {
                       </td>
 
                       <td className="py-3 px-3">
-                        <div className="flex flex-col gap-0.5">
+                        <div className="flex flex-col gap-1">
                           <DepartmentMark department={talent.role || 'Production'} size="sm" />
-                          <span className="text-11 text-muted tnum">
-                            {talent.experience_years ? `${talent.experience_years}y exp` : 'Entry'}
+                          <div className="flex items-center gap-1.5 text-11 text-muted tnum">
+                            <span>{talent.experience_years ? `${talent.experience_years}y exp` : 'Entry level'}</span>
                             {talent.availability && (
-                              <span className="ml-1.5">
-                                • {AVAILABILITY_LABELS[talent.availability] || talent.availability}
+                              <span className="text-muted/80">
+                                ({AVAILABILITY_LABELS[talent.availability] || talent.availability})
                               </span>
                             )}
-                          </span>
+                          </div>
                         </div>
                       </td>
 
@@ -1033,7 +1069,7 @@ function ApplicantCard({
         <Avatar src={talent.avatar_url} fallback={talent.full_name || 'Talent'} size="md" />
 
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-13 text-ink truncate leading-snug">
+          <h3 className="font-bold text-15 text-ink leading-tight">
             {talent.full_name || 'Anonymous Talent'}
           </h3>
 
@@ -1050,16 +1086,20 @@ function ApplicantCard({
         </div>
       </div>
 
-      {/* Meta tags: experience, city, availability */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-11 text-muted tnum">
-        {talent.experience_years ? (
-          <span>{talent.experience_years}y exp</span>
-        ) : (
-          <span>Entry level</span>
+      {/* Meta tags: level and city as separate muted elements (no bullets) */}
+      <div className="flex flex-wrap items-center gap-1.5 text-11 text-muted tnum">
+        <span className="bg-paper px-1.5 py-0.5 rounded-[2px] border border-line/60">
+          {talent.experience_years ? `${talent.experience_years}y exp` : 'Entry level'}
+        </span>
+        {talent.location && (
+          <span className="bg-paper px-1.5 py-0.5 rounded-[2px] border border-line/60">
+            {talent.location}
+          </span>
         )}
-        {talent.location && <span>• {talent.location}</span>}
         {talent.availability && (
-          <span>• {AVAILABILITY_LABELS[talent.availability] || talent.availability}</span>
+          <span className="bg-paper px-1.5 py-0.5 rounded-[2px] border border-line/60">
+            {AVAILABILITY_LABELS[talent.availability] || talent.availability}
+          </span>
         )}
       </div>
 
@@ -1073,12 +1113,12 @@ function ApplicantCard({
         />
       </div>
 
-      {/* Top reasons */}
+      {/* Top reasons: wrap up to two lines without truncation ellipsis, tooltip with full text */}
       {topReasons.length > 0 && (
-        <ul className="text-11 text-muted space-y-0.5 leading-snug">
+        <ul className="text-11 text-muted space-y-1 leading-snug">
           {topReasons.map((reason, i) => (
-            <li key={i} className="line-clamp-1">
-              • {reason}
+            <li key={i} title={reason} className="line-clamp-2 break-words">
+              {reason}
             </li>
           ))}
         </ul>
@@ -1325,12 +1365,10 @@ function ApplicantDetailDrawer({ app, token, isOpen, onClose, onStatusAction }: 
               </span>
             </div>
 
-            <div className="mt-1 text-12 text-muted">
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-12 text-muted">
               {talent.location && <span>{talent.location}</span>}
               {talent.availability && (
-                <span className="ml-2">
-                  • {AVAILABILITY_LABELS[talent.availability] || talent.availability}
-                </span>
+                <span>{AVAILABILITY_LABELS[talent.availability] || talent.availability}</span>
               )}
             </div>
           </div>
@@ -1467,6 +1505,20 @@ function ApplicantDetailDrawer({ app, token, isOpen, onClose, onStatusAction }: 
                         </Badge>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Score summary reasons */}
+                {app.summary_reasons && app.summary_reasons.length > 0 && (
+                  <div className="pt-2 border-t border-line space-y-1.5">
+                    <span className="text-12 font-semibold text-ink block">Score summary</span>
+                    <ul className="text-12 text-muted space-y-1">
+                      {app.summary_reasons.map((reason, idx) => (
+                        <li key={idx} className="leading-relaxed">
+                          {reason}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>

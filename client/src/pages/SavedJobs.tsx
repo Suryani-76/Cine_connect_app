@@ -16,6 +16,7 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { savedJobsApi, SavedJobItem } from '../lib/api'
 import { PageHeader } from '../components/PageHeader'
 import { VerifiedBadge } from '../components/VerifiedBadge'
+import { formatLoadErrorMessage } from '../lib/formatters'
 
 const SavedJobs = () => {
   usePageTitle('Saved Jobs')
@@ -35,7 +36,7 @@ const SavedJobs = () => {
         setSavedJobs(res.saved || [])
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : 'Failed to load saved jobs')
+        setError(formatLoadErrorMessage(err, "Couldn't load saved jobs. Check your connection and try again."))
       })
       .finally(() => {
         setLoading(false)

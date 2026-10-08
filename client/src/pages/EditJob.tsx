@@ -9,6 +9,7 @@ import {
   MapPin,
   Eye,
   CheckCircle2,
+  RefreshCw,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { jobsApi, SetRequirementsPayload, JobType, PayPeriod, JobWithProduction } from '../lib/api'
@@ -19,6 +20,7 @@ import {
   formatDateRange,
   formatDeadlineDate,
   pluralize,
+  formatLoadErrorMessage,
 } from '../lib/formatters'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -299,75 +301,66 @@ export default function EditJob() {
   })
   const [step2Errors, setS2Errors] = useState<Step2Errors>({})
 
-  // Fetch job & populate
-  useEffect(() => {
+  const loadJob = useCallback(async () => {
     if (!id || !accessToken) return
-    let isMounted = true
+    setInitialLoading(true)
+    setFetchError(null)
+    try {
+      const res = await jobsApi.getById(id, accessToken)
+      const jobData = res.job
+      setJob(jobData)
 
-    const loadJob = async () => {
-      setInitialLoading(true)
-      setFetchError(null)
-      try {
-        const res = await jobsApi.getById(id, accessToken)
-        const jobData = res.job
-
-        if (!isMounted) return
-        setJob(jobData)
-
-        // Check ownership
-        if (user?.profileId && jobData.production_id !== user.profileId) {
-          setIsOwner(false)
-          setFetchError('You do not have permission to edit this job post.')
-          return
-        }
-
-        let formattedDeadline = ''
-        if (jobData.deadline) {
-          try {
-            const d = new Date(jobData.deadline)
-            formattedDeadline = d.toISOString().slice(0, 16)
-          } catch {
-            formattedDeadline = ''
-          }
-        }
-
-        setStep1({
-          title: jobData.title || '',
-          description: jobData.description || '',
-          job_type: jobData.job_type || 'freelance',
-          pay_min: jobData.pay_min !== null && jobData.pay_min !== undefined ? String(jobData.pay_min) : '',
-          pay_max: jobData.pay_max !== null && jobData.pay_max !== undefined ? String(jobData.pay_max) : '',
-          pay_currency: jobData.pay_currency || 'INR',
-          pay_period: jobData.pay_period || 'project',
-          start_date: jobData.start_date || '',
-          end_date: jobData.end_date || '',
-          openings: jobData.openings || 1,
-          deadline: formattedDeadline,
-        })
-
-        if (jobData.job_requirements) {
-          const reqs = jobData.job_requirements
-          setStep2({
-            skills: reqs.skills || [],
-            roles: reqs.roles || [],
-            experience_level: (reqs.experience_level as Step2Form['experience_level']) || '',
-            languages: reqs.language ? reqs.language.split(',').map((s) => s.trim()).filter(Boolean) : [],
-            location: reqs.location || '',
-          })
-        }
-      } catch (err: unknown) {
-        if (!isMounted) return
-        setFetchError(err instanceof Error ? err.message : 'Job not found')
-      } finally {
-        if (isMounted) setInitialLoading(false)
+      // Check ownership
+      if (user?.profileId && jobData.production_id !== user.profileId) {
+        setIsOwner(false)
+        setFetchError('You do not have permission to edit this job post.')
+        return
       }
-    }
 
-    loadJob()
-    return () => {
-      isMounted = false
+      let formattedDeadline = ''
+      if (jobData.deadline) {
+        try {
+          const d = new Date(jobData.deadline)
+          formattedDeadline = d.toISOString().slice(0, 16)
+        } catch {
+          formattedDeadline = ''
+        }
+      }
+
+      setStep1({
+        title: jobData.title || '',
+        description: jobData.description || '',
+        job_type: jobData.job_type || 'freelance',
+        pay_min: jobData.pay_min !== null && jobData.pay_min !== undefined ? String(jobData.pay_min) : '',
+        pay_max: jobData.pay_max !== null && jobData.pay_max !== undefined ? String(jobData.pay_max) : '',
+        pay_currency: jobData.pay_currency || 'INR',
+        pay_period: jobData.pay_period || 'project',
+        start_date: jobData.start_date || '',
+        end_date: jobData.end_date || '',
+        openings: jobData.openings || 1,
+        deadline: formattedDeadline,
+      })
+
+      if (jobData.job_requirements) {
+        const reqs = jobData.job_requirements
+        setStep2({
+          skills: reqs.skills || [],
+          roles: reqs.roles || [],
+          experience_level: (reqs.experience_level as Step2Form['experience_level']) || '',
+          languages: reqs.language ? reqs.language.split(',').map((s) => s.trim()).filter(Boolean) : [],
+          location: reqs.location || '',
+        })
+      }
+    } catch (err: unknown) {
+      setFetchError(formatLoadErrorMessage(err, "Couldn't load job. Check your connection and try again."))
+    } finally {
+      setInitialLoading(false)
     }
   }, [id, accessToken, user?.profileId])
+
+  useEffect(() => {
+    loadJob()
+  }, [loadJob])
 
   const isPublished = job?.status === 'published'
   const isClosed = job?.status === 'closed'
@@ -613,11 +606,23 @@ export default function EditJob() {
           <div className="w-12 h-12 rounded-full bg-red-50 text-status-error flex items-center justify-center mx-auto">
             <AlertCircle size={22} />
           </div>
-          <h2 className="text-18 font-bold text-ink">Access Denied</h2>
+          <h2 className="text-18 font-bold text-ink">
+            {!isOwner ? 'Access Denied' : 'Failed to load job'}
+          </h2>
           <p className="text-14 text-muted">
             {fetchError || 'You do not have permission to edit this job post.'}
           </p>
-          <div className="pt-2">
+          <div className="pt-2 flex items-center justify-center gap-3">
+            {fetchError && isOwner && (
+              <button
+                type="button"
+                onClick={() => loadJob()}
+                className="btn-secondary text-13 inline-flex items-center gap-1.5"
+              >
+                <RefreshCw size={14} />
+                <span>Try again</span>
+              </button>
+            )}
             <Link to="/home" className="btn-primary text-13">
               Return to dashboard
             </Link>

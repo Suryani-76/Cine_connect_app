@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { talentAlertsApi, TalentAlert } from '../lib/api'
 import { PageHeader } from '../components/PageHeader'
+import { formatLoadErrorMessage } from '../lib/formatters'
 
 export default function Alerts() {
   usePageTitle('Talent Alerts')
@@ -39,7 +40,7 @@ export default function Alerts() {
       const res = await talentAlertsApi.list(accessToken)
       setAlerts(res.alerts ?? [])
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load talent alerts')
+      setError(formatLoadErrorMessage(err, "Couldn't load talent alerts. Check your connection and try again."))
     } finally {
       setLoading(false)
     }

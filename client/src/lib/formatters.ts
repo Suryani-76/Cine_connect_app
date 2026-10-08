@@ -256,3 +256,34 @@ export function pluralize(count: number, singular: string, plural?: string): str
 
   return `${safeCount} ${singular}s`
 }
+
+/**
+ * Formats user-facing load error messages.
+ * Replaces raw technical errors (like "TypeError: fetch failed", "fetch failed", "Failed to fetch")
+ * with a plain message ("Couldn't load jobs. Check your connection and try again.")
+ * and logs the technical error to the console only.
+ */
+export function formatLoadErrorMessage(
+  err: unknown,
+  fallbackMessage = "Couldn't load data. Check your connection and try again."
+): string {
+  if (err) {
+    // Log the technical error to the console only
+    console.error('[LoadError]', err)
+  }
+  if (!err) return fallbackMessage
+
+  const raw = err instanceof Error ? err.message : String(err)
+  const isRawTechnical =
+    err instanceof TypeError ||
+    /^(?:typeerror:?\s*)?(?:fetch\s+failed|failed\s+to\s+fetch|load\s+failed|econnrefused)$/i.test(
+      raw.trim()
+    )
+
+  if (isRawTechnical) {
+    return fallbackMessage
+  }
+
+  return raw || fallbackMessage
+}
+

@@ -13,6 +13,7 @@ import {
   AlertCircle,
   Calendar,
   Users,
+  RefreshCw,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -33,6 +34,7 @@ import {
   formatDate,
   pluralize,
   toSentenceCase,
+  formatLoadErrorMessage,
 } from '../lib/formatters'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -222,9 +224,10 @@ const JobDetail = () => {
   usePageTitle(job?.title ?? 'Job')
 
   // Fetch Job details
-  useEffect(() => {
+  const fetchJob = () => {
     if (!id) return
     setLoading(true)
+    setError('')
     jobsApi
       .getById(id, token ?? undefined)
       .then((r) => {
@@ -233,8 +236,14 @@ const JobDetail = () => {
           jobAnalyticsApi.recordView(id, token).catch(() => {})
         }
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load job'))
+      .catch((e) =>
+        setError(formatLoadErrorMessage(e, "Couldn't load job. Check your connection and try again."))
+      )
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    fetchJob()
   }, [id, token])
 
   // Fetch talent match breakdown & profile skills if authenticated talent
@@ -368,12 +377,24 @@ const JobDetail = () => {
   if (error || !job) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center px-4">
-        <div className="text-center max-w-sm border border-line rounded-sm p-8 bg-surface">
-          <p className="font-bold text-18 text-ink mb-1">Job not found</p>
-          <p className="text-14 text-muted mb-5">{error || 'This job may have been removed or unpublished.'}</p>
-          <button type="button" onClick={() => navigate(-1)} className="btn-secondary text-13">
-            Go back
-          </button>
+        <div className="text-center max-w-sm border border-line rounded-sm p-8 bg-surface space-y-4">
+          <div>
+            <p className="font-bold text-18 text-ink mb-1">Job not available</p>
+            <p className="text-14 text-muted">{error || 'This job may have been removed or unpublished.'}</p>
+          </div>
+          <div className="flex items-center justify-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={fetchJob}
+              className="btn-primary text-13 inline-flex items-center gap-1.5"
+            >
+              <RefreshCw size={13} />
+              <span>Try again</span>
+            </button>
+            <button type="button" onClick={() => navigate(-1)} className="btn-secondary text-13">
+              Go back
+            </button>
+          </div>
         </div>
       </div>
     )

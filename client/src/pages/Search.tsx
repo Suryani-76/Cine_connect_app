@@ -1,11 +1,12 @@
 import { useState, FormEvent, useEffect, useCallback } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { Search as SearchIcon, X, ExternalLink, ArrowRight } from 'lucide-react'
+import { Search as SearchIcon, X, ExternalLink, ArrowRight, RefreshCw } from 'lucide-react'
 import { talentApi, TalentProfile } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { PageHeader } from '../components/PageHeader'
 import { supabase } from '../lib/supabase'
+import { formatLoadErrorMessage } from '../lib/formatters'
 
 // ── Talent card ───────────────────────────────────────────────
 
@@ -233,7 +234,7 @@ const Search = () => {
       }, accessToken)
       setResults(res.talent); setSearched(true)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Search failed')
+      setError(formatLoadErrorMessage(err, "Couldn't load talent results. Check your connection and try again."))
     } finally {
       setLoading(false)
     }
@@ -315,8 +316,16 @@ const Search = () => {
           {/* Results grid */}
           <div className="flex-1 min-w-0">
             {error && (
-              <div className="card p-4 border-l-4 border-l-red-500 bg-red-500/10 text-red-400 text-sm mb-6">
-                {error}
+              <div className="card p-4 border border-status-error/30 bg-status-error/10 text-status-error text-sm mb-6 flex items-center justify-between gap-3">
+                <span>{error}</span>
+                <button
+                  type="button"
+                  onClick={() => runSearch(filters)}
+                  className="btn-secondary text-xs px-2.5 py-1 inline-flex items-center gap-1.5 shrink-0"
+                >
+                  <RefreshCw size={12} />
+                  <span>Try again</span>
+                </button>
               </div>
             )}
 

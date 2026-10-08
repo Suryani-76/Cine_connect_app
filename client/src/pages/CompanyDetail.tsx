@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
   Building2, MapPin, Calendar, Clock, DollarSign,
-  Briefcase, ArrowLeft, AlertCircle, ExternalLink, Sparkles
+  Briefcase, ArrowLeft, AlertCircle, ExternalLink, Sparkles, RefreshCw
 } from 'lucide-react'
 import { productionApi, jobsApi, ProductionProfile, JobWithProduction } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { VerifiedBadge } from '../components/VerifiedBadge'
+import { formatLoadErrorMessage } from '../lib/formatters'
 
 export default function CompanyDetail() {
   const { id } = useParams<{ id: string }>()
@@ -25,48 +26,39 @@ export default function CompanyDetail() {
     profile?.bio || 'Explore production details and open job listings on CineConnect.'
   )
 
-  useEffect(() => {
+  const loadCompany = useCallback(async () => {
     if (!id) return
-    let isMounted = true
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await productionApi.getProfile(id, accessToken)
+      const studio = res.profile
+      setProfile(studio)
 
-    const loadCompany = async () => {
-      setLoading(true)
-      setError(null)
+      // Fetch published jobs for this studio
+      setJobsLoading(true)
       try {
-        const res = await productionApi.getProfile(id, accessToken)
-        if (!isMounted) return
-        const studio = res.profile
-        setProfile(studio)
-
-        // Fetch published jobs for this studio
-        setJobsLoading(true)
-        try {
-          const jobsRes = await jobsApi.list(
-            { production_id: studio.id, status: 'published' },
-            accessToken
-          )
-          if (isMounted) {
-            setJobs(jobsRes.jobs ?? [])
-          }
-        } catch {
-          // If jobs fail, don't crash whole profile
-          if (isMounted) setJobs([])
-        } finally {
-          if (isMounted) setJobsLoading(false)
-        }
-      } catch (err: unknown) {
-        if (!isMounted) return
-        setError(err instanceof Error ? err.message : 'Studio not found')
+        const jobsRes = await jobsApi.list(
+          { production_id: studio.id, status: 'published' },
+          accessToken
+        )
+        setJobs(jobsRes.jobs ?? [])
+      } catch {
+        // If jobs fail, don't crash whole profile
+        setJobs([])
       } finally {
-        if (isMounted) setLoading(false)
+        setJobsLoading(false)
       }
-    }
-
-    loadCompany()
-    return () => {
-      isMounted = false
+    } catch (err: unknown) {
+      setError(formatLoadErrorMessage(err, "Couldn't load studio profile. Check your connection and try again."))
+    } finally {
+      setLoading(false)
     }
   }, [id, accessToken])
+
+  useEffect(() => {
+    loadCompany()
+  }, [loadCompany])
 
   if (loading) {
     return (
@@ -106,8 +98,15 @@ export default function CompanyDetail() {
           <p className="text-sm text-content-secondary">
             {error || 'The requested production company profile does not exist or has been removed.'}
           </p>
-          <div className="pt-2">
-            <Link to="/jobs" className="btn-primary inline-flex items-center gap-2">
+          <div className="pt-2 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={loadCompany}
+              className="btn-primary inline-flex items-center gap-2"
+            >
+              <RefreshCw size={15} /> Try again
+            </button>
+            <Link to="/jobs" className="btn-secondary inline-flex items-center gap-2">
               <ArrowLeft size={16} /> Browse Opportunities
             </Link>
           </div>
