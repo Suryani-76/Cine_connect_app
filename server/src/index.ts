@@ -2,7 +2,7 @@ import "dotenv/config"
 import express from "express"
 import cors from "cors"
 import helmet from "helmet"
-import { rateLimit } from "express-rate-limit"
+import { rateLimit, ipKeyGenerator } from "express-rate-limit"
 import { healthRouter } from "./routes/health"
 import { authRouter } from "./routes/auth"
 import { accountRouter } from "./routes/account"
@@ -75,7 +75,7 @@ const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, max: 10,
   standardHeaders: true, legacyHeaders: false,
   message: { error: "Too many attempts. Please try again in 15 minutes." },
-  keyGenerator: (req) => req.ip ?? "unknown",
+  keyGenerator: (req) => (req as { user?: { id?: string } }).user?.id ?? ipKeyGenerator(req.ip ?? ""),
 })
 
 /** General API limiter: 300 req per min per IP */
@@ -83,7 +83,7 @@ const generalLimiter = rateLimit({
   windowMs: 60 * 1000, max: 300,
   standardHeaders: true, legacyHeaders: false,
   message: { error: "Too many requests. Please slow down." },
-  keyGenerator: (req) => req.ip ?? "unknown",
+  keyGenerator: (req) => (req as { user?: { id?: string } }).user?.id ?? ipKeyGenerator(req.ip ?? ""),
 })
 
 app.use(generalLimiter)
