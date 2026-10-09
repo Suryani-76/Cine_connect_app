@@ -34,7 +34,7 @@ const PAGES = [
   { name: 'applications', route: '/applications', role: 'production' },
   { name: 'search', route: '/search', role: 'production' },
   { name: 'chat', route: '/chat', role: 'production' },
-  { name: 'profile', route: '/profile', role: 'production' },
+  { name: 'profile', route: '/profile', role: 'talent' },
   { name: 'settings', route: '/settings', role: 'production' },
   { name: 'admin', route: '/admin', role: 'production' },
   { name: 'alerts', route: '/alerts', role: 'production' },
@@ -342,59 +342,120 @@ function getMockResponse(rawUrl: string) {
     }
   }
 
-  if (url.includes('/production/comp-1') || url.includes('/production/')) {
+  if (url.includes('/production/comp-1') || url.includes('/production/profile') || url.includes('/production/')) {
     return {
       profile: {
         id: 'comp-1',
         company_name: 'Dharma Motion Pictures',
-        bio: 'Premier feature film and streaming production studio based in Mumbai with over 25 feature films produced.',
-        website: 'https://dharmamotion.in',
+        bio: 'Premier feature film and streaming production studio based in Mumbai with over 25 feature films produced across Hindi, Telugu, and international cinema.',
+        production_details: 'Equipped with dual ARRI Alexa Mini LF packages, Master Anamorphic prime kits, and in-house sound recording facilities.',
         verified: true,
         verified_at: '2025-01-15T00:00:00Z',
-        cin: 'U92100MH2010PTC200111',
-        gstin: '27AABCD1234F1Z5',
-        contact_email: 'production@dharmamotion.in',
-        location: 'Mumbai, Maharashtra',
+        created_at: '2025-01-15T00:00:00Z',
         logo_url: null,
       },
       jobs: [
         {
           id: 'job-1',
+          production_id: 'comp-1',
           title: 'Director of Photography',
           role: 'Cinematographer',
-          location: 'Mumbai, MH',
+          department: 'Camera',
+          location: 'Mumbai, Maharashtra',
           status: 'published',
           job_type: 'contract',
           pay_min: 150000,
           pay_max: 250000,
           pay_currency: 'INR',
+          pay_period: 'project',
           created_at: '2026-03-10T10:00:00Z',
+        },
+        {
+          id: 'job-2',
+          production_id: 'comp-1',
+          title: 'Costume Designer',
+          role: 'Costume Designer',
+          department: 'Art and Costume',
+          location: 'Mumbai, Maharashtra',
+          status: 'published',
+          job_type: 'contract',
+          pay_min: 80000,
+          pay_max: 120000,
+          pay_currency: 'INR',
+          pay_period: 'project',
+          created_at: '2026-03-08T10:00:00Z',
         },
       ],
     }
   }
 
-  if (url.includes('/api/talent')) {
+  if (url.includes('/talent/search')) {
+    return {
+      talent: [
+        {
+          id: 'talent-1',
+          full_name: 'Aditya Roy',
+          role: 'Director of Photography',
+          roles: ['Director of Photography', 'Colorist'],
+          skills: ['ARRI Alexa', 'Lighting Design', 'Anamorphic Lenses', 'Color Grading'],
+          experience_years: 8,
+          location: 'Mumbai',
+          language: 'Hindi, English',
+          availability: 'open',
+          last_active_at: '2026-03-11T12:00:00Z',
+        },
+        {
+          id: 'talent-2',
+          full_name: 'Rahul Verma',
+          role: 'Steadicam Operator',
+          roles: ['Steadicam Operator', 'Camera Operator'],
+          skills: ['Steadicam Archer 2', 'Lighting Design'],
+          experience_years: 5,
+          location: 'Hyderabad',
+          language: 'Telugu, Hindi',
+          availability: 'open',
+          last_active_at: '2026-03-10T15:30:00Z',
+        },
+        {
+          id: 'talent-3',
+          full_name: 'Amit Kumar',
+          role: 'Gaffer',
+          roles: ['Gaffer', 'Key Grip'],
+          skills: ['Lighting Design', 'Grip Operations'],
+          experience_years: 6,
+          location: 'Pune',
+          language: 'Marathi, Hindi',
+          availability: 'busy',
+          last_active_at: '2026-03-09T11:20:00Z',
+        },
+      ],
+    }
+  }
+
+  if (url.includes('/talent')) {
     return {
       profile: {
         id: 'talent-1',
-        full_name: 'Aditya Roy Kapoor',
-        stage_name: 'Aditya Roy',
-        bio: 'Cinematographer and Steadicam operator with 8 feature films and 30+ commercials.',
-        primary_role: 'Cinematographer',
-        secondary_roles: ['Steadicam Operator', 'Camera Operator'],
-        experience_years: 9,
-        city: 'Mumbai',
-        languages: ['English', 'Hindi', 'Marathi'],
-        skills: ['ARRI Alexa Mini', 'RED V-Raptor', 'Steadicam Archer 2', 'DaVinci Resolve'],
-        verified: true,
-        imdb_url: 'https://imdb.com/name/nm1234567',
-        showreel_url: 'https://vimeo.com/12345678',
+        user_id: 'usr-test-123',
+        full_name: 'Aditya Roy',
+        bio: 'Award-winning cinematographer and camera operator with over 8 years of experience across narrative feature films, independent drama, and high-end commercials. Specialized in large-format sensor workflows and anamorphic optics.',
+        role: 'Director of Photography',
+        roles: ['Director of Photography', 'Steadicam Operator', 'Colorist'],
+        experience_years: 8,
+        location: 'Mumbai',
+        language: 'Hindi, English',
+        skills: ['ARRI Alexa', 'Lighting Design', 'Anamorphic Lenses', 'Color Grading', 'DaVinci Resolve', 'Steadicam'],
+        verified: false,
+        portfolio_url: 'https://adityaroyfilms.test',
+        showreel_url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        availability: 'open',
+        has_resume: true,
+        credits: [
+          { id: 'c-1', project_title: 'Shadows in the Mist', role: 'Director of Photography', year: 2024, production_company: 'Excel Entertainment', link: 'https://film.test/shadows' },
+          { id: 'c-2', project_title: 'Monsoon Light', role: 'Director of Photography', year: 2023, production_company: 'Indie Wave Studios', link: 'https://film.test/monsoon' },
+          { id: 'c-3', project_title: 'Bombay Velvet Dreams', role: 'Camera Operator', year: 2022, production_company: 'Phantom Films', link: 'https://film.test/bombay' },
+        ],
       },
-      credits: [
-        { id: 'c-1', project_title: 'Shadows in the Mist', role: 'Director of Photography', year: 2024, production_house: 'Excel Entertainment' },
-        { id: 'c-2', project_title: 'Bombay Velvet Dreams', role: 'Steadicam Operator', year: 2023, production_house: 'Phantom Films' },
-      ],
     }
   }
 

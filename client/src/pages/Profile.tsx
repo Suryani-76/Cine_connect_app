@@ -1,24 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   Pencil,
   X,
-  Check,
   ExternalLink,
   MessageCircle,
   Upload,
-  Film,
   Trash2,
   Plus,
   FileText,
   Download,
   Play,
   Loader2,
+  MapPin,
+  Languages,
+  Sparkles,
+  AlertCircle,
 } from 'lucide-react'
 import {
   productionApi,
   talentApi,
-  UpdateProductionProfilePayload,
   CreateTalentProfilePayload,
   TalentCredit,
   TalentAvailability,
@@ -26,21 +27,28 @@ import {
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { VerifiedBadge } from '../components/VerifiedBadge'
+import { DepartmentMark, resolveDepartment } from '../components/ui/DepartmentMark'
+import { Avatar } from '../components/ui/Avatar'
+import { Badge } from '../components/ui/Badge'
+import { formatLoadErrorMessage, pluralize } from '../lib/formatters'
 
 // ── Types ─────────────────────────────────────────────────────
 
 interface ProductionData {
   id?: string
+  user_id?: string
   type: 'production'
   company_name: string
   bio: string | null
   production_details: string | null
   logo_url: string | null
   verified?: boolean
+  created_at?: string
 }
 
 interface TalentData {
   id?: string
+  user_id?: string
   type: 'talent'
   full_name: string | null
   bio: string | null
@@ -55,12 +63,15 @@ interface TalentData {
   showreel_url?: string | null
   availability?: TalentAvailability
   has_resume?: boolean
+  verified?: boolean
   credits?: TalentCredit[]
+  email?: string
+  phone?: string
 }
 
 type ProfileData = ProductionData | TalentData
 
-// ── Helpers ───────────────────────────────────────────────────
+// ── Showreel Helpers ──────────────────────────────────────────
 
 const ALLOWED_SHOWREEL_HOSTS = [
   'youtube.com',
@@ -73,16 +84,16 @@ const ALLOWED_SHOWREEL_HOSTS = [
   'player.vimeo.com',
 ]
 
-function getShowreelEmbedUrl(urlString: string): string | null {
+export function getShowreelEmbedUrl(urlString: string): { embedUrl: string; host: 'YouTube' | 'Vimeo' } | null {
   if (!urlString || typeof urlString !== 'string') return null
   try {
     const parsed = new URL(urlString.trim())
     const host = parsed.hostname.toLowerCase()
-    if (!ALLOWED_SHOWREEL_HOSTS.includes(host)) return null
+    if (!ALLOWED_SHOWREEL_HOSTS.some(h => host === h || host.endsWith('.' + h))) return null
 
     if (host === 'youtu.be') {
       const videoId = parsed.pathname.slice(1).split('/')[0]
-      return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}` : null
+      return videoId ? { embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}`, host: 'YouTube' } : null
     }
 
     if (
@@ -93,20 +104,20 @@ function getShowreelEmbedUrl(urlString: string): string | null {
     ) {
       if (parsed.pathname.startsWith('/embed/')) {
         const videoId = parsed.pathname.split('/')[2]
-        return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}` : null
+        return videoId ? { embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}`, host: 'YouTube' } : null
       }
       const videoId = parsed.searchParams.get('v')
-      return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}` : null
+      return videoId ? { embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}`, host: 'YouTube' } : null
     }
 
     if (host === 'vimeo.com' || host === 'www.vimeo.com') {
       const match = parsed.pathname.match(/^\/(\d+)/)
-      return match ? `https://player.vimeo.com/video/${match[1]}` : null
+      return match ? { embedUrl: `https://player.vimeo.com/video/${match[1]}`, host: 'Vimeo' } : null
     }
 
     if (host === 'player.vimeo.com') {
       const match = parsed.pathname.match(/\/video\/(\d+)/)
-      return match ? `https://player.vimeo.com/video/${match[1]}` : null
+      return match ? { embedUrl: `https://player.vimeo.com/video/${match[1]}`, host: 'Vimeo' } : null
     }
 
     return null
@@ -115,101 +126,111 @@ function getShowreelEmbedUrl(urlString: string): string | null {
   }
 }
 
-// ── Skill badge ───────────────────────────────────────────────
+// ── Profile Strength Calculation ──────────────────────────────
 
-function SkillBadge({ label }: { label: string }) {
-  return <span className="badge bg-surface-overlay border-surface-border text-content-secondary">{label}</span>
-}
+export function calculateProfileStrength(talent: TalentData): {
+  score: number
+  topMissingRecommendation: string | null
+} {
+  let score = 0
+  const missing: Array<{ weight: number; message: string }> = []
 
-// ── Editable field ────────────────────────────────────────────
-
-function EditableField({
-  label, value, multiline, placeholder, onSave,
-}: { label: string; value: string | null | undefined; multiline?: boolean; placeholder?: string; onSave: (v: string) => Promise<void> }) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft]     = useState(value ?? '')
-  const [saving, setSaving]   = useState(false)
-
-  useEffect(() => {
-    setDraft(value ?? '')
-  }, [value])
-
-  const save = async () => {
-    setSaving(true)
-    await onSave(draft).catch(() => {})
-    setSaving(false)
-    setEditing(false)
+  // Skills (30 pts)
+  if (talent.skills && talent.skills.length >= 3) {
+    score += 30
+  } else if (talent.skills && talent.skills.length > 0) {
+    score += 15
+    missing.push({ weight: 15, message: 'Add 3 or more skills (+15 pts) to match role requirements' })
+  } else {
+    missing.push({ weight: 30, message: 'Add skills (+30 pts) — skills are the highest-weighted match signal' })
   }
 
-  return (
-    <div className="group">
-      <div className="flex items-center justify-between mb-1">
-        <label className="text-xs text-content-tertiary uppercase tracking-wider font-semibold">{label}</label>
-        {!editing && (
-          <button onClick={() => setEditing(true)}
-            className="opacity-0 group-hover:opacity-100 transition-opacity text-content-tertiary hover:text-brand"
-            title="Edit">
-            <Pencil size={13} />
-          </button>
-        )}
-      </div>
+  // Role (20 pts)
+  if (talent.role && talent.role.trim()) {
+    score += 20
+  } else {
+    missing.push({ weight: 20, message: 'Set your primary role (+20 pts) for job matching' })
+  }
 
-      {editing ? (
-        <div className="flex flex-col gap-2">
-          {multiline ? (
-            <textarea
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              placeholder={placeholder}
-              rows={3}
-              className="w-full text-sm bg-surface-overlay border border-surface-border rounded-lg p-2.5 text-content-primary focus:outline-none focus:border-brand resize-none"
-            />
-          ) : (
-            <input
-              type="text"
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              placeholder={placeholder}
-              className="w-full text-sm bg-surface-overlay border border-surface-border rounded-lg p-2.5 text-content-primary focus:outline-none focus:border-brand"
-            />
-          )}
-          <div className="flex items-center gap-2 justify-end">
-            <button onClick={() => { setDraft(value ?? ''); setEditing(false) }}
-              className="btn-secondary text-xs px-2.5 py-1 flex items-center gap-1">
-              <X size={12} /> Cancel
-            </button>
-            <button onClick={save} disabled={saving}
-              className="btn-primary text-xs px-2.5 py-1 flex items-center gap-1">
-              <Check size={12} /> {saving ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <p className="text-sm text-content-primary whitespace-pre-wrap">
-          {value || <span className="text-content-muted italic">{placeholder || 'Not set'}</span>}
-        </p>
-      )}
-    </div>
-  )
+  // Experience (15 pts)
+  if (talent.experience_years && talent.experience_years > 0) {
+    score += 15
+  } else {
+    missing.push({ weight: 15, message: 'Add your years of experience (+15 pts)' })
+  }
+
+  // Location (10 pts)
+  if (talent.location && talent.location.trim()) {
+    score += 10
+  } else {
+    missing.push({ weight: 10, message: 'Add your city/location (+10 pts) for local production discovery' })
+  }
+
+  // Language (10 pts)
+  if (talent.language && talent.language.trim()) {
+    score += 10
+  } else {
+    missing.push({ weight: 10, message: 'Add spoken languages (+10 pts) for regional film matching' })
+  }
+
+  // Completeness signals (10 pts total)
+  let completeness = 0
+  if (talent.bio && talent.bio.trim().length > 20) completeness += 3
+  else missing.push({ weight: 3, message: 'Write a bio (+3 pts) summarizing your film experience' })
+
+  if (talent.credits && talent.credits.length > 0) completeness += 3
+  else missing.push({ weight: 3, message: 'Add film credits (+3 pts) to your filmography' })
+
+  if (talent.has_resume) completeness += 2
+  else missing.push({ weight: 2, message: 'Upload a PDF resume (+2 pts) for verified applications' })
+
+  if (talent.showreel_url && talent.showreel_url.trim()) completeness += 2
+  else missing.push({ weight: 2, message: 'Add a showreel video link (+2 pts)' })
+
+  score += Math.min(10, completeness)
+
+  // Recency baseline (5 pts)
+  score += 5
+
+  // Find highest weight missing item
+  missing.sort((a, b) => b.weight - a.weight)
+  const topMissingRecommendation = missing.length > 0 ? missing[0].message : null
+
+  return {
+    score: Math.min(100, score),
+    topMissingRecommendation,
+  }
 }
 
 // ── Profile Component ─────────────────────────────────────────
 
 export function Profile() {
   const { user, token } = useAuth()
-  const navigate        = useNavigate()
+  const navigate = useNavigate()
   const { id: paramId } = useParams<{ id: string }>()
 
-  const viewingOwnProfile = !paramId || paramId === user?.id
+  const viewingOwnProfile = !paramId || paramId === user?.id || paramId === user?.profileId
+  const isOwn = viewingOwnProfile
+  const isProductionViewer = !isOwn && user?.role === 'production'
+  const isAllowedToViewResume = isOwn || user?.role === 'production'
 
-  const [profile, setProfile]     = useState<ProfileData | null>(null)
-  const [loading, setLoading]     = useState(true)
-  const [error, setError]         = useState('')
-  const [, setUserId]             = useState('')
+  const [profile, setProfile] = useState<ProfileData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  // Edit mode toggle for owner
+  const [isEditing, setIsEditing] = useState(false)
+  const [editForm, setEditForm] = useState<Partial<CreateTalentProfilePayload>>({})
+  const [savingProfile, setSavingProfile] = useState(false)
+
+  // Upload states
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [uploadingResume, setUploadingResume] = useState(false)
-  const [resumeLoading, setResumeLoading]     = useState(false)
-  const [resumeMessage, setResumeMessage]     = useState('')
+  const [resumeLoading, setResumeLoading] = useState(false)
+  const [resumeMessage, setResumeMessage] = useState('')
+
+  // Showreel click-to-load state
+  const [hasLoadedShowreel, setHasLoadedShowreel] = useState(false)
 
   // Credits modal / form state
   const [showCreditModal, setShowCreditModal] = useState(false)
@@ -223,21 +244,17 @@ export function Profile() {
     link: '',
   })
   const [savingCredit, setSavingCredit] = useState(false)
-  const [creditError, setCreditError]   = useState('')
+  const [creditError, setCreditError] = useState('')
 
-  usePageTitle(profile
-    ? (profile.type === 'production' ? profile.company_name : profile.full_name ?? 'Profile')
-    : 'Profile'
+  usePageTitle(
+    profile
+      ? profile.type === 'production'
+        ? `${profile.company_name} | Profile`
+        : `${profile.full_name ?? 'Talent'} | Profile`
+      : 'Profile | CineConnect'
   )
 
-  useEffect(() => {
-    const targetId = viewingOwnProfile ? (user?.id ?? '') : (paramId ?? '')
-    if (!targetId) { setLoading(false); return }
-    setUserId(targetId)
-    loadProfile(targetId)
-  }, [paramId, user?.id, token])
-
-  const loadProfile = async (uid: string) => {
+  const loadProfile = useCallback(async (uid: string) => {
     setLoading(true)
     setError('')
 
@@ -259,6 +276,18 @@ export function Profile() {
           const res = await talentApi.getMyProfile(token)
           if (res?.profile) {
             setProfile({ type: 'talent', ...res.profile })
+            setEditForm({
+              full_name: res.profile.full_name || '',
+              role: res.profile.role || '',
+              roles: res.profile.roles || [],
+              bio: res.profile.bio || '',
+              skills: res.profile.skills || [],
+              experience_years: res.profile.experience_years || 0,
+              language: res.profile.language || '',
+              location: res.profile.location || '',
+              portfolio_url: res.profile.portfolio_url || '',
+              showreel_url: res.profile.showreel_url || '',
+            })
             setLoading(false)
             return
           }
@@ -290,60 +319,38 @@ export function Profile() {
           return
         }
       }
-    } catch {
-      // not talent either
+    } catch (err: unknown) {
+      setError(formatLoadErrorMessage(err, 'Profile not found'))
+      setLoading(false)
+      return
     }
 
     setError('Profile not found')
     setLoading(false)
-  }
+  }, [viewingOwnProfile, token, user?.role])
 
-  // Generic save helper — updates profile via Express PUT endpoints
-  const saveField = async (field: string, value: string) => {
-    if (!token) return
-    const isProduction = profile?.type === 'production'
+  useEffect(() => {
+    const targetId = viewingOwnProfile ? (user?.id ?? '') : (paramId ?? '')
+    if (!targetId) {
+      setLoading(false)
+      return
+    }
+    loadProfile(targetId)
+  }, [paramId, user?.id, loadProfile, viewingOwnProfile])
 
-    if (isProduction) {
-      const update: UpdateProductionProfilePayload = {}
-      if (field === 'company_name') update.company_name = value
-      else if (field === 'bio') update.bio = value
-      else if (field === 'production_details') update.production_details = value
-      else if (field === 'logo_url') update.logo_url = value
-
-      const res = await productionApi.updateProfile(update, token)
-      setProfile(prev => prev ? ({ ...prev, ...res.profile, type: 'production' }) : null)
-    } else {
-      const update: Partial<CreateTalentProfilePayload> = {}
-      if (field === 'skills') {
-        update.skills = value.split(',').map(s => s.trim()).filter(Boolean)
-      } else if (field === 'experience_years') {
-        update.experience_years = parseInt(value, 10) || 0
-      } else if (field === 'full_name') {
-        update.full_name = value
-      } else if (field === 'bio') {
-        update.bio = value
-      } else if (field === 'role') {
-        update.role = value
-      } else if (field === 'roles') {
-        update.roles = value.split(',').map(s => s.trim()).filter(Boolean)
-      } else if (field === 'language') {
-        update.language = value
-      } else if (field === 'location') {
-        update.location = value
-      } else if (field === 'avatar_url') {
-        update.avatar_url = value
-      } else if (field === 'portfolio_url') {
-        update.portfolio_url = value
-      } else if (field === 'showreel_url') {
-        update.showreel_url = value || null
-      }
-
-      try {
-        const res = await talentApi.updateProfile(update, token)
-        setProfile(prev => prev ? ({ ...prev, ...res.profile, type: 'talent' }) : null)
-      } catch (err: any) {
-        alert(err.message || 'Failed to update field')
-      }
+  // Save full edit form for talent
+  const handleSaveTalentForm = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!token || profile?.type !== 'talent') return
+    setSavingProfile(true)
+    try {
+      const res = await talentApi.updateProfile(editForm, token)
+      setProfile((prev) => (prev ? { ...prev, ...res.profile, type: 'talent' } : null))
+      setIsEditing(false)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to update profile')
+    } finally {
+      setSavingProfile(false)
     }
   }
 
@@ -354,9 +361,9 @@ export function Profile() {
     setUploadingAvatar(true)
     try {
       const res = await talentApi.uploadAvatar(file, token)
-      setProfile(prev => prev ? ({ ...prev, avatar_url: res.avatar_url }) : null)
-    } catch (err: any) {
-      alert(err.message || 'Failed to upload avatar')
+      setProfile((prev) => (prev ? { ...prev, avatar_url: res.avatar_url } : null))
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to upload avatar')
     } finally {
       setUploadingAvatar(false)
       e.target.value = ''
@@ -371,10 +378,10 @@ export function Profile() {
     setResumeMessage('')
     try {
       await talentApi.uploadResume(file, token)
-      setProfile(prev => prev ? ({ ...prev, has_resume: true }) : null)
-      setResumeMessage('Resume uploaded successfully!')
-    } catch (err: any) {
-      alert(err.message || 'Failed to upload resume')
+      setProfile((prev) => (prev ? { ...prev, has_resume: true } : null))
+      setResumeMessage('Resume uploaded successfully')
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to upload resume')
     } finally {
       setUploadingResume(false)
       e.target.value = ''
@@ -383,14 +390,14 @@ export function Profile() {
 
   // Delete resume via Server Endpoint
   const handleDeleteResume = async () => {
-    if (!token || !confirm('Are you sure you want to delete your resume?')) return
+    if (!token || !confirm('Are you sure you want to remove your resume?')) return
     setResumeLoading(true)
     try {
       await talentApi.deleteResume(token)
-      setProfile(prev => prev ? ({ ...prev, has_resume: false }) : null)
-      setResumeMessage('Resume deleted')
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete resume')
+      setProfile((prev) => (prev ? { ...prev, has_resume: false } : null))
+      setResumeMessage('Resume removed')
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to remove resume')
     } finally {
       setResumeLoading(false)
     }
@@ -403,8 +410,8 @@ export function Profile() {
     try {
       const res = await talentApi.getResumeSignedUrl(profile.id, token)
       window.open(res.signed_url, '_blank', 'noopener,noreferrer')
-    } catch (err: any) {
-      alert(err.message || 'Unable to open resume')
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Unable to open resume')
     } finally {
       setResumeLoading(false)
     }
@@ -412,16 +419,16 @@ export function Profile() {
 
   // Availability change
   const handleAvailabilityChange = async (newVal: TalentAvailability) => {
-    if (!token) return
+    if (!token || profile?.type !== 'talent') return
     try {
-      await talentApi.updateAvailability(newVal, token)
-      setProfile(prev => prev ? ({ ...prev, availability: newVal }) : null)
-    } catch (err: any) {
-      alert(err.message || 'Failed to update availability')
+      const res = await talentApi.updateProfile({ availability: newVal }, token)
+      setProfile((prev) => (prev ? { ...prev, availability: res.profile.availability } : null))
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to update availability')
     }
   }
 
-  // Credits CRUD Handlers
+  // Credits management
   const openAddCreditModal = () => {
     setEditingCreditId(null)
     setCreditForm({
@@ -468,22 +475,24 @@ export function Profile() {
     try {
       if (editingCreditId) {
         const res = await talentApi.updateCredit(editingCreditId, payload, token)
-        setProfile(prev => {
+        setProfile((prev) => {
           if (!prev || prev.type !== 'talent') return prev
-          const updatedCredits = (prev.credits || []).map(c => c.id === editingCreditId ? res.credit : c)
+          const updatedCredits = (prev.credits || []).map((c) =>
+            c.id === editingCreditId ? res.credit : c
+          )
           return { ...prev, credits: updatedCredits }
         })
       } else {
         const res = await talentApi.createCredit(payload, token)
-        setProfile(prev => {
+        setProfile((prev) => {
           if (!prev || prev.type !== 'talent') return prev
           const updatedCredits = [res.credit, ...(prev.credits || [])]
           return { ...prev, credits: updatedCredits }
         })
       }
       setShowCreditModal(false)
-    } catch (err: any) {
-      setCreditError(err.message || 'Failed to save credit')
+    } catch (err: unknown) {
+      setCreditError(err instanceof Error ? err.message : 'Failed to save credit')
     } finally {
       setSavingCredit(false)
     }
@@ -493,516 +502,997 @@ export function Profile() {
     if (!token || !confirm('Are you sure you want to delete this credit?')) return
     try {
       await talentApi.deleteCredit(creditId, token)
-      setProfile(prev => {
+      setProfile((prev) => {
         if (!prev || prev.type !== 'talent') return prev
-        const updatedCredits = (prev.credits || []).filter(c => c.id !== creditId)
-        return { ...prev, credits: updatedCredits }
+        return {
+          ...prev,
+          credits: (prev.credits || []).filter((c) => c.id !== creditId),
+        }
       })
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete credit')
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to delete credit')
     }
   }
 
+  // Skills grouped by department
+  const skillsByDepartment = useMemo<Record<string, string[]>>(() => {
+    const grouped: Record<string, string[]> = {
+      camera: [],
+      sound: [],
+      editing: [],
+      'art and costume': [],
+      cast: [],
+      production: [],
+    }
+    if (profile?.type !== 'talent' || !profile.skills) return grouped
+
+    profile.skills.forEach((skill) => {
+      const dept = resolveDepartment(skill)
+      if (!grouped[dept]) grouped[dept] = []
+      grouped[dept].push(skill)
+    })
+
+    return grouped
+  }, [profile])
+
+  // Profile strength for talent owner
+  const strengthData = useMemo(() => {
+    if (profile?.type === 'talent') {
+      return calculateProfileStrength(profile)
+    }
+    return { score: 100, topMissingRecommendation: null }
+  }, [profile])
+
   if (loading) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        <div className="card p-8 space-y-4">
-          {[1,2,3].map(i => <div key={i} className="skeleton h-6 rounded" />)}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div className="border border-line rounded-sm bg-surface p-6 sm:p-8 space-y-4 animate-pulse">
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-sm bg-paper shrink-0" />
+            <div className="space-y-2 flex-1">
+              <div className="h-6 bg-paper rounded w-1/3" />
+              <div className="h-4 bg-paper rounded w-1/4" />
+            </div>
+          </div>
         </div>
       </div>
     )
   }
 
-  if (error) {
+  if (error || !profile) {
     return (
-      <div className="page flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-4xl mb-3">👤</p>
-          <p className="text-content-primary font-medium mb-1">Profile not found</p>
-          <Link to="/home" className="text-brand hover:text-brand-light text-sm transition-colors">← Back home</Link>
+      <div className="min-h-[50vh] flex items-center justify-center px-4 py-16">
+        <div className="border border-line rounded-sm p-8 max-w-md w-full text-center space-y-4 bg-surface shadow-subtle">
+          <div className="w-12 h-12 rounded-full bg-status-error/10 text-status-error flex items-center justify-center mx-auto">
+            <AlertCircle size={24} />
+          </div>
+          <h2 className="text-20 font-bold text-ink">Profile not found</h2>
+          <p className="text-14 text-muted">
+            The profile you are looking for does not exist or has been removed.
+          </p>
+          <div className="pt-2">
+            <Link to="/home" className="btn-primary text-13">
+              Back to dashboard
+            </Link>
+          </div>
         </div>
       </div>
     )
   }
 
-  const isOwn = viewingOwnProfile
-  const showreelEmbed = profile?.type === 'talent' && profile.showreel_url ? getShowreelEmbedUrl(profile.showreel_url) : null
-
-  return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      <div className="max-w-2xl">
-
-          {/* ── Header ────────────────────────────────────────── */}
-          <div className="card p-6 mb-6">
-            <div className="flex items-start gap-5">
-              {/* Avatar with server-side upload */}
-              <div className="shrink-0 relative group">
-                {profile?.type === 'talent' && profile.avatar_url ? (
-                  <img src={profile.avatar_url} alt="Avatar"
-                    loading="lazy" width={64} height={64}
-                    className="w-16 h-16 rounded-full object-cover bg-surface-overlay" />
-                ) : (
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-brand to-brand-dark
-                    flex items-center justify-center text-gray-950 text-xl font-bold">
-                    {profile?.type === 'production'
-                      ? (profile.company_name?.[0] ?? '?').toUpperCase()
-                      : (profile?.full_name?.[0] ?? user?.email?.[0] ?? '?').toUpperCase()}
-                  </div>
-                )}
-
-                {/* Upload overlay for talent owner */}
-                {isOwn && profile?.type === 'talent' && (
-                  <label className="absolute inset-0 rounded-full flex items-center justify-center
-                    bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    title="Upload photo (JPEG, PNG, WebP ≤ 2MB)">
-                    {uploadingAvatar ? (
-                      <Loader2 size={16} className="text-white animate-spin" />
-                    ) : (
-                      <Upload size={16} className="text-white" />
-                    )}
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      className="hidden"
-                      disabled={uploadingAvatar}
-                      onChange={handleAvatarFileChange}
-                    />
-                  </label>
-                )}
+  // ── PRODUCTION PROFILE VIEW (Company account owner) ───────────
+  if (profile.type === 'production') {
+    return (
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div className="border border-line rounded-sm bg-surface p-6 sm:p-8 space-y-6 shadow-subtle">
+          <div className="flex flex-col sm:flex-row items-start justify-between gap-6">
+            <div className="flex items-start gap-4">
+              <div className="w-16 h-16 rounded-sm bg-ink text-surface flex items-center justify-center text-24 font-bold select-none border border-line shrink-0">
+                {profile.company_name ? profile.company_name.charAt(0).toUpperCase() : 'P'}
               </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <h1 className="section-title mb-0 truncate">
-                    {profile?.type === 'production'
-                      ? profile.company_name
-                      : profile?.full_name ?? user?.email}
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-24 font-bold text-ink tracking-tight">
+                    {profile.company_name}
                   </h1>
-                  {profile?.type === 'production' && profile.verified && <VerifiedBadge />}
+                  {profile.verified === true && <VerifiedBadge size={14} />}
                 </div>
+                <span className="text-12 font-medium text-muted">Production House Account</span>
+              </div>
+            </div>
 
-                {profile?.type === 'talent' && profile.role && (
-                  <p className="text-sm font-medium text-brand">{profile.role}</p>
-                )}
+            {profile.id && (
+              <Link
+                to={`/company/${profile.id}`}
+                className="btn-secondary text-13 inline-flex items-center gap-1.5"
+              >
+                <span>View public studio page</span>
+                <ExternalLink size={13} />
+              </Link>
+            )}
+          </div>
 
-                {/* Availability status badge or toggle */}
-                {profile?.type === 'talent' && (
-                  <div className="mt-2">
-                    {isOwn ? (
-                      <div className="inline-flex items-center gap-2">
-                        <span className="text-xs text-content-tertiary">Status:</span>
-                        <select
-                          value={profile.availability || 'open'}
-                          onChange={e => handleAvailabilityChange(e.target.value as TalentAvailability)}
-                          className="bg-surface-overlay text-xs border border-surface-border rounded px-2 py-1 text-content-primary focus:outline-none focus:border-brand">
-                          <option value="open">🟢 Open to Work</option>
-                          <option value="busy">🟡 Busy on Project</option>
-                          <option value="unavailable">⚪ Unavailable</option>
-                        </select>
-                      </div>
-                    ) : (
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                        profile.availability === 'open' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' :
-                        profile.availability === 'busy' ? 'bg-amber-500/10 text-amber-600 border-amber-500/30' :
-                        'bg-gray-500/10 text-gray-400 border-gray-500/30'
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${
-                          profile.availability === 'open' ? 'bg-emerald-500' :
-                          profile.availability === 'busy' ? 'bg-amber-500' : 'bg-gray-400'
-                        }`} />
-                        {profile.availability === 'open' ? 'Open to Work' : profile.availability === 'busy' ? 'Busy on Project' : 'Unavailable'}
-                      </span>
-                    )}
-                  </div>
-                )}
+          <div className="pt-6 border-t border-line space-y-5">
+            <div>
+              <h2 className="text-12 font-semibold text-muted mb-1">
+                About the studio
+              </h2>
+              <p className="reading-text prose-serif text-15 text-ink leading-relaxed whitespace-pre-wrap max-w-3xl">
+                {profile.bio || 'No studio bio set yet.'}
+              </p>
+            </div>
 
-                {profile?.type === 'talent' && (
-                  <div className="flex flex-wrap gap-3 mt-2 text-xs text-content-tertiary">
-                    {profile.location     && <span>📍 {profile.location}</span>}
-                    {profile.language     && <span>🗣 {profile.language}</span>}
-                    {profile.experience_years > 0 && <span>🎬 {profile.experience_years}y exp</span>}
-                  </div>
-                )}
-
-                <p className="text-xs text-content-muted mt-1">
-                  {profile?.type === 'production' ? 'Production House' : 'Talent'}
+            {profile.production_details && (
+              <div>
+                <h2 className="text-12 font-semibold text-muted mb-1">
+                  Production details and equipment
+                </h2>
+                <p className="text-13 text-muted leading-relaxed whitespace-pre-wrap max-w-3xl">
+                  {profile.production_details}
                 </p>
               </div>
+            )}
+          </div>
+        </div>
 
-              {/* Message button for non-own profiles */}
-              {!isOwn && paramId && (
-                <button
-                  onClick={() => navigate(`/chat?peer=${paramId}`)}
-                  className="btn-outline flex items-center gap-2 shrink-0">
-                  <MessageCircle size={15} /> Message
-                </button>
+        {isOwn && (
+          <div className="border border-line rounded-sm bg-surface p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h4 className="text-14 font-bold text-ink">Data rights and privacy</h4>
+              <p className="text-12 text-muted">
+                Inspect compliance settings, download your data, or manage legal consents.
+              </p>
+            </div>
+            <Link to="/settings" className="btn-secondary text-13 shrink-0">
+              Manage data and privacy
+            </Link>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── TALENT PROFILE VIEW ───────────────────────────────────────
+  const talent = profile
+  const primaryRole = talent.role || 'Film Crew'
+  const primaryDept = resolveDepartment(primaryRole)
+  const showreel = talent.showreel_url ? getShowreelEmbedUrl(talent.showreel_url) : null
+
+  const availabilityConfig = {
+    open: { label: 'Available to work', variant: 'success' as const },
+    busy: { label: 'Busy on project', variant: 'warning' as const },
+    unavailable: { label: 'Unavailable', variant: 'neutral' as const },
+  }[talent.availability || 'open'] || { label: 'Available to work', variant: 'neutral' as const }
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {/* ── Owner Profile-Strength Meter (Owner only) ───────────── */}
+      {isOwn && (
+        <section
+          aria-labelledby="profile-strength-heading"
+          className="border border-line rounded-sm bg-surface p-5 space-y-3 shadow-subtle"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles size={16} className="text-tungsten" />
+              <h2 id="profile-strength-heading" className="text-14 font-bold text-ink">
+                Profile strength
+              </h2>
+            </div>
+            <span className="text-14 font-bold text-ink tnum">
+              {strengthData.score}%
+            </span>
+          </div>
+
+          <div className="w-full h-2 bg-paper rounded-[2px] overflow-hidden border border-line/60">
+            <div
+              className="h-full bg-tungsten transition-all duration-300"
+              style={{ width: `${strengthData.score}%` }}
+            />
+          </div>
+
+          {strengthData.topMissingRecommendation && (
+            <p className="text-12 text-muted leading-normal">
+              <strong className="text-ink">Highest match impact:</strong>{' '}
+              {strengthData.topMissingRecommendation}
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* ── Header: Avatar, Name, Roles, Meta, Actions ──────────── */}
+      <header className="border border-line rounded-sm bg-surface p-6 sm:p-8 space-y-6 shadow-subtle">
+        <div className="flex flex-col sm:flex-row items-start justify-between gap-6">
+          <div className="flex items-start gap-5 min-w-0 flex-1">
+            {/* Avatar */}
+            <div className="relative shrink-0 group">
+              <Avatar
+                src={talent.avatar_url}
+                fallback={talent.full_name || 'Talent'}
+                size="lg"
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-sm text-24 border border-line"
+              />
+
+              {/* Owner Avatar Upload Overlay */}
+              {isOwn && (
+                <label
+                  className="absolute inset-0 rounded-sm bg-ink/70 text-surface flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1 text-center"
+                  title="Upload profile photo"
+                >
+                  {uploadingAvatar ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <>
+                      <Upload size={16} />
+                      <span className="text-10 mt-1 font-medium">Change</span>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    disabled={uploadingAvatar}
+                    onChange={handleAvatarFileChange}
+                  />
+                </label>
+              )}
+            </div>
+
+            {/* Candidate Identity */}
+            <div className="space-y-2 min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-24 sm:text-28 font-bold text-ink tracking-tight leading-tight truncate">
+                  {talent.full_name || 'Anonymous Talent'}
+                </h1>
+              </div>
+
+              {/* Primary Role & Secondary Roles (DepartmentMarks) */}
+              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                <DepartmentMark department={primaryDept} label={primaryRole} size="md" />
+                {talent.roles &&
+                  talent.roles
+                    .filter((r) => r !== primaryRole)
+                    .map((secRole) => (
+                      <DepartmentMark
+                        key={secRole}
+                        department={resolveDepartment(secRole)}
+                        label={secRole}
+                        size="sm"
+                      />
+                    ))}
+              </div>
+
+              {/* Meta tags: separate muted elements without middle dots */}
+              <div className="flex flex-wrap items-center gap-2 text-12 text-muted pt-1">
+                {talent.location && (
+                  <span className="inline-flex items-center gap-1 bg-paper px-2 py-0.5 rounded-[2px] border border-line/60">
+                    <MapPin size={12} className="text-muted shrink-0" />
+                    <span>{talent.location}</span>
+                  </span>
+                )}
+
+                <span className="bg-paper px-2 py-0.5 rounded-[2px] border border-line/60 tnum">
+                  {talent.experience_years
+                    ? `${pluralize(talent.experience_years, 'year')} experience`
+                    : 'Entry level'}
+                </span>
+
+                {talent.language && (
+                  <span className="inline-flex items-center gap-1 bg-paper px-2 py-0.5 rounded-[2px] border border-line/60">
+                    <Languages size={12} className="text-muted shrink-0" />
+                    <span>{talent.language}</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Availability */}
+              <div className="pt-1">
+                {isOwn ? (
+                  <div className="inline-flex items-center gap-2 text-12">
+                    <span className="text-muted font-medium">Availability:</span>
+                    <select
+                      value={talent.availability || 'open'}
+                      onChange={(e) => handleAvailabilityChange(e.target.value as TalentAvailability)}
+                      className="select text-12 py-1 px-2 h-8 w-auto bg-surface border-line"
+                    >
+                      <option value="open">Available to work</option>
+                      <option value="busy">Busy on project</option>
+                      <option value="unavailable">Unavailable</option>
+                    </select>
+                  </div>
+                ) : (
+                  <Badge variant={availabilityConfig.variant} size="sm">
+                    {availabilityConfig.label}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Private Contact Note: Only visible to owner */}
+              {isOwn && user?.email && (
+                <p className="text-11 text-muted pt-1">
+                  Account email: <strong className="text-ink">{user.email}</strong> (private to you)
+                </p>
               )}
             </div>
           </div>
 
-          {/* ── Details ───────────────────────────────────────── */}
-          <div className="card p-6 space-y-6">
-            {profile?.type === 'production' && (
-              <>
-                {isOwn ? (
-                  <>
-                    <EditableField label="Company name" value={profile.company_name} onSave={v => saveField('company_name', v)} />
-                    <EditableField label="Bio" value={profile.bio} multiline onSave={v => saveField('bio', v)} />
-                    <EditableField label="Production details" value={profile.production_details} multiline onSave={v => saveField('production_details', v)} />
-                  </>
-                ) : (
-                  <>
-                    <div><p className="text-xs text-content-tertiary uppercase tracking-wider mb-1">Bio</p><p className="text-sm text-content-primary">{profile.bio ?? 'No bio set'}</p></div>
-                    <div><p className="text-xs text-content-tertiary uppercase tracking-wider mb-1">Production details</p><p className="text-sm text-content-primary whitespace-pre-wrap">{profile.production_details ?? '—'}</p></div>
-                  </>
-                )}
-              </>
-            )}
-
-            {profile?.type === 'talent' && (
-              <>
-                {isOwn ? (
-                  <>
-                    <EditableField label="Full name" value={profile.full_name} onSave={v => saveField('full_name', v)} />
-                    <EditableField label="Primary Role" value={profile.role} onSave={v => saveField('role', v)} />
-                    <EditableField
-                      label="All Roles (comma-separated, includes secondary roles)"
-                      value={profile.roles?.join(', ') || profile.role || ''}
-                      placeholder="e.g. Cinematographer, Colorist, Camera Operator"
-                      onSave={v => saveField('roles', v)}
-                    />
-                    <EditableField label="Bio" value={profile.bio} multiline onSave={v => saveField('bio', v)} />
-                    <EditableField label="Skills (comma-separated)" value={profile.skills.join(', ')} onSave={v => saveField('skills', v)} />
-                    <EditableField label="Location" value={profile.location} onSave={v => saveField('location', v)} />
-                    <EditableField label="Language" value={profile.language} onSave={v => saveField('language', v)} />
-                    <EditableField label="Portfolio URL" value={profile.portfolio_url} onSave={v => saveField('portfolio_url', v)} />
-                    <EditableField
-                      label="Showreel URL (YouTube or Vimeo)"
-                      value={profile.showreel_url}
-                      placeholder="https://www.youtube.com/watch?v=... or https://vimeo.com/..."
-                      onSave={v => saveField('showreel_url', v)}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <div><p className="text-xs text-content-tertiary uppercase tracking-wider mb-1">Bio</p><p className="text-sm text-content-primary">{profile.bio ?? '—'}</p></div>
-                    {profile.roles && profile.roles.length > 1 && (
-                      <div>
-                        <p className="text-xs text-content-tertiary uppercase tracking-wider mb-2">Roles</p>
-                        <div className="flex flex-wrap gap-2">
-                          {profile.roles.map(r => (
-                            <span key={r} className="badge bg-brand/10 border-brand/30 text-brand font-medium">
-                              {r}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {profile.skills.length > 0 && (
-                      <div>
-                        <p className="text-xs text-content-tertiary uppercase tracking-wider mb-2">Skills</p>
-                        <div className="flex flex-wrap gap-2">{profile.skills.map(s => <SkillBadge key={s} label={s} />)}</div>
-                      </div>
-                    )}
-                    {profile.portfolio_url && (
-                      <a href={profile.portfolio_url} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-brand hover:text-brand-light text-sm transition-colors">
-                        View portfolio <ExternalLink size={13} />
-                      </a>
-                    )}
-                  </>
-                )}
-
-                {/* ── Showreel Embed ─────────────────────────────── */}
-                <div>
-                  <p className="text-xs text-content-tertiary uppercase tracking-wider mb-2 font-semibold flex items-center gap-1.5">
-                    <Play size={13} /> Showreel
-                  </p>
-                  {showreelEmbed ? (
-                    <div className="rounded-xl overflow-hidden border border-surface-border aspect-video bg-black/40 shadow-sm">
-                      <iframe
-                        src={showreelEmbed}
-                        title="Showreel"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                        className="w-full h-full border-0"
-                      />
-                    </div>
-                  ) : profile.showreel_url ? (
-                    <p className="text-xs text-amber-500">
-                      Showreel link provided ({profile.showreel_url}) must be a valid YouTube or Vimeo link to embed.
-                    </p>
-                  ) : (
-                    <p className="text-sm text-content-muted italic">No showreel added</p>
-                  )}
-                </div>
-
-                {/* ── Resume / CV Section ────────────────────────── */}
-                <div className="pt-4 border-t border-surface-border">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-xs text-content-tertiary uppercase tracking-wider font-semibold flex items-center gap-1.5">
-                      <FileText size={13} /> Resume / CV
-                    </p>
-                    {isOwn && profile.has_resume && (
-                      <button onClick={handleDeleteResume} disabled={resumeLoading}
-                        className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors">
-                        <Trash2 size={12} /> Remove
-                      </button>
-                    )}
-                  </div>
-
-                  {profile.has_resume ? (
-                    <div className="p-3.5 bg-surface-overlay rounded-xl border border-surface-border flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5">
-                        <FileText size={20} className="text-brand shrink-0" />
-                        <div>
-                          <p className="text-sm font-medium text-content-primary">Resume Document (PDF)</p>
-                          <p className="text-xs text-content-tertiary">Verified and secured</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={handleViewResume}
-                        disabled={resumeLoading}
-                        className="btn-outline text-xs px-3 py-1.5 flex items-center gap-1.5 shrink-0">
-                        {resumeLoading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-                        View Resume
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      {isOwn ? (
-                        <div className="p-4 border border-dashed border-surface-border rounded-xl text-center">
-                          <p className="text-xs text-content-tertiary mb-2">Upload your resume in PDF format (up to 5 MB)</p>
-                          <label className="btn-secondary text-xs inline-flex items-center gap-1.5 cursor-pointer">
-                            {uploadingResume ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-                            Upload PDF Resume
-                            <input
-                              type="file"
-                              accept="application/pdf"
-                              className="hidden"
-                              disabled={uploadingResume}
-                              onChange={handleResumeFileChange}
-                            />
-                          </label>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-content-muted italic">No resume uploaded</p>
-                      )}
-                    </div>
-                  )}
-                  {resumeMessage && <p className="text-xs text-emerald-500 mt-2">{resumeMessage}</p>}
-                </div>
-
-                {/* ── Credits & Filmography ──────────────────────── */}
-                <div className="pt-4 border-t border-surface-border">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <p className="text-xs text-content-tertiary uppercase tracking-wider font-semibold flex items-center gap-1.5">
-                        <Film size={13} /> Filmography & Credits
-                      </p>
-                      {isOwn && (
-                        <p className="text-[11px] text-content-muted">
-                          {(profile.credits?.length || 0)} of 50 credits added
-                        </p>
-                      )}
-                    </div>
-                    {isOwn && (
-                      <button
-                        onClick={openAddCreditModal}
-                        disabled={(profile.credits?.length || 0) >= 50}
-                        className="btn-primary text-xs px-3 py-1 flex items-center gap-1">
-                        <Plus size={13} /> Add Credit
-                      </button>
-                    )}
-                  </div>
-
-                  {profile.credits && profile.credits.length > 0 ? (
-                    <div className="space-y-3">
-                      {profile.credits.map(credit => (
-                        <div
-                          key={credit.id}
-                          className="p-3.5 bg-surface-overlay rounded-xl border border-surface-border flex items-start justify-between gap-3 group">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h4 className="text-sm font-semibold text-content-heading">{credit.project_title}</h4>
-                              {credit.year && (
-                                <span className="text-xs text-content-tertiary font-medium">({credit.year})</span>
-                              )}
-                              <span className="badge bg-brand/10 border-brand/30 text-brand text-[11px]">
-                                {credit.role}
-                              </span>
-                            </div>
-                            {credit.production_company && (
-                              <p className="text-xs text-content-secondary mt-0.5">
-                                Production: {credit.production_company}
-                              </p>
-                            )}
-                            {credit.description && (
-                              <p className="text-xs text-content-tertiary mt-1 whitespace-pre-wrap">
-                                {credit.description}
-                              </p>
-                            )}
-                            {credit.link && (
-                              <a
-                                href={credit.link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-[11px] text-brand hover:underline mt-1.5">
-                                Project Link <ExternalLink size={10} />
-                              </a>
-                            )}
-                          </div>
-
-                          {isOwn && (
-                            <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={() => openEditCreditModal(credit)}
-                                className="p-1 text-content-tertiary hover:text-brand transition-colors"
-                                title="Edit credit">
-                                <Pencil size={13} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteCredit(credit.id)}
-                                className="p-1 text-content-tertiary hover:text-red-400 transition-colors"
-                                title="Delete credit">
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-content-muted italic">No credits listed yet</p>
-                  )}
-                </div>
-              </>
+          {/* Action Buttons */}
+          <div className="shrink-0 flex items-center gap-2">
+            {isProductionViewer && talent.user_id && (
+              <button
+                type="button"
+                data-testid="message-btn"
+                onClick={() => navigate(`/chat?peer=${talent.user_id}`)}
+                className="btn-primary text-13 inline-flex items-center gap-1.5"
+              >
+                <MessageCircle size={14} />
+                <span>Message</span>
+              </button>
             )}
 
             {isOwn && (
-              <div className="card p-5 border-surface-border bg-surface-section flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6">
-                <div>
-                  <h4 className="text-sm font-semibold text-content-heading">Data Rights & Privacy (DPDP / GDPR)</h4>
-                  <p className="text-xs text-content-tertiary">Download your data, inspect legal consents, or request account erasure.</p>
-                </div>
-                <Link to="/settings" className="btn-secondary text-xs whitespace-nowrap self-start sm:self-auto">
-                  Manage Data & Privacy
-                </Link>
-              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditing((prev) => !prev)}
+                className="btn-secondary text-13 inline-flex items-center gap-1.5"
+              >
+                <Pencil size={13} />
+                <span>{isEditing ? 'Done editing' : 'Edit profile'}</span>
+              </button>
             )}
           </div>
         </div>
+      </header>
 
-      {/* ── Credit Modal ─────────────────────────────────────── */}
+      {/* ── Owner Inline Edit Form ──────────────────────────────── */}
+      {isOwn && isEditing && (
+        <section
+          aria-labelledby="edit-profile-heading"
+          className="border border-line rounded-sm bg-surface p-6 sm:p-8 space-y-5 shadow-subtle"
+        >
+          <div className="flex items-center justify-between pb-3 border-b border-line">
+            <h2 id="edit-profile-heading" className="text-16 font-bold text-ink">
+              Edit profile details
+            </h2>
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              className="text-12 font-medium text-muted hover:text-ink"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <form onSubmit={handleSaveTalentForm} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-12 font-semibold text-muted mb-1">
+                  Full name
+                </label>
+                <input
+                  type="text"
+                  value={editForm.full_name || ''}
+                  onChange={(e) => setEditForm((p) => ({ ...p, full_name: e.target.value }))}
+                  className="input text-13"
+                  placeholder="e.g. Mira Rajput"
+                />
+              </div>
+
+              <div>
+                <label className="block text-12 font-semibold text-muted mb-1">
+                  Primary role
+                </label>
+                <input
+                  type="text"
+                  value={editForm.role || ''}
+                  onChange={(e) => setEditForm((p) => ({ ...p, role: e.target.value }))}
+                  className="input text-13"
+                  placeholder="e.g. Director of Photography"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-12 font-semibold text-muted mb-1">
+                Secondary roles (comma-separated)
+              </label>
+              <input
+                type="text"
+                value={editForm.roles?.join(', ') || ''}
+                onChange={(e) =>
+                  setEditForm((p) => ({
+                    ...p,
+                    roles: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+                  }))
+                }
+                className="input text-13"
+                placeholder="e.g. Steadicam Operator, Camera Operator"
+              />
+            </div>
+
+            <div>
+              <label className="block text-12 font-semibold text-muted mb-1">
+                About bio (Source Serif formatting)
+              </label>
+              <textarea
+                rows={4}
+                value={editForm.bio || ''}
+                onChange={(e) => setEditForm((p) => ({ ...p, bio: e.target.value }))}
+                className="input text-13 resize-none reading-text"
+                placeholder="Summarize your narrative, commercial, or documentary experience..."
+              />
+            </div>
+
+            <div>
+              <label className="block text-12 font-semibold text-muted mb-1">
+                Skills (comma-separated)
+              </label>
+              <input
+                type="text"
+                value={editForm.skills?.join(', ') || ''}
+                onChange={(e) =>
+                  setEditForm((p) => ({
+                    ...p,
+                    skills: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+                  }))
+                }
+                className="input text-13"
+                placeholder="e.g. ARRI Alexa, Steadicam, Lighting Design, DaVinci Resolve"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-12 font-semibold text-muted mb-1">
+                  Years of experience
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="60"
+                  value={editForm.experience_years ?? 0}
+                  onChange={(e) =>
+                    setEditForm((p) => ({
+                      ...p,
+                      experience_years: parseInt(e.target.value, 10) || 0,
+                    }))
+                  }
+                  className="input text-13"
+                />
+              </div>
+
+              <div>
+                <label className="block text-12 font-semibold text-muted mb-1">
+                  City / Location
+                </label>
+                <input
+                  type="text"
+                  value={editForm.location || ''}
+                  onChange={(e) => setEditForm((p) => ({ ...p, location: e.target.value }))}
+                  className="input text-13"
+                  placeholder="e.g. Mumbai, Maharashtra"
+                />
+              </div>
+
+              <div>
+                <label className="block text-12 font-semibold text-muted mb-1">
+                  Languages
+                </label>
+                <input
+                  type="text"
+                  value={editForm.language || ''}
+                  onChange={(e) => setEditForm((p) => ({ ...p, language: e.target.value }))}
+                  className="input text-13"
+                  placeholder="e.g. English, Hindi, Telugu"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-12 font-semibold text-muted mb-1">
+                  Showreel URL (YouTube or Vimeo)
+                </label>
+                <input
+                  type="url"
+                  value={editForm.showreel_url || ''}
+                  onChange={(e) => setEditForm((p) => ({ ...p, showreel_url: e.target.value }))}
+                  className="input text-13"
+                  placeholder="https://vimeo.com/... or https://youtube.com/watch?v=..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-12 font-semibold text-muted mb-1">
+                  Portfolio website URL
+                </label>
+                <input
+                  type="url"
+                  value={editForm.portfolio_url || ''}
+                  onChange={(e) => setEditForm((p) => ({ ...p, portfolio_url: e.target.value }))}
+                  className="input text-13"
+                  placeholder="https://yourportfolio.com"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="btn-secondary text-13"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingProfile}
+                className="btn-primary text-13"
+              >
+                {savingProfile ? 'Saving...' : 'Save profile'}
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
+
+      {/* ── Section: About (Source Serif typography) ─────────────── */}
+      <section
+        aria-labelledby="about-heading"
+        className="border border-line rounded-sm bg-surface p-6 sm:p-8 space-y-3 shadow-subtle"
+      >
+        <h2 id="about-heading" className="text-16 font-bold text-ink">
+          About
+        </h2>
+        {talent.bio ? (
+          <p className="reading-text prose-serif text-15 text-ink leading-relaxed whitespace-pre-line max-w-3xl">
+            {talent.bio}
+          </p>
+        ) : (
+          <p className="text-13 text-muted italic">No bio provided yet.</p>
+        )}
+
+        {talent.portfolio_url && (
+          <div className="pt-2">
+            <a
+              href={talent.portfolio_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-13 font-semibold text-ink hover:underline inline-flex items-center gap-1.5"
+            >
+              <span>View portfolio website</span>
+              <ExternalLink size={12} />
+            </a>
+          </div>
+        )}
+      </section>
+
+      {/* ── Section: Skills Grouped by Department ───────────────── */}
+      <section
+        aria-labelledby="skills-heading"
+        className="border border-line rounded-sm bg-surface p-6 sm:p-8 space-y-4 shadow-subtle"
+      >
+        <div className="flex items-center justify-between pb-2 border-b border-line">
+          <h2 id="skills-heading" className="text-16 font-bold text-ink">
+            Skills by department
+          </h2>
+          <span className="text-12 font-medium text-muted tnum">
+            {talent.skills?.length || 0} skills
+          </span>
+        </div>
+
+        {talent.skills && talent.skills.length > 0 ? (
+          <div className="space-y-4">
+            {(
+              [
+                { key: 'camera', label: 'Camera' },
+                { key: 'sound', label: 'Sound' },
+                { key: 'editing', label: 'Editing' },
+                { key: 'art and costume', label: 'Art and costume' },
+                { key: 'cast', label: 'Cast' },
+                { key: 'production', label: 'Production' },
+              ] as const
+            ).map(({ key, label }) => {
+              const skillsInDept = skillsByDepartment[key] || []
+              if (skillsInDept.length === 0) return null
+
+              return (
+                <div key={key} className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <DepartmentMark department={key} label={label} size="sm" />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {skillsInDept.map((skill: string) => (
+                      <span
+                        key={skill}
+                        className="px-2 py-0.5 rounded-[2px] bg-paper text-ink border border-line text-12 font-medium"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="text-13 text-muted italic">No skills listed yet.</p>
+        )}
+      </section>
+
+      {/* ── Section: Filmography and Credits Table ──────────────── */}
+      <section
+        aria-labelledby="credits-heading"
+        className="border border-line rounded-sm bg-surface p-6 sm:p-8 space-y-4 shadow-subtle"
+      >
+        <div className="flex items-center justify-between pb-2 border-b border-line">
+          <div>
+            <h2 id="credits-heading" className="text-16 font-bold text-ink">
+              Filmography and credits
+            </h2>
+            <p className="text-12 text-muted mt-0.5">
+              Verified productions, feature films, and commercial work
+            </p>
+          </div>
+
+          {isOwn && (
+            <button
+              type="button"
+              onClick={openAddCreditModal}
+              disabled={(talent.credits?.length || 0) >= 50}
+              className="btn-secondary text-12 inline-flex items-center gap-1.5"
+            >
+              <Plus size={13} />
+              <span>Add credit</span>
+            </button>
+          )}
+        </div>
+
+        {talent.credits && talent.credits.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-13">
+              <thead className="bg-paper border-b border-line text-12 font-semibold text-muted select-none">
+                <tr>
+                  <th className="py-2.5 px-3 w-20">Year</th>
+                  <th className="py-2.5 px-3">Project</th>
+                  <th className="py-2.5 px-3">Role</th>
+                  <th className="py-2.5 px-3">Production company</th>
+                  <th className="py-2.5 px-3">Link</th>
+                  {isOwn && <th className="py-2.5 px-3 text-right">Actions</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line/60">
+                {talent.credits.map((credit) => (
+                  <tr key={credit.id} className="hover:bg-paper/40 transition-colors">
+                    <td className="py-2.5 px-3 font-semibold text-ink tnum">
+                      {credit.year || '—'}
+                    </td>
+                    <td className="py-2.5 px-3 font-semibold text-ink">
+                      {credit.project_title}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded-[2px] bg-paper text-muted border border-line text-11 font-medium">
+                        {credit.role}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-muted">
+                      {credit.production_company || '—'}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      {credit.link ? (
+                        <a
+                          href={credit.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-12 font-medium text-ink hover:underline inline-flex items-center gap-1"
+                        >
+                          <span>View project</span>
+                          <ExternalLink size={11} />
+                        </a>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                    {isOwn && (
+                      <td className="py-2.5 px-3 text-right">
+                        <div className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEditCreditModal(credit)}
+                            className="p-1 text-muted hover:text-ink transition-colors"
+                            title="Edit credit"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCredit(credit.id)}
+                            className="p-1 text-muted hover:text-status-error transition-colors"
+                            title="Delete credit"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-13 text-muted italic">No credits listed yet.</p>
+        )}
+      </section>
+
+      {/* ── Section: Showreel Embed (Click-to-Load) ─────────────── */}
+      <section
+        aria-labelledby="showreel-heading"
+        className="border border-line rounded-sm bg-surface p-6 sm:p-8 space-y-3 shadow-subtle"
+      >
+        <div className="flex items-center justify-between pb-2 border-b border-line">
+          <div>
+            <h2 id="showreel-heading" className="text-16 font-bold text-ink">
+              Showreel
+            </h2>
+            <p className="text-12 text-muted mt-0.5">
+              Click-to-load video player (YouTube and Vimeo only)
+            </p>
+          </div>
+        </div>
+
+        {showreel ? (
+          <div>
+            {!hasLoadedShowreel ? (
+              <div
+                data-testid="showreel-click-to-load"
+                onClick={() => setHasLoadedShowreel(true)}
+                className="aspect-video w-full rounded-sm border border-line bg-ink text-surface flex flex-col items-center justify-center p-6 text-center cursor-pointer group hover:border-tungsten transition-colors select-none"
+              >
+                <div className="w-14 h-14 rounded-full bg-tungsten text-ink flex items-center justify-center group-hover:scale-105 transition-transform shadow-md mb-3">
+                  <Play size={24} className="ml-1 fill-ink" />
+                </div>
+                <h3 className="text-16 font-bold text-surface">
+                  Watch showreel on {showreel.host}
+                </h3>
+                <p className="text-12 text-paper/70 mt-1 max-w-sm">
+                  Click to load player. Protects privacy by avoiding third-party requests until clicked.
+                </p>
+              </div>
+            ) : (
+              <div className="aspect-video w-full rounded-sm overflow-hidden border border-line bg-ink">
+                <iframe
+                  data-testid="showreel-iframe"
+                  src={showreel.embedUrl}
+                  title="Showreel player"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="w-full h-full border-0"
+                />
+              </div>
+            )}
+          </div>
+        ) : talent.showreel_url ? (
+          <p className="text-12 text-status-warning">
+            Showreel link provided must be a valid YouTube or Vimeo URL.
+          </p>
+        ) : (
+          <p className="text-13 text-muted italic">No showreel added yet.</p>
+        )}
+      </section>
+
+      {/* ── Section: Resume (Allowed Viewers only) ───────────────── */}
+      {isAllowedToViewResume && (
+        <section
+          aria-labelledby="resume-heading"
+          className="border border-line rounded-sm bg-surface p-6 sm:p-8 space-y-3 shadow-subtle"
+        >
+          <div className="flex items-center justify-between pb-2 border-b border-line">
+            <div>
+              <h2 id="resume-heading" className="text-16 font-bold text-ink">
+                Resume and curriculum vitae
+              </h2>
+              <p className="text-12 text-muted mt-0.5">
+                Verified document accessible only to authorized productions
+              </p>
+            </div>
+            {isOwn && talent.has_resume && (
+              <button
+                type="button"
+                onClick={handleDeleteResume}
+                disabled={resumeLoading}
+                className="text-12 text-status-error hover:underline inline-flex items-center gap-1"
+              >
+                <Trash2 size={12} />
+                <span>Remove</span>
+              </button>
+            )}
+          </div>
+
+          {talent.has_resume ? (
+            <div className="p-4 bg-paper rounded-sm border border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <FileText size={22} className="text-ink shrink-0" />
+                <div>
+                  <p className="text-14 font-semibold text-ink">Resume document (PDF)</p>
+                  <p className="text-11 text-muted">Secured via signed URL access</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleViewResume}
+                disabled={resumeLoading}
+                className="btn-secondary text-13 inline-flex items-center gap-1.5 shrink-0"
+              >
+                {resumeLoading ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Download size={13} />
+                )}
+                <span>View resume</span>
+              </button>
+            </div>
+          ) : (
+            <div>
+              {isOwn ? (
+                <div className="p-6 border border-dashed border-line rounded-sm text-center space-y-2 bg-paper/30">
+                  <FileText size={28} className="mx-auto text-muted opacity-60" />
+                  <p className="text-13 text-muted">
+                    Upload your resume in PDF format (up to 5 MB)
+                  </p>
+                  <label className="btn-secondary text-13 inline-flex items-center gap-1.5 cursor-pointer">
+                    {uploadingResume ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      <Upload size={13} />
+                    )}
+                    <span>Upload PDF resume</span>
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      className="hidden"
+                      disabled={uploadingResume}
+                      onChange={handleResumeFileChange}
+                    />
+                  </label>
+                </div>
+              ) : (
+                <p className="text-13 text-muted italic">No resume attached to this profile.</p>
+              )}
+            </div>
+          )}
+
+          {resumeMessage && (
+            <p className="text-12 text-status-success font-medium">{resumeMessage}</p>
+          )}
+        </section>
+      )}
+
+      {/* ── Section: Data Rights & Privacy (Owner only) ─────────── */}
+      {isOwn && (
+        <div className="border border-line rounded-sm bg-surface p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-subtle">
+          <div>
+            <h3 className="text-14 font-bold text-ink">Data rights and privacy</h3>
+            <p className="text-12 text-muted">
+              Download your data, inspect legal consents, or request account erasure.
+            </p>
+          </div>
+          <Link to="/settings" className="btn-secondary text-13 shrink-0">
+            Manage data and privacy
+          </Link>
+        </div>
+      )}
+
+      {/* ── Modal: Credit Modal ─────────────────────────────────── */}
       {showCreditModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="card max-w-md w-full p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-content-heading">
-                {editingCreditId ? 'Edit Credit' : 'Add Production Credit'}
+        <div className="fixed inset-0 z-50 bg-ink/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+          <div className="border border-line rounded-sm bg-surface max-w-md w-full p-6 space-y-4 shadow-floating">
+            <div className="flex items-center justify-between pb-2 border-b border-line">
+              <h3 className="text-16 font-bold text-ink">
+                {editingCreditId ? 'Edit credit' : 'Add credit'}
               </h3>
               <button
+                type="button"
                 onClick={() => setShowCreditModal(false)}
-                className="text-content-tertiary hover:text-content-primary">
-                <X size={18} />
+                className="text-muted hover:text-ink"
+              >
+                <X size={16} />
               </button>
             </div>
 
             {creditError && (
-              <p className="text-xs text-red-400 bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
-                {creditError}
-              </p>
+              <p className="text-12 text-status-error font-medium">{creditError}</p>
             )}
 
-            <form onSubmit={handleSaveCredit} className="space-y-3.5">
+            <form onSubmit={handleSaveCredit} className="space-y-3">
               <div>
-                <label className="text-xs text-content-secondary font-medium block mb-1">
-                  Project Title <span className="text-red-400">*</span>
+                <label className="block text-12 font-semibold text-muted mb-1">
+                  Project title *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Sacred Games, Gully Boy"
                   value={creditForm.project_title}
-                  onChange={e => setCreditForm({ ...creditForm, project_title: e.target.value })}
-                  className="w-full text-sm bg-surface-overlay border border-surface-border rounded-lg p-2.5 text-content-primary focus:outline-none focus:border-brand"
+                  onChange={(e) =>
+                    setCreditForm((p) => ({ ...p, project_title: e.target.value }))
+                  }
+                  className="input text-13"
+                  placeholder="e.g. Shadows in the Mist"
+                />
+              </div>
+
+              <div>
+                <label className="block text-12 font-semibold text-muted mb-1">
+                  Role *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={creditForm.role}
+                  onChange={(e) => setCreditForm((p) => ({ ...p, role: e.target.value }))}
+                  className="input text-13"
+                  placeholder="e.g. Director of Photography"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-content-secondary font-medium block mb-1">
-                    Role <span className="text-red-400">*</span>
+                  <label className="block text-12 font-semibold text-muted mb-1">
+                    Year
+                  </label>
+                  <input
+                    type="number"
+                    value={creditForm.year}
+                    onChange={(e) => setCreditForm((p) => ({ ...p, year: e.target.value }))}
+                    className="input text-13"
+                    placeholder="2026"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-12 font-semibold text-muted mb-1">
+                    Production company
                   </label>
                   <input
                     type="text"
-                    required
-                    placeholder="e.g. Camera Operator"
-                    value={creditForm.role}
-                    onChange={e => setCreditForm({ ...creditForm, role: e.target.value })}
-                    className="w-full text-sm bg-surface-overlay border border-surface-border rounded-lg p-2.5 text-content-primary focus:outline-none focus:border-brand"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-content-secondary font-medium block mb-1">Year</label>
-                  <input
-                    type="number"
-                    min="1900"
-                    max="2100"
-                    placeholder="e.g. 2023"
-                    value={creditForm.year}
-                    onChange={e => setCreditForm({ ...creditForm, year: e.target.value })}
-                    className="w-full text-sm bg-surface-overlay border border-surface-border rounded-lg p-2.5 text-content-primary focus:outline-none focus:border-brand"
+                    value={creditForm.production_company}
+                    onChange={(e) =>
+                      setCreditForm((p) => ({ ...p, production_company: e.target.value }))
+                    }
+                    className="input text-13"
+                    placeholder="e.g. Excel Entertainment"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs text-content-secondary font-medium block mb-1">Production Company / Client</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Netflix, Dharma Productions"
-                  value={creditForm.production_company}
-                  onChange={e => setCreditForm({ ...creditForm, production_company: e.target.value })}
-                  className="w-full text-sm bg-surface-overlay border border-surface-border rounded-lg p-2.5 text-content-primary focus:outline-none focus:border-brand"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-content-secondary font-medium block mb-1">Description / Notes</label>
-                <textarea
-                  rows={2}
-                  placeholder="Details about your responsibilities or achievements"
-                  value={creditForm.description}
-                  onChange={e => setCreditForm({ ...creditForm, description: e.target.value })}
-                  className="w-full text-sm bg-surface-overlay border border-surface-border rounded-lg p-2.5 text-content-primary focus:outline-none focus:border-brand resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-content-secondary font-medium block mb-1">Project Link (IMDb, Trailer, etc.)</label>
+                <label className="block text-12 font-semibold text-muted mb-1">
+                  Project link (IMDb, Vimeo, or YouTube)
+                </label>
                 <input
                   type="url"
-                  placeholder="https://..."
                   value={creditForm.link}
-                  onChange={e => setCreditForm({ ...creditForm, link: e.target.value })}
-                  className="w-full text-sm bg-surface-overlay border border-surface-border rounded-lg p-2.5 text-content-primary focus:outline-none focus:border-brand"
+                  onChange={(e) => setCreditForm((p) => ({ ...p, link: e.target.value }))}
+                  className="input text-13"
+                  placeholder="https://imdb.com/title/..."
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="pt-2 flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowCreditModal(false)}
-                  className="btn-secondary text-xs px-3 py-1.5">
+                  className="btn-secondary text-13"
+                >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={savingCredit}
-                  className="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5">
-                  {savingCredit && <Loader2 size={13} className="animate-spin" />}
-                  {editingCreditId ? 'Save Changes' : 'Add Credit'}
+                  className="btn-primary text-13"
+                >
+                  {savingCredit ? 'Saving...' : 'Save credit'}
                 </button>
               </div>
             </form>

@@ -1,203 +1,64 @@
 import { useState, FormEvent, useEffect, useCallback } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { Search as SearchIcon, X, ExternalLink, ArrowRight, RefreshCw } from 'lucide-react'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import {
+  X,
+  RefreshCw,
+  SlidersHorizontal,
+  Bell,
+  Users,
+  MapPin,
+  Languages,
+} from 'lucide-react'
 import { talentApi, TalentProfile } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { PageHeader } from '../components/PageHeader'
 import { supabase } from '../lib/supabase'
-import { formatLoadErrorMessage } from '../lib/formatters'
+import { formatLoadErrorMessage, pluralize } from '../lib/formatters'
+import { DepartmentMark, resolveDepartment } from '../components/ui/DepartmentMark'
+import { Avatar } from '../components/ui/Avatar'
+import { Badge } from '../components/ui/Badge'
+import { Sheet, SheetContent, SheetTrigger } from '../components/ui/Sheet'
+import { AutocompleteTagInput } from '../components/AutocompleteTagInput'
+import { Pagination } from '../components/ui/Pagination'
 
-// ── Talent card ───────────────────────────────────────────────
-
-function TalentCard({ talent, highlightSkills }: { talent: TalentProfile; highlightSkills: string[] }) {
-  const initials = (talent.full_name ?? '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-  const hlSet    = new Set(highlightSkills.map(s => s.toLowerCase()))
-  const daysAgo  = Math.floor((Date.now() - new Date(talent.last_active_at).getTime()) / 86400000)
-
-  const activityLabel =
-    daysAgo === 0 ? 'Active today' :
-    daysAgo <= 7  ? `Active ${daysAgo}d ago` :
-    daysAgo <= 30 ? `Active ${daysAgo}d ago` : 'Inactive 30d+'
-
-  const activityCls =
-    daysAgo <= 7  ? 'text-emerald-600' :
-    daysAgo <= 30 ? 'text-amber-600'   : 'text-content-muted'
-
-  const availabilityConfig = {
-    open:        { label: 'Available', dot: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' },
-    busy:        { label: 'Busy',      dot: 'bg-amber-500',   badge: 'bg-amber-500/10 text-amber-600 border-amber-500/30' },
-    unavailable: { label: 'Unavailable', dot: 'bg-gray-400', badge: 'bg-gray-500/10 text-gray-400 border-gray-500/30' },
-  }[talent.availability || 'open']
-
-  return (
-    <div className="card-hover p-5 flex flex-col gap-4">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 min-w-0">
-          {talent.avatar_url
-            ? <img src={talent.avatar_url} alt={talent.full_name ?? 'Talent avatar'}
-                loading="lazy" width={44} height={44}
-                className="w-11 h-11 rounded-full object-cover shrink-0" />
-            : <div className="w-11 h-11 rounded-full bg-gradient-to-br from-brand-navy to-brand
-                flex items-center justify-center text-white font-bold text-sm shrink-0">{initials}</div>
-          }
-          <div className="flex-1 min-w-0">
-            <Link to={`/profile/${talent.id}`} className="font-semibold text-content-heading leading-tight truncate hover:text-brand transition-colors block">
-              {talent.full_name ?? 'Anonymous Talent'}
-            </Link>
-            {talent.role && <p className="text-sm text-brand mt-0.5 truncate">{talent.role}</p>}
-            <p className={`text-xs mt-0.5 ${activityCls}`}>{activityLabel}</p>
-          </div>
-        </div>
-
-        {/* Availability Badge */}
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border shrink-0 ${availabilityConfig.badge}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${availabilityConfig.dot}`} />
-          {availabilityConfig.label}
-        </span>
-      </div>
-
-      {/* Secondary Roles */}
-      {talent.roles && talent.roles.length > 1 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] text-content-muted">Also:</span>
-          {talent.roles.filter(r => r !== talent.role).map(r => (
-            <span key={r} className="text-xs px-2 py-0.5 rounded bg-surface-overlay text-content-secondary border border-surface-border">
-              {r}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Meta */}
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-content-tertiary">
-        {talent.location        && <span>📍 {talent.location}</span>}
-        {talent.experience_years > 0 && <span>🎬 {talent.experience_years}y exp</span>}
-        {talent.language        && <span>🗣 {talent.language}</span>}
-      </div>
-
-      {/* Bio */}
-      {talent.bio && <p className="text-sm text-content-secondary line-clamp-2">{talent.bio}</p>}
-
-      {/* Skills */}
-      {talent.skills.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {talent.skills.slice(0, 8).map(skill => {
-            const match = hlSet.has(skill.toLowerCase())
-            return (
-              <span key={skill}
-                className={`badge text-xs font-medium transition-colors
-                  ${match
-                    ? 'bg-blue-50 border-brand/30 text-brand'
-                    : 'bg-surface-section border-surface-border text-content-secondary'
-                  }`}>
-                {skill}
-              </span>
-            )
-          })}
-          {talent.skills.length > 8 && (
-            <span className="text-xs text-content-muted self-center">+{talent.skills.length - 8} more</span>
-          )}
-        </div>
-      )}
-
-      {/* Actions */}
-      <div className="flex items-center justify-between mt-auto pt-2 border-t border-surface-border">
-        {talent.portfolio_url ? (
-          <a href={talent.portfolio_url} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-brand hover:text-brand-dark font-medium transition-colors">
-            Portfolio <ExternalLink size={11} />
-          </a>
-        ) : <span />}
-
-        <Link
-          to={`/profile/${talent.id}`}
-          className="inline-flex items-center gap-1 text-xs text-brand font-medium hover:underline">
-          View Profile <ArrowRight size={12} />
-        </Link>
-      </div>
-    </div>
-  )
-}
-
-// ── Filter sidebar ────────────────────────────────────────────
-
-interface Filters {
-  skills: string
+export interface TalentSearchFilters {
+  skills: string[]
   role: string
   location: string
   language: string
   availability: string
 }
 
-function FilterSidebar({ filters, onChange, onSubmit, onClear, loading }: {
-  filters: Filters; onChange: (f: Filters) => void
-  onSubmit: (e: FormEvent) => void; onClear: () => void; loading: boolean
-}) {
-  const set = (key: keyof Filters) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    onChange({ ...filters, [key]: e.target.value })
-  const hasFilters = Object.values(filters).some(v => v.trim())
+const ITEMS_PER_PAGE = 10
 
-  return (
-    <form onSubmit={onSubmit} className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold text-content-heading">Filters</h2>
-        {hasFilters && (
-          <button type="button" onClick={onClear}
-            className="flex items-center gap-1 text-xs text-content-tertiary hover:text-brand transition-colors">
-            <X size={12} /> Clear all
-          </button>
-        )}
-      </div>
-
-      <div>
-        <label className="label">Availability</label>
-        <select
-          value={filters.availability}
-          onChange={set('availability')}
-          className="input bg-surface-overlay text-sm">
-          <option value="">All availability statuses</option>
-          <option value="open">🟢 Available</option>
-          <option value="busy">🟡 Busy</option>
-          <option value="unavailable">⚪ Unavailable</option>
-        </select>
-      </div>
-
-      {[
-        { key: 'skills' as const,   label: 'Skills',    placeholder: 'e.g. Cinematography, Editing', hint: 'Comma-separated' },
-        { key: 'role' as const,     label: 'Role',      placeholder: 'e.g. Director of Photography' },
-        { key: 'location' as const, label: 'Location',  placeholder: 'e.g. Mumbai, Remote' },
-        { key: 'language' as const, label: 'Language',  placeholder: 'e.g. English, Hindi' },
-      ].map(({ key, label, placeholder, hint }) => (
-        <div key={key}>
-          <label className="label">{label}</label>
-          <input value={filters[key]} onChange={set(key)} placeholder={placeholder} className="input" />
-          {hint && <p className="mt-1 text-xs text-content-muted">{hint}</p>}
-        </div>
-      ))}
-
-      <button type="submit" disabled={loading} className="btn-primary w-full">
-        {loading ? 'Searching…' : <><SearchIcon size={14} /> Search</>}
-      </button>
-    </form>
-  )
-}
-
-// ── Page ──────────────────────────────────────────────────────
-
-const EMPTY: Filters = { skills: '', role: '', location: '', language: '', availability: '' }
-
-const Search = () => {
-  usePageTitle('Find Talent')
+export default function Search() {
+  usePageTitle('Find Talent | CineConnect')
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { token, isAuthenticated, loading: authLoading } = useAuth()
-  const [filters, setFilters]     = useState<Filters>(EMPTY)
-  const [results, setResults]     = useState<TalentProfile[]>([])
-  const [searched, setSearched]   = useState(false)
-  const [loading, setLoading]     = useState(false)
-  const [error, setError]         = useState('')
-  const [sidebarOpen, setSidebar] = useState(false)
+
+  // Initialize filters from URL parameters
+  const [filters, setFilters] = useState<TalentSearchFilters>(() => {
+    const rawSkills = searchParams.get('skills')
+    return {
+      skills: rawSkills ? rawSkills.split(',').map((s) => s.trim()).filter(Boolean) : [],
+      role: searchParams.get('role') || searchParams.get('q') || '',
+      location: searchParams.get('location') || '',
+      language: searchParams.get('language') || '',
+      availability: searchParams.get('availability') || '',
+    }
+  })
+
+  const [currentPage, setCurrentPage] = useState<number>(() => {
+    const p = parseInt(searchParams.get('page') || '1', 10)
+    return isNaN(p) || p < 1 ? 1 : p
+  })
+
+  const [results, setResults] = useState<TalentProfile[]>([])
+  const [searched, setSearched] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
 
   // Resolve session token from useAuth or fallback to active Supabase session / localStorage
   const getAccessToken = useCallback(async (): Promise<string | null> => {
@@ -215,153 +76,585 @@ const Search = () => {
     )
   }, [token])
 
-  const runSearch = useCallback(async (f: Filters) => {
-    const accessToken = await getAccessToken()
-    if (!accessToken) {
-      navigate('/login', { replace: true })
-      return
-    }
+  const runSearch = useCallback(
+    async (f: TalentSearchFilters) => {
+      const accessToken = await getAccessToken()
+      if (!accessToken) {
+        navigate('/login', { replace: true })
+        return
+      }
 
-    setLoading(true); setError('')
-    try {
-      const skills = f.skills ? f.skills.split(',').map(s => s.trim()).filter(Boolean) : undefined
-      const res = await talentApi.search({
-        skills,
-        role:         f.role.trim()         || undefined,
-        location:     f.location.trim()     || undefined,
-        language:     f.language.trim()     || undefined,
-        availability: f.availability.trim() || undefined,
-      }, accessToken)
-      setResults(res.talent); setSearched(true)
-    } catch (err: unknown) {
-      setError(formatLoadErrorMessage(err, "Couldn't load talent results. Check your connection and try again."))
-    } finally {
-      setLoading(false)
-    }
-  }, [getAccessToken, navigate])
+      setLoading(true)
+      setError('')
+      try {
+        const res = await talentApi.search(
+          {
+            skills: f.skills.length > 0 ? f.skills : undefined,
+            role: f.role.trim() || undefined,
+            location: f.location.trim() || undefined,
+            language: f.language.trim() || undefined,
+            availability: f.availability && f.availability !== 'all' ? f.availability.trim() : undefined,
+          },
+          accessToken
+        )
+        setResults(res.talent || [])
+        setSearched(true)
+      } catch (err: unknown) {
+        setError(
+          formatLoadErrorMessage(
+            err,
+            "Couldn't load talent results. Check your connection and try again."
+          )
+        )
+      } finally {
+        setLoading(false)
+      }
+    },
+    [getAccessToken, navigate]
+  )
 
+  // Sync state to URL params
+  const updateUrlParams = useCallback(
+    (f: TalentSearchFilters, pageNum: number) => {
+      const params = new URLSearchParams()
+      if (f.skills.length > 0) params.set('skills', f.skills.join(','))
+      if (f.role.trim()) params.set('role', f.role.trim())
+      if (f.location.trim()) params.set('location', f.location.trim())
+      if (f.language.trim()) params.set('language', f.language.trim())
+      if (f.availability.trim()) params.set('availability', f.availability.trim())
+      if (pageNum > 1) params.set('page', String(pageNum))
+
+      setSearchParams(params, { replace: true })
+    },
+    [setSearchParams]
+  )
+
+  // Initial fetch on mount
   useEffect(() => {
     if (authLoading) return
     if (!isAuthenticated && !token) return
-    runSearch(EMPTY)
-  }, [authLoading, isAuthenticated, token, runSearch])
 
-  // If user is logged out and auth resolved, redirect to /login immediately without calling the API
+    runSearch(filters)
+  }, [authLoading, isAuthenticated, token]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle URL change from browser back/forward buttons
+  useEffect(() => {
+    const rawSkills = searchParams.get('skills')
+    const urlFilters: TalentSearchFilters = {
+      skills: rawSkills ? rawSkills.split(',').map((s) => s.trim()).filter(Boolean) : [],
+      role: searchParams.get('role') || searchParams.get('q') || '',
+      location: searchParams.get('location') || '',
+      language: searchParams.get('language') || '',
+      availability: searchParams.get('availability') || '',
+    }
+    const page = parseInt(searchParams.get('page') || '1', 10) || 1
+
+    setFilters(urlFilters)
+    setCurrentPage(page)
+  }, [searchParams])
+
   if (!authLoading && !isAuthenticated && !token) {
     return <Navigate to="/login" replace />
   }
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-surface-section flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-surface-border border-t-brand rounded-full animate-spin mx-auto" />
+      <div className="min-h-screen bg-paper flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-line border-t-tungsten rounded-full animate-spin" />
       </div>
     )
   }
 
-  const handleSubmit = (e: FormEvent) => { e.preventDefault(); runSearch(filters) }
-  const handleClear  = () => { setFilters(EMPTY); runSearch(EMPTY) }
+  const handleApplyFilters = (e?: FormEvent) => {
+    if (e) e.preventDefault()
+    setCurrentPage(1)
+    updateUrlParams(filters, 1)
+    runSearch(filters)
+    setMobileFilterOpen(false)
+  }
 
-  const highlightSkills = filters.skills ? filters.skills.split(',').map(s => s.trim()).filter(Boolean) : []
-  const hasFilters      = Object.values(filters).some(v => v.trim())
+  const handleClearFilters = () => {
+    const empty: TalentSearchFilters = {
+      skills: [],
+      role: '',
+      location: '',
+      language: '',
+      availability: '',
+    }
+    setFilters(empty)
+    setCurrentPage(1)
+    updateUrlParams(empty, 1)
+    runSearch(empty)
+    setMobileFilterOpen(false)
+  }
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage)
+    updateUrlParams(filters, newPage)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const hasActiveFilters =
+    filters.skills.length > 0 ||
+    Boolean(filters.role.trim()) ||
+    Boolean(filters.location.trim()) ||
+    Boolean(filters.language.trim()) ||
+    Boolean(filters.availability.trim())
+
+  // Set of lowercase skills for quick highlight matching
+  const searchSkillsSet = new Set(filters.skills.map((s) => s.toLowerCase().trim()))
+
+  // Paginated slice
+  const totalPages = Math.max(1, Math.ceil(results.length / ITEMS_PER_PAGE))
+  const displayedTalent = results.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  )
+
+  // Filter Panel Form
+  const filterFormContent = (
+    <form onSubmit={handleApplyFilters} className="space-y-4">
+      <div className="flex items-center justify-between pb-2 border-b border-line">
+        <h2 className="text-14 font-bold text-ink">Search filters</h2>
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={handleClearFilters}
+            className="text-12 font-medium text-muted hover:text-ink transition-colors"
+          >
+            Clear all
+          </button>
+        )}
+      </div>
+
+      {/* Role */}
+      <div>
+        <label htmlFor="talent-filter-role" className="block text-12 font-semibold text-muted mb-1">
+          Role
+        </label>
+        <input
+          id="talent-filter-role"
+          type="text"
+          value={filters.role}
+          onChange={(e) => setFilters((f) => ({ ...f, role: e.target.value }))}
+          placeholder="e.g. Cinematographer, Editor"
+          className="input text-13"
+        />
+      </div>
+
+      {/* Skills (tag picker using AutocompleteTagInput) */}
+      <div>
+        <AutocompleteTagInput
+          label="Skills"
+          placeholder="Add required skill"
+          tags={filters.skills}
+          onChange={(tags) => setFilters((f) => ({ ...f, skills: tags }))}
+          type="skills"
+          helpText="Match talent proficient in specific equipment, software, or techniques"
+        />
+      </div>
+
+      {/* Availability */}
+      <div>
+        <label htmlFor="talent-filter-availability" className="block text-12 font-semibold text-muted mb-1">
+          Availability
+        </label>
+        <select
+          id="talent-filter-availability"
+          value={filters.availability}
+          onChange={(e) => setFilters((f) => ({ ...f, availability: e.target.value }))}
+          className="select text-13"
+        >
+          <option value="">All availability statuses</option>
+          <option value="open">Available to work</option>
+          <option value="busy">Busy on project</option>
+          <option value="unavailable">Unavailable</option>
+        </select>
+      </div>
+
+      {/* Location */}
+      <div>
+        <label htmlFor="talent-filter-location" className="block text-12 font-semibold text-muted mb-1">
+          Location
+        </label>
+        <input
+          id="talent-filter-location"
+          type="text"
+          value={filters.location}
+          onChange={(e) => setFilters((f) => ({ ...f, location: e.target.value }))}
+          placeholder="e.g. Mumbai, Hyderabad, Bengaluru"
+          className="input text-13"
+        />
+      </div>
+
+      {/* Language */}
+      <div>
+        <label htmlFor="talent-filter-language" className="block text-12 font-semibold text-muted mb-1">
+          Language
+        </label>
+        <input
+          id="talent-filter-language"
+          type="text"
+          value={filters.language}
+          onChange={(e) => setFilters((f) => ({ ...f, language: e.target.value }))}
+          placeholder="e.g. Hindi, Telugu, English"
+          className="input text-13"
+        />
+      </div>
+
+      <div className="pt-2 flex items-center gap-2">
+        <button type="submit" disabled={loading} className="btn-primary w-full text-13">
+          {loading ? 'Searching...' : 'Apply filters'}
+        </button>
+      </div>
+    </form>
+  )
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      <PageHeader
-        title="Find Talent"
-        description={
-          searched
-            ? `${results.length} result${results.length !== 1 ? 's' : ''}${hasFilters ? ' matching your filters' : ''}`
-            : 'Search the talent pool'
-        }
-        action={
-          <button
-            onClick={() => setSidebar(v => !v)}
-            className="sm:hidden btn-secondary text-14 px-3 py-2"
-          >
-            {sidebarOpen ? 'Hide filters' : 'Filters'}
-          </button>
-        }
-      />
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {/* Page Header */}
+      <div className="space-y-1 pb-4 border-b border-line flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-28 font-bold text-ink tracking-tight leading-tight">
+            Find talent
+          </h1>
+          <p className="text-14 text-muted max-w-2xl">
+            {searched
+              ? `${pluralize(results.length, 'verified candidate')}${
+                  hasActiveFilters ? ' matching your filters' : ''
+                }`
+              : 'Explore verified crew and creative talent across all film departments'}
+          </p>
+        </div>
 
-        <div className="flex gap-6">
-          {/* Sidebar desktop */}
-          <aside className="hidden sm:block w-64 shrink-0">
-            <div className="card p-5 sticky top-24">
-              <FilterSidebar
-                filters={filters}
-                onChange={setFilters}
-                onSubmit={handleSubmit}
-                onClear={handleClear}
-                loading={loading}
-              />
-            </div>
-          </aside>
-
-          {/* Sidebar mobile */}
-          {sidebarOpen && (
-            <div className="fixed inset-0 z-50 sm:hidden bg-black/60 flex justify-end">
-              <div className="w-80 bg-surface-card h-full p-6 overflow-y-auto">
-                <FilterSidebar
-                  filters={filters}
-                  onChange={setFilters}
-                  onSubmit={e => { handleSubmit(e); setSidebar(false) }}
-                  onClear={() => { handleClear(); setSidebar(false) }}
-                  loading={loading}
-                />
-              </div>
-            </div>
+        <div className="flex items-center gap-3">
+          {/* Saved Search Alert Link */}
+          {hasActiveFilters && (
+            <Link
+              to={`/alerts?role=${encodeURIComponent(filters.role)}&location=${encodeURIComponent(
+                filters.location
+              )}`}
+              className="btn-secondary text-12 inline-flex items-center gap-1.5"
+            >
+              <Bell size={13} />
+              <span>Create alert from search</span>
+            </Link>
           )}
 
-          {/* Results grid */}
-          <div className="flex-1 min-w-0">
-            {error && (
-              <div className="card p-4 border border-status-error/30 bg-status-error/10 text-status-error text-sm mb-6 flex items-center justify-between gap-3">
-                <span>{error}</span>
+          {/* Mobile Filter Sheet Trigger */}
+          <div className="lg:hidden">
+            <Sheet open={mobileFilterOpen} onOpenChange={setMobileFilterOpen}>
+              <SheetTrigger asChild>
                 <button
                   type="button"
-                  onClick={() => runSearch(filters)}
-                  className="btn-secondary text-xs px-2.5 py-1 inline-flex items-center gap-1.5 shrink-0"
+                  className="btn-secondary text-13 inline-flex items-center gap-1.5"
                 >
-                  <RefreshCw size={12} />
-                  <span>Try again</span>
+                  <SlidersHorizontal size={14} />
+                  <span>Filters {hasActiveFilters ? `(${filters.skills.length + (filters.role ? 1 : 0) + (filters.location ? 1 : 0) + (filters.language ? 1 : 0) + (filters.availability ? 1 : 0)})` : ''}</span>
                 </button>
-              </div>
-            )}
-
-            {loading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[1, 2, 3, 4].map(i => (
-                  <div key={i} className="card p-5 space-y-3">
-                    <div className="flex gap-3">
-                      <div className="skeleton w-11 h-11 rounded-full" />
-                      <div className="space-y-1.5 flex-1">
-                        <div className="skeleton h-4 w-32 rounded" />
-                        <div className="skeleton h-3 w-20 rounded" />
-                      </div>
-                    </div>
-                    <div className="skeleton h-3 w-full rounded" />
-                    <div className="skeleton h-3 w-2/3 rounded" />
-                  </div>
-                ))}
-              </div>
-            ) : results.length === 0 ? (
-              <div className="card p-12 text-center text-content-muted">
-                <p className="text-3xl mb-3">🔍</p>
-                <p className="font-semibold text-content-primary">No talent found</p>
-                <p className="text-xs text-content-tertiary mt-1">Try relaxing your search terms or clearing filters</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {results.map(t => (
-                  <TalentCard key={t.id} talent={t} highlightSkills={highlightSkills} />
-                ))}
-              </div>
-            )}
+              </SheetTrigger>
+              <SheetContent side="right" title="Filters" description="Refine candidates by role, skills, and location">
+                <div className="pt-2">{filterFormContent}</div>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
       </div>
+
+      {/* Main Layout: Sidebar + Dense Result Rows */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        {/* Desktop Sidebar (lg+) */}
+        <aside className="hidden lg:block w-72 shrink-0">
+          <div className="border border-line rounded-sm bg-surface p-5 sticky top-20 shadow-subtle">
+            {filterFormContent}
+          </div>
+        </aside>
+
+        {/* Results Column */}
+        <main className="flex-1 min-w-0 w-full space-y-4">
+          {/* Error Banner */}
+          {error && (
+            <div className="p-4 border border-status-error/30 bg-status-error/10 text-status-error text-13 rounded-sm flex items-center justify-between gap-3">
+              <span>{error}</span>
+              <button
+                type="button"
+                onClick={() => runSearch(filters)}
+                className="btn-secondary text-12 px-2.5 py-1 inline-flex items-center gap-1.5 shrink-0"
+              >
+                <RefreshCw size={12} />
+                <span>Try again</span>
+              </button>
+            </div>
+          )}
+
+          {/* Active Filter Chips bar */}
+          {hasActiveFilters && (
+            <div className="flex flex-wrap items-center gap-1.5 pb-2 text-12">
+              <span className="text-muted font-medium">Active filters:</span>
+              {filters.role && (
+                <span className="inline-flex items-center gap-1 bg-paper px-2 py-0.5 rounded-[2px] border border-line text-ink">
+                  Role: {filters.role}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = { ...filters, role: '' }
+                      setFilters(updated)
+                      updateUrlParams(updated, 1)
+                      runSearch(updated)
+                    }}
+                    className="text-muted hover:text-ink ml-0.5"
+                    aria-label="Remove role filter"
+                  >
+                    <X size={11} />
+                  </button>
+                </span>
+              )}
+              {filters.skills.map((sk) => (
+                <span
+                  key={sk}
+                  className="inline-flex items-center gap-1 bg-paper px-2 py-0.5 rounded-[2px] border border-line text-ink"
+                >
+                  Skill: {sk}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = {
+                        ...filters,
+                        skills: filters.skills.filter((s) => s !== sk),
+                      }
+                      setFilters(updated)
+                      updateUrlParams(updated, 1)
+                      runSearch(updated)
+                    }}
+                    className="text-muted hover:text-ink ml-0.5"
+                    aria-label={`Remove skill ${sk}`}
+                  >
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+              {filters.location && (
+                <span className="inline-flex items-center gap-1 bg-paper px-2 py-0.5 rounded-[2px] border border-line text-ink">
+                  Location: {filters.location}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = { ...filters, location: '' }
+                      setFilters(updated)
+                      updateUrlParams(updated, 1)
+                      runSearch(updated)
+                    }}
+                    className="text-muted hover:text-ink ml-0.5"
+                    aria-label="Remove location filter"
+                  >
+                    <X size={11} />
+                  </button>
+                </span>
+              )}
+              {filters.availability && (
+                <span className="inline-flex items-center gap-1 bg-paper px-2 py-0.5 rounded-[2px] border border-line text-ink">
+                  Status: {filters.availability}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = { ...filters, availability: '' }
+                      setFilters(updated)
+                      updateUrlParams(updated, 1)
+                      runSearch(updated)
+                    }}
+                    className="text-muted hover:text-ink ml-0.5"
+                    aria-label="Remove availability filter"
+                  >
+                    <X size={11} />
+                  </button>
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Loading Skeleton */}
+          {loading && (
+            <div className="border border-line rounded-sm bg-surface divide-y divide-line">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="p-4 sm:p-5 flex items-start gap-4 animate-pulse">
+                  <div className="w-12 h-12 rounded-sm bg-paper shrink-0" />
+                  <div className="space-y-2 flex-1">
+                    <div className="h-4 bg-paper rounded w-1/3" />
+                    <div className="h-3 bg-paper rounded w-1/4" />
+                    <div className="h-3 bg-paper rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Empty State with Lucide Icon (no emoji) */}
+          {!loading && results.length === 0 && (
+            <div className="border border-dashed border-line rounded-sm p-12 text-center bg-surface space-y-3">
+              <Users size={36} className="mx-auto text-muted opacity-60" />
+              <h2 className="text-16 font-bold text-ink">No talent found</h2>
+              <p className="text-13 text-muted max-w-md mx-auto">
+                Try adjusting your search terms, removing required skills, or clearing filters to discover more candidates.
+              </p>
+              {hasActiveFilters && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleClearFilters}
+                    className="btn-secondary text-13"
+                  >
+                    Clear all filters
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Result Rows (film-set row layout) */}
+          {!loading && results.length > 0 && (
+            <div className="border border-line rounded-sm bg-surface divide-y divide-line overflow-hidden shadow-subtle">
+              {displayedTalent.map((t) => {
+                const name = t.full_name || 'Anonymous Talent'
+                const primaryRole = t.role || t.roles?.[0] || 'Film Crew'
+                const dept = resolveDepartment(primaryRole)
+
+                const availabilityConfig = {
+                  open: { label: 'Available', variant: 'success' as const },
+                  busy: { label: 'Busy', variant: 'warning' as const },
+                  unavailable: { label: 'Unavailable', variant: 'neutral' as const },
+                }[t.availability || 'open'] || { label: 'Available', variant: 'neutral' as const }
+
+                return (
+                  <div
+                    key={t.id}
+                    className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-paper/30 transition-colors"
+                  >
+                    {/* Candidate Info */}
+                    <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                      <Avatar
+                        src={t.avatar_url}
+                        fallback={name}
+                        size="md"
+                        className="rounded-sm shrink-0 mt-0.5"
+                      />
+
+                      <div className="space-y-1.5 flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Link
+                            to={`/profile/${t.id}`}
+                            className="font-bold text-15 text-ink hover:underline truncate leading-tight"
+                          >
+                            {name}
+                          </Link>
+                          <DepartmentMark department={dept} label={primaryRole} size="sm" />
+                          <Badge variant={availabilityConfig.variant} size="sm">
+                            {availabilityConfig.label}
+                          </Badge>
+                        </div>
+
+                        {/* Secondary roles */}
+                        {t.roles && t.roles.length > 1 && (
+                          <div className="flex flex-wrap items-center gap-1 text-11 text-muted">
+                            <span className="font-medium">Also:</span>
+                            {t.roles
+                              .filter((r) => r !== primaryRole)
+                              .slice(0, 3)
+                              .map((r) => (
+                                <span
+                                  key={r}
+                                  className="bg-paper px-1.5 py-0.5 rounded-[2px] border border-line/60"
+                                >
+                                  {r}
+                                </span>
+                              ))}
+                          </div>
+                        )}
+
+                        {/* Meta items: separate muted elements without middle dots */}
+                        <div className="flex flex-wrap items-center gap-1.5 text-12 text-muted">
+                          {t.location && (
+                            <span className="inline-flex items-center gap-1 bg-paper px-1.5 py-0.5 rounded-[2px] border border-line/60">
+                              <MapPin size={11} className="shrink-0" />
+                              <span>{t.location}</span>
+                            </span>
+                          )}
+                          <span className="bg-paper px-1.5 py-0.5 rounded-[2px] border border-line/60 tnum">
+                            {t.experience_years
+                              ? `${t.experience_years}y exp`
+                              : 'Entry level'}
+                          </span>
+                          {t.language && (
+                            <span className="inline-flex items-center gap-1 bg-paper px-1.5 py-0.5 rounded-[2px] border border-line/60">
+                              <Languages size={11} className="shrink-0" />
+                              <span>{t.language}</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Bio snippet */}
+                        {t.bio && (
+                          <p className="reading-text prose-serif text-13 text-muted line-clamp-1 max-w-2xl">
+                            {t.bio}
+                          </p>
+                        )}
+
+                        {/* Skills with highlighted matches */}
+                        {t.skills && t.skills.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 pt-1">
+                            {t.skills.slice(0, 7).map((skill) => {
+                              const isMatch = searchSkillsSet.has(skill.toLowerCase().trim())
+                              return (
+                                <span
+                                  key={skill}
+                                  className={`text-11 px-1.5 py-0.5 rounded-[2px] border transition-colors ${
+                                    isMatch
+                                      ? 'bg-tungsten/15 text-ink border-tungsten/60 font-semibold'
+                                      : 'bg-paper text-muted border-line/60'
+                                  }`}
+                                >
+                                  {skill}
+                                </span>
+                              )
+                            })}
+                            {t.skills.length > 7 && (
+                              <span className="text-11 text-muted">
+                                +{t.skills.length - 7} more
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action button */}
+                    <div className="shrink-0 md:self-center pt-2 md:pt-0">
+                      <Link
+                        to={`/profile/${t.id}`}
+                        className="btn-secondary text-13 px-4 py-1.5"
+                      >
+                        View profile
+                      </Link>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {!loading && results.length > ITEMS_PER_PAGE && (
+            <div className="border border-line rounded-sm bg-surface px-4 py-2">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={results.length}
+                itemsPerPage={ITEMS_PER_PAGE}
+                onPageChange={handlePageChange}
+              />
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
   )
 }
-
-export default Search
